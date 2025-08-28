@@ -34,6 +34,12 @@ class Mesh
 public:
     vector<Vertex> vertices;
     vector<uint32_t> indices;
+
+    void clear() { 
+        vertices.clear();
+        indices.clear();
+        indices16.clear();
+    }
 private:
     vector<uint16_t> indices16;
 };
@@ -43,6 +49,13 @@ class SkinedMesh
 public:
     vector<SkinedVertex> vertices;
     vector<uint32_t> indices;
+
+    void clear()
+    {
+        vertices.clear();
+        indices.clear();
+        indices16.clear();
+    }
 private:
     vector<uint16_t> indices16;
 };

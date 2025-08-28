@@ -132,6 +132,7 @@
     <ClCompile Include="GeometryGenerator.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MathHelper.cpp" />
+    <ClCompile Include="ModelLoader.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h" />
@@ -143,6 +144,7 @@
     <ClInclude Include="GeometryGenerator.h" />
     <ClInclude Include="MathHelper.h" />
     <ClInclude Include="Mesh.h" />
+    <ClInclude Include="ModelLoader.h" />
     <ClInclude Include="UploadBuffer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

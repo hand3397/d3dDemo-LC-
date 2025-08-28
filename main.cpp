@@ -470,11 +470,19 @@ void Direct3DDemo::LoadTextures() {
 		mCommandList.Get(), fenceTex->Filename.c_str(),
 		fenceTex->Resource, fenceTex->UploadHeap));
 
+	auto soldierTex = std::make_unique<Texture>();
+	soldierTex->Name = "soldierTex";
+	soldierTex->Filename = L"Textures/soldier.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+		mCommandList.Get(), soldierTex->Filename.c_str(),
+		soldierTex->Resource, soldierTex->UploadHeap));
+
 	textures[bricksTex->Name] = std::move(bricksTex);
 	textures[stoneTex->Name] = std::move(stoneTex);
 	textures[tileTex->Name] = std::move(tileTex);
 	textures[iceTex->Name] = std::move(iceTex);
 	textures[fenceTex->Name] = std::move(fenceTex);
+	textures[soldierTex->Name] = std::move(soldierTex);
 }
 
 void Direct3DDemo::BuildRootSignature() {
@@ -544,6 +552,7 @@ void Direct3DDemo::BuildDescriptorHeaps() {
 	auto tileTex = textures["tileTex"]->Resource;
 	auto iceTex = textures["iceTex"]->Resource;
 	auto fenceTex = textures["fenceTex"]->Resource;
+	auto soldierTex = textures["soldierTex"]->Resource;
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -580,6 +589,12 @@ void Direct3DDemo::BuildDescriptorHeaps() {
 
 	srvDesc.Format = fenceTex->GetDesc().Format;
 	md3dDevice->CreateShaderResourceView(fenceTex.Get(), &srvDesc, hDescriptor);
+
+	// next descriptor
+	hDescriptor.Offset(1, cbvSrvDescriptorSize);
+
+	srvDesc.Format = soldierTex->GetDesc().Format;
+	md3dDevice->CreateShaderResourceView(soldierTex.Get(), &srvDesc, hDescriptor);
 }
 
 void Direct3DDemo::BuildShadersAndInputLayout() {
@@ -862,11 +877,20 @@ void Direct3DDemo::BuildMaterials() {
 	wirefence->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	wirefence->Roughness = 0.25f;
 
+	auto soldier = std::make_unique<Material>();
+	soldier->Name = "soldier";
+	soldier->MatCBIndex = 5;
+	soldier->DiffuseSrvHeapIndex = 5;
+	soldier->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	soldier->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	soldier->Roughness = 0.25f;
+
 	materials["bricks0"] = std::move(bricks0);
 	materials["stone0"] = std::move(stone0);
 	materials["tile0"] = std::move(tile0);
 	materials["ice0"] = std::move(ice0);
 	materials["wirefence"] = std::move(wirefence);
+	materials["soldier"] = std::move(soldier);
 }
 
 void Direct3DDemo::BuildRenderItems() {
