@@ -37,13 +37,6 @@ struct PassConstants
     Light Lights[MaxLights];
 };
 
-struct Vertex
-{
-    DirectX::XMFLOAT3 Pos;
-    DirectX::XMFLOAT3 Normal;
-    DirectX::XMFLOAT2 TexC;
-};
-
 // CPU가 한 프레임의 명령 목록들을 구축하는 데 필요한 자원들을 대표하는 클래스
 // 응용 프로그램마다 필요한 자원이 다를 것 이므로, 이런 클래스의 멤버 구성 역시 
 // 응용 프로그램마다 달라야한다.
