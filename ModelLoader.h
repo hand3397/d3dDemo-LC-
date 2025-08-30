@@ -1,6 +1,6 @@
 #pragma once
 #include "Mesh.h"
-#include "include/cglft/cgltf.h"
+#include "include/cgltf/cgltf.h"
 #include "SkinnedData.h"
 
 class ModelLoader
@@ -13,8 +13,10 @@ public:
     void ReadSkinedMesh(cgltf_data* data);
 
     void Clear();
-private:
+public:
     Mesh mesh;
     SkinedMesh skinedMesh;
+
+    vector<Submesh> submeshes;
 };
 

@@ -1,7 +1,6 @@
 #pragma once
 
-#include "MathHelper.h"
-#include <vector>
+#include "d3dUtil.h"
 
 using namespace std;
 using namespace DirectX;
@@ -27,6 +26,19 @@ struct SkinedVertex : Vertex
 
     XMFLOAT3 BoneWeights = XMFLOAT3(0.0f, 0.0f, 0.0f);
     BYTE BoneIndices[4] = {0, 0, 0, 0};
+};
+
+struct Submesh
+{
+    Submesh() = default;
+    Submesh(uint32_t indexCount, uint32_t startIndexLocation, int baseVertexLocation, BoundingBox boundingBox) :
+        IndexCount(indexCount), StartIndexLocation(startIndexLocation), BaseVertexLocation(baseVertexLocation), Bounds(boundingBox) {}
+
+    uint32_t IndexCount = 0;
+    uint32_t StartIndexLocation = 0;
+    int BaseVertexLocation = 0;
+
+    BoundingBox Bounds;
 };
 
 class Mesh

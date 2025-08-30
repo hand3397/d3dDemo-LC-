@@ -4,6 +4,7 @@
 #include "FrameResource.h"
 #include "GeometryGenerator.h"
 #include "Camera.h"
+#include "ModelLoader.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -76,6 +77,7 @@ private:
 	void UpdateMaterialCBs(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 
+	void LoadModels();
 	void LoadTextures();
 	void BuildRootSignature();
 	void BuildDescriptorHeaps();
@@ -176,6 +178,7 @@ bool Direct3DDemo::Initialize()
 
 	mainCamera.SetPosition(0.0f, 2.0f, -15.0f);
 
+	LoadModels();
 	LoadTextures();
 	BuildRootSignature();
 	BuildDescriptorHeaps();
@@ -432,6 +435,41 @@ void Direct3DDemo::UpdateMainPassCB(const GameTimer& gt) {
 
 	auto currPassCB = currFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mainPassCB);
+}
+
+void Direct3DDemo::LoadModels()
+{
+	ModelLoader modelLoader;
+	modelLoader.ReadModel("Models/Soldier/Soldier.glb");
+
+	const UINT vbByteSize = (UINT)modelLoader.skinedMesh.vertices.size() * sizeof(Vertex);
+	const UINT ibByteSize = (UINT)modelLoader.skinedMesh.indices.size() * sizeof(std::uint32_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "skinedGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), modelLoader.skinedMesh.vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), modelLoader.skinedMesh.indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), modelLoader.skinedMesh.vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), modelLoader.skinedMesh.indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	for (int i = 0; i < modelLoader.submeshes.size(); i++) {
+		//geo->DrawArgs["1"] = modelLoader.submeshes[i];
+	}
+
+	geometries[geo->Name] = std::move(geo);
 }
 
 void Direct3DDemo::LoadTextures() {
@@ -716,14 +754,14 @@ void Direct3DDemo::BuildShapeGeometry() {
 		vertices[k].TexC = cylinder.Vertices[i].TexC;
 	}
 
-	std::vector<std::uint16_t> indices;
-	indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16()));
-	indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
-	indices.insert(indices.end(), std::begin(sphere.GetIndices16()), std::end(sphere.GetIndices16()));
-	indices.insert(indices.end(), std::begin(cylinder.GetIndices16()), std::end(cylinder.GetIndices16()));
+	std::vector<std::uint32_t> indices;
+	indices.insert(indices.end(), std::begin(box.Indices32), std::end(box.Indices32));
+	indices.insert(indices.end(), std::begin(grid.Indices32), std::end(grid.Indices32));
+	indices.insert(indices.end(), std::begin(sphere.Indices32), std::end(sphere.Indices32));
+	indices.insert(indices.end(), std::begin(cylinder.Indices32), std::end(cylinder.Indices32));
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint32_t);
 
 	auto geo = std::make_unique<MeshGeometry>();
 	geo->Name = "shapeGeo";
@@ -742,7 +780,7 @@ void Direct3DDemo::BuildShapeGeometry() {
 
 	geo->VertexByteStride = sizeof(Vertex);
 	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
 	geo->DrawArgs["box"] = boxSubmesh;
