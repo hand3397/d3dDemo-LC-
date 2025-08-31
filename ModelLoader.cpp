@@ -22,14 +22,14 @@ bool ModelLoader::ReadModel(const char* filename)
         return false;
     }
 
-    ReadSkinedMesh(data);
+    ReadSkinnedMesh(data);
     
     cgltf_free(data);
 
     return true;
 }
 
-void ModelLoader::ReadSkinedMesh(cgltf_data* data)
+void ModelLoader::ReadSkinnedMesh(cgltf_data* data)
 {
     int numMeshes = data->meshes_count;
     size_t baseVertex = 0;
@@ -86,7 +86,7 @@ void ModelLoader::ReadSkinedMesh(cgltf_data* data)
             submesh.Bounds = boundingBox;
 
             for (size_t i = 0; i < posAccessor->count; ++i) {
-                SkinedVertex v;
+                SkinnedVertex v;
                 float temp[4] = {};
                 unsigned int indexTemp[4] = {};
 
@@ -114,7 +114,7 @@ void ModelLoader::ReadSkinedMesh(cgltf_data* data)
                     v. = XMFLOAT4(temp[0], temp[1], temp[2], temp[3]);
                 }
                 */
-                skinedMesh.vertices.push_back(v);
+                skinnedMesh.vertices.push_back(v);
             }
 
             // 인덱스 읽기
@@ -125,7 +125,7 @@ void ModelLoader::ReadSkinedMesh(cgltf_data* data)
                 for (size_t i = 0; i < indexAccessor->count; ++i) {
                     uint32_t idx = 0;
                     cgltf_accessor_read_uint(indexAccessor, i, &idx, 1);
-                    skinedMesh.indices.push_back(idx);
+                    skinnedMesh.indices.push_back(idx);
                 }
             }
             else // indices 없는 경우 순서대로
@@ -133,7 +133,7 @@ void ModelLoader::ReadSkinedMesh(cgltf_data* data)
                 baseIndex += posAccessor->count;
                 numIndices = posAccessor->count;
                 for (size_t i = 0; i < posAccessor->count; ++i)
-                    skinedMesh.indices.push_back((uint32_t)i);
+                    skinnedMesh.indices.push_back((uint32_t)i);
             }
 
             submesh.IndexCount = numIndices;
@@ -145,5 +145,5 @@ void ModelLoader::ReadSkinedMesh(cgltf_data* data)
 void ModelLoader::Clear()
 {
     mesh.clear();
-    skinedMesh.clear();
+    skinnedMesh.clear();
 }

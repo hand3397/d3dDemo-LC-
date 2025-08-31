@@ -10,12 +10,12 @@ public:
     ~ModelLoader() {}
     
     bool ReadModel(const char* filename);
-    void ReadSkinedMesh(cgltf_data* data);
+    void ReadSkinnedMesh(cgltf_data* data);
 
     void Clear();
 public:
     Mesh mesh;
-    SkinedMesh skinedMesh;
+    SkinnedMesh skinnedMesh;
 
     vector<Submesh> submeshes;
 };

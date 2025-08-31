@@ -12,6 +12,30 @@ using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
 
+struct SkinnedModelInstance
+{
+	SkinnedData* SkinnedInfo = nullptr;
+	std::vector<DirectX::XMFLOAT4X4> FinalTransforms;
+	std::string ClipName;
+	float TimePos = 0.0f;
+
+	// Called every frame and increments the time position, interpolates the 
+	// animations for each bone based on the current animation clip, and 
+	// generates the final transforms which are ultimately set to the effect
+	// for processing in the vertex shader.
+	void UpdateSkinnedAnimation(float dt)
+	{
+		TimePos += dt;
+
+		// Loop animation
+		if (TimePos > SkinnedInfo->GetClipEndTime(ClipName))
+			TimePos = 0.0f;
+
+		// Compute the final transforms for this time position.
+		SkinnedInfo->GetFinalTransforms(ClipName, TimePos, FinalTransforms);
+	}
+};
+
 // 하나의 물체를 그리는 데 필요한 매개변수들을 담는 가벼운 구조체
 // 이런 구조체의 구체적인 구성은 응용 프로그램마다 다를 수 있다.
 struct RenderItem {
@@ -43,12 +67,19 @@ struct RenderItem {
 	UINT indexCount = 0;
 	UINT startIndexLocation = 0;
 	int baseVertexLocation = 0;
+
+	// Only applicable to skinned render-items.
+	UINT SkinnedCBIndex = -1;
+
+	// nullptr if this render-item is not animated by skinned mesh.
+	SkinnedModelInstance* SkinnedModelInst = nullptr;
 };
 
 enum class RenderLayer : unsigned int {
 	Opaque = 0,
 	Transparent,
 	AlphaTested,
+	Skinned,
 	Count
 };
 
@@ -74,6 +105,7 @@ private:
 	void OnKeyboardInput(const GameTimer& gt);
 	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
+	void UpdateSkinnedCBs(const GameTimer& gt);
 	void UpdateMaterialCBs(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 
@@ -110,6 +142,7 @@ private:
 	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> PSOs;
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayout;
+	std::vector<D3D12_INPUT_ELEMENT_DESC> skinnedInputLayout;
 
 	// List of all the render items.
 	std::vector<std::unique_ptr<RenderItem>> allRenderItems;
@@ -118,6 +151,8 @@ private:
 	std::vector<RenderItem*> renderItemLayer[(unsigned int)RenderLayer::Count];
 
 	PassConstants mainPassCB;
+
+	std::unique_ptr<SkinnedModelInstance> skinnedModelInst;
 
 	bool isWireframe = false;
 
@@ -228,6 +263,7 @@ void Direct3DDemo::Update(const GameTimer& gt)
 
 	AnimateMaterials(gt);
 	UpdateObjectCBs(gt);
+	UpdateSkinnedCBs(gt);
 	UpdateMaterialCBs(gt);
 	UpdateMainPassCB(gt);
 }
@@ -269,7 +305,7 @@ void Direct3DDemo::Draw(const GameTimer& gt)
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
 	auto passCB = currFrameResource->PassCB->Resource();
-	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
+	mCommandList->SetGraphicsRootConstantBufferView(3, passCB->GetGPUVirtualAddress());
 
 	// ---------------------------------------------------------
 	
@@ -280,6 +316,9 @@ void Direct3DDemo::Draw(const GameTimer& gt)
 
 	mCommandList->SetPipelineState(PSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), renderItemLayer[(unsigned int)RenderLayer::Transparent]);
+
+	mCommandList->SetPipelineState(PSOs["skinnedOpaque"].Get());
+	DrawRenderItems(mCommandList.Get(), renderItemLayer[(unsigned int)RenderLayer::Skinned]);
 
 	// ---------------------------------------------------------
 
@@ -380,6 +419,17 @@ void Direct3DDemo::UpdateObjectCBs(const GameTimer& gt) {
 	}
 }
 
+void Direct3DDemo::UpdateSkinnedCBs(const GameTimer& gt)
+{
+	auto currSkinnedCB = currFrameResource->SkinnedCB.get();
+
+	SkinnedConstants skinnedConstants;
+	for (int i = 0; i < 96; ++i)
+		skinnedConstants.BoneTransforms[i] = MathHelper::Identity4x4();
+
+	currSkinnedCB->CopyData(0, skinnedConstants);
+}
+
 void Direct3DDemo::UpdateMaterialCBs(const GameTimer& gt) {
 	auto currMaterialCB = currFrameResource->MaterialCB.get();
 	for (auto& e : materials) {
@@ -442,32 +492,33 @@ void Direct3DDemo::LoadModels()
 	ModelLoader modelLoader;
 	modelLoader.ReadModel("Models/Soldier/Soldier.glb");
 
-	const UINT vbByteSize = (UINT)modelLoader.skinedMesh.vertices.size() * sizeof(Vertex);
-	const UINT ibByteSize = (UINT)modelLoader.skinedMesh.indices.size() * sizeof(std::uint32_t);
+	skinnedModelInst = std::make_unique<SkinnedModelInstance>();
+
+	const UINT vbByteSize = (UINT)modelLoader.skinnedMesh.vertices.size() * sizeof(SkinnedVertex);
+	const UINT ibByteSize = (UINT)modelLoader.skinnedMesh.indices.size() * sizeof(std::uint32_t);
 
 	auto geo = std::make_unique<MeshGeometry>();
-	geo->Name = "skinedGeo";
+	geo->Name = "skinnedGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), modelLoader.skinedMesh.vertices.data(), vbByteSize);
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), modelLoader.skinnedMesh.vertices.data(), vbByteSize);
 
 	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), modelLoader.skinedMesh.indices.data(), ibByteSize);
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), modelLoader.skinnedMesh.indices.data(), ibByteSize);
 
 	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), modelLoader.skinedMesh.vertices.data(), vbByteSize, geo->VertexBufferUploader);
+		mCommandList.Get(), modelLoader.skinnedMesh.vertices.data(), vbByteSize, geo->VertexBufferUploader);
 
 	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), modelLoader.skinedMesh.indices.data(), ibByteSize, geo->IndexBufferUploader);
+		mCommandList.Get(), modelLoader.skinnedMesh.indices.data(), ibByteSize, geo->IndexBufferUploader);
 
-	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexByteStride = sizeof(SkinnedVertex);
 	geo->VertexBufferByteSize = vbByteSize;
 	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
-	for (int i = 0; i < modelLoader.submeshes.size(); i++) {
-		//geo->DrawArgs["1"] = modelLoader.submeshes[i];
-	}
+	geo->DrawArgs["0"] = modelLoader.submeshes[0];
+	geo->DrawArgs["1"] = modelLoader.submeshes[1];
 
 	geometries[geo->Name] = std::move(geo);
 }
@@ -537,18 +588,19 @@ void Direct3DDemo::BuildRootSignature() {
 		0); // register t0
 
 	// Root parameter can be a table, root descriptor or root constants.
-	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
+	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
 
 	// Create root CBVs.
 	slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 	slotRootParameter[1].InitAsConstantBufferView(0); // register b0
 	slotRootParameter[2].InitAsConstantBufferView(1); // register b1
 	slotRootParameter[3].InitAsConstantBufferView(2); // register b2
+	slotRootParameter[4].InitAsConstantBufferView(3); // register b3
 
 	auto staticSamplers = GetStaticSamplers();
 
 	// A root signature is an array of root parameters.
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter, 
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter, 
 		(UINT)staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
@@ -639,25 +691,42 @@ void Direct3DDemo::BuildShadersAndInputLayout() {
 	const D3D_SHADER_MACRO defines[] =
 	{
 		//"FOG", "1",
-		NULL, NULL
+		{ NULL, NULL }
 	};
 	
 	const D3D_SHADER_MACRO alphaTestDefines[] =
 	{
 		//"FOG", "1",
-		"ALPHA_TEST", "1",
-		NULL, NULL
+		{ "ALPHA_TEST", "1" },
+		{ NULL, NULL }
 	};
 
-	shaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", nullptr, "VS", "vs_5_1");
-	shaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", defines, "PS", "ps_5_1");
-	shaders["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders\\Default.hlsl", alphaTestDefines, "PS", "ps_5_1");
+	const D3D_SHADER_MACRO skinnedDefines[] =
+	{
+		{ "SKINNED", "1" },
+		{ NULL, NULL }
+	};
+
+	shaders["standardVS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", nullptr, "VS", "vs_5_1");
+	shaders["skinnedVS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", skinnedDefines, "VS", "vs_5_1");
+	shaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", defines, "PS", "ps_5_1");
+	shaders["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", alphaTestDefines, "PS", "ps_5_1");
 
 	inputLayout =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
+
+	skinnedInputLayout =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "WEIGHTS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 44, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "BONEINDICES", 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, 56, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
 }
 
@@ -688,7 +757,7 @@ void Direct3DDemo::BuildShapeGeometry() {
 	// Define the SubmeshGeometry that cover different 
 	// regions of the vertex/index buffers.
 
-	SubmeshGeometry boxSubmesh;
+	Submesh boxSubmesh;
 	boxSubmesh.IndexCount = (UINT)box.Indices32.size();
 	boxSubmesh.StartIndexLocation = boxIndexOffset;
 	boxSubmesh.BaseVertexLocation = boxVertexOffset;
@@ -696,21 +765,21 @@ void Direct3DDemo::BuildShapeGeometry() {
 	boxSubmesh.Bounds.Extents = XMFLOAT3(0.5f, 0.5f, 0.5f);
 
 	geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
-	SubmeshGeometry gridSubmesh;
+	Submesh gridSubmesh;
 	gridSubmesh.IndexCount = (UINT)grid.Indices32.size();
 	gridSubmesh.StartIndexLocation = gridIndexOffset;
 	gridSubmesh.BaseVertexLocation = gridVertexOffset;
 	gridSubmesh.Bounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
 	gridSubmesh.Bounds.Extents = XMFLOAT3(10.0f, 0.01f, 30.0f);
 
-	SubmeshGeometry sphereSubmesh;
+	Submesh sphereSubmesh;
 	sphereSubmesh.IndexCount = (UINT)sphere.Indices32.size();
 	sphereSubmesh.StartIndexLocation = sphereIndexOffset;
 	sphereSubmesh.BaseVertexLocation = sphereVertexOffset;
 	sphereSubmesh.Bounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
 	sphereSubmesh.Bounds.Extents = XMFLOAT3(0.5f, 0.5f, 0.5f);
 
-	SubmeshGeometry cylinderSubmesh;
+	Submesh cylinderSubmesh;
 	cylinderSubmesh.IndexCount = (UINT)cylinder.Indices32.size();
 	cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
 	cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
@@ -865,12 +934,25 @@ void Direct3DDemo::BuildPSOs() {
 	};
 	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&PSOs["alphaTested"])));
+
+	//
+	// PSO for skinned objects
+	//
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedOpaquePsoDesc = opaquePsoDesc;
+	skinnedOpaquePsoDesc.InputLayout = { skinnedInputLayout.data(), (UINT)skinnedInputLayout.size() };
+	skinnedOpaquePsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(shaders["skinnedVS"]->GetBufferPointer()),
+		shaders["skinnedVS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skinnedOpaquePsoDesc, IID_PPV_ARGS(&PSOs["skinnedOpaque"])));
 }
 
 void Direct3DDemo::BuildFrameResources() {
 	for (int i = 0; i < gNumFrameResources; ++i) {
 		frameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
-			1, (UINT)allRenderItems.size(), (UINT)materials.size()));
+			1, (UINT)allRenderItems.size(), 1, (UINT)materials.size()));
 	}
 }
 
@@ -977,6 +1059,32 @@ void Direct3DDemo::BuildRenderItems() {
 	renderItemLayer[(unsigned int)RenderLayer::Opaque].push_back(gridRitem.get());
 	allRenderItems.push_back(std::move(gridRitem));
 
+	//---------------------------------------
+	
+	auto skinnedRitem = std::make_unique<RenderItem>();
+	skinnedRitem->world = MathHelper::Identity4x4();
+	skinnedRitem->objCBIndex = objCBIndex++;
+	skinnedRitem->material = materials["soldier"].get();
+	skinnedRitem->geo = geometries["skinnedGeo"].get();
+	skinnedRitem->primitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	skinnedRitem->indexCount = skinnedRitem->geo->DrawArgs["0"].IndexCount;
+	skinnedRitem->startIndexLocation = skinnedRitem->geo->DrawArgs["0"].StartIndexLocation;
+	skinnedRitem->baseVertexLocation = skinnedRitem->geo->DrawArgs["0"].BaseVertexLocation;
+	skinnedRitem->SkinnedCBIndex = 0;
+	skinnedRitem->SkinnedModelInst = skinnedModelInst.get();
+
+	auto skinned2Ritem = std::make_unique<RenderItem>(*skinnedRitem);
+
+	renderItemLayer[(unsigned int)RenderLayer::Skinned].push_back(skinnedRitem.get());
+	allRenderItems.push_back(std::move(skinnedRitem));
+
+	skinned2Ritem->indexCount = skinned2Ritem->geo->DrawArgs["1"].IndexCount;
+	skinned2Ritem->startIndexLocation = skinned2Ritem->geo->DrawArgs["1"].StartIndexLocation;
+	skinned2Ritem->baseVertexLocation = skinned2Ritem->geo->DrawArgs["1"].BaseVertexLocation;
+	renderItemLayer[(unsigned int)RenderLayer::Skinned].push_back(skinned2Ritem.get());
+	allRenderItems.push_back(std::move(skinned2Ritem));
+	//---------------------------------------
+	
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.0f, 1.0f, 1.0f);
 	for (int i = 0; i < 5; ++i) {
 		auto leftCylRitem = std::make_unique<RenderItem>();
@@ -1047,11 +1155,13 @@ void Direct3DDemo::BuildRenderItems() {
 
 void Direct3DDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems) {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+	UINT skinnedCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(SkinnedConstants));
 	UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
-
+	
 	auto objectCB = currFrameResource->ObjectCB->Resource();
+	auto skinnedCB = currFrameResource->SkinnedCB->Resource();
 	auto materialCB = currFrameResource->MaterialCB->Resource();
-
+	
 	// For each render item...
 	for (size_t i = 0; i < ritems.size(); ++i) {
 		auto ri = ritems[i];
@@ -1068,7 +1178,16 @@ void Direct3DDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std
 
 		cmdList->SetGraphicsRootDescriptorTable(0, tex);
 		cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
-		cmdList->SetGraphicsRootConstantBufferView(3, matCBAddress);
+
+		if (ri->SkinnedModelInst != nullptr) {
+			D3D12_GPU_VIRTUAL_ADDRESS skinnedCBAddress = skinnedCB->GetGPUVirtualAddress() + ri->SkinnedCBIndex * skinnedCBByteSize;
+			cmdList->SetGraphicsRootConstantBufferView(2, skinnedCBAddress);
+		}
+		else {
+			cmdList->SetGraphicsRootConstantBufferView(2, 0);
+		}
+
+		cmdList->SetGraphicsRootConstantBufferView(4, matCBAddress);
 
 		cmdList->DrawIndexedInstanced(ri->indexCount, 1, ri->startIndexLocation, ri->baseVertexLocation, 0);
 	}
