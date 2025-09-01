@@ -15,8 +15,8 @@ const int gNumFrameResources = 3;
 struct SkinnedModelInstance
 {
 	SkinnedData* SkinnedInfo = nullptr;
-	std::vector<DirectX::XMFLOAT4X4> FinalTransforms;
-	std::string ClipName;
+	vector<DirectX::XMFLOAT4X4> FinalTransforms;
+	string ClipName;
 	float TimePos = 0.0f;
 
 	// Called every frame and increments the time position, interpolates the 
@@ -119,13 +119,13 @@ private:
 	void BuildFrameResources();
 	void BuildMaterials();
 	void BuildRenderItems();
-	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
+	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const vector<RenderItem*>& ritems);
 	
-	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
+	array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 
 private:
 
-	std::vector<std::unique_ptr<FrameResource>> frameResources;
+	vector<unique_ptr<FrameResource>> frameResources;
 	FrameResource* currFrameResource = nullptr;
 	int currFrameResourceIndex = 0;
 
@@ -135,24 +135,25 @@ private:
 
 	ComPtr<ID3D12DescriptorHeap> srvDescriptorHeap = nullptr;
 
-	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> geometries;
-	std::unordered_map<std::string, std::unique_ptr<Material>> materials;
-	std::unordered_map<std::string, std::unique_ptr<Texture>> textures;
-	std::unordered_map<std::string, ComPtr<ID3DBlob>> shaders;
-	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> PSOs;
+	unordered_map<string, unique_ptr<MeshGeometry>> geometries;
+	unordered_map<string, unique_ptr<Material>> materials;
+	unordered_map<string, unique_ptr<Texture>> textures; 
+	unordered_map<string, unique_ptr<SkinnedData>> skinnedData;
+	unordered_map<string, ComPtr<ID3DBlob>> shaders;
+	unordered_map<string, ComPtr<ID3D12PipelineState>> PSOs;
 
-	std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayout;
-	std::vector<D3D12_INPUT_ELEMENT_DESC> skinnedInputLayout;
+	vector<D3D12_INPUT_ELEMENT_DESC> inputLayout;
+	vector<D3D12_INPUT_ELEMENT_DESC> skinnedInputLayout;
 
 	// List of all the render items.
-	std::vector<std::unique_ptr<RenderItem>> allRenderItems;
+	vector<unique_ptr<RenderItem>> allRenderItems;
 
 	// Render items divided by PSO.
-	std::vector<RenderItem*> renderItemLayer[(unsigned int)RenderLayer::Count];
+	vector<RenderItem*> renderItemLayer[(unsigned int)RenderLayer::Count];
 
 	PassConstants mainPassCB;
 
-	std::unique_ptr<SkinnedModelInstance> skinnedModelInst;
+	unique_ptr<SkinnedModelInstance> skinnedModelInst;
 
 	bool isWireframe = false;
 
@@ -491,13 +492,16 @@ void Direct3DDemo::LoadModels()
 {
 	ModelLoader modelLoader;
 	modelLoader.ReadModel("Models/Soldier/Soldier.glb");
+	modelLoader.ReadAnimation("Models/Soldier/Animation/RunForward.glb", "RunForward");
 
-	skinnedModelInst = std::make_unique<SkinnedModelInstance>();
+	skinnedData["skinned"] = make_unique<SkinnedData>(move(modelLoader.skinnedData));
+	skinnedModelInst = make_unique<SkinnedModelInstance>();
+	skinnedModelInst.get()->SkinnedInfo = skinnedData["skinned"].get();
 
 	const UINT vbByteSize = (UINT)modelLoader.skinnedMesh.vertices.size() * sizeof(SkinnedVertex);
-	const UINT ibByteSize = (UINT)modelLoader.skinnedMesh.indices.size() * sizeof(std::uint32_t);
+	const UINT ibByteSize = (UINT)modelLoader.skinnedMesh.indices.size() * sizeof(uint32_t);
 
-	auto geo = std::make_unique<MeshGeometry>();
+	auto geo = make_unique<MeshGeometry>();
 	geo->Name = "skinnedGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
@@ -520,58 +524,58 @@ void Direct3DDemo::LoadModels()
 	geo->DrawArgs["0"] = modelLoader.submeshes[0];
 	geo->DrawArgs["1"] = modelLoader.submeshes[1];
 
-	geometries[geo->Name] = std::move(geo);
+	geometries[geo->Name] = move(geo);
 }
 
 void Direct3DDemo::LoadTextures() {
-	auto bricksTex = std::make_unique<Texture>();
+	auto bricksTex = make_unique<Texture>();
 	bricksTex->Name = "bricksTex";
 	bricksTex->Filename = L"Textures/d3d12/bricks.dds";
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 		mCommandList.Get(), bricksTex->Filename.c_str(),
 		bricksTex->Resource, bricksTex->UploadHeap));
 
-	auto stoneTex = std::make_unique<Texture>();
+	auto stoneTex = make_unique<Texture>();
 	stoneTex->Name = "stoneTex";
 	stoneTex->Filename = L"Textures/d3d12/stone.dds";
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 		mCommandList.Get(), stoneTex->Filename.c_str(),
 		stoneTex->Resource, stoneTex->UploadHeap));
 
-	auto tileTex = std::make_unique<Texture>();
+	auto tileTex = make_unique<Texture>();
 	tileTex->Name = "tileTex";
 	tileTex->Filename = L"Textures/d3d12/tile.dds";
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 		mCommandList.Get(), tileTex->Filename.c_str(),
 		tileTex->Resource, tileTex->UploadHeap));
 
-	auto iceTex = std::make_unique<Texture>();
+	auto iceTex = make_unique<Texture>();
 	iceTex->Name = "iceTex";
 	iceTex->Filename = L"Textures/d3d12/ice.dds";
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 		mCommandList.Get(), iceTex->Filename.c_str(),
 		iceTex->Resource, iceTex->UploadHeap));
 
-	auto fenceTex = std::make_unique<Texture>();
+	auto fenceTex = make_unique<Texture>();
 	fenceTex->Name = "fenceTex";
 	fenceTex->Filename = L"Textures/d3d12/WireFence.dds";
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 		mCommandList.Get(), fenceTex->Filename.c_str(),
 		fenceTex->Resource, fenceTex->UploadHeap));
 
-	auto soldierTex = std::make_unique<Texture>();
+	auto soldierTex = make_unique<Texture>();
 	soldierTex->Name = "soldierTex";
 	soldierTex->Filename = L"Textures/soldier.dds";
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 		mCommandList.Get(), soldierTex->Filename.c_str(),
 		soldierTex->Resource, soldierTex->UploadHeap));
 
-	textures[bricksTex->Name] = std::move(bricksTex);
-	textures[stoneTex->Name] = std::move(stoneTex);
-	textures[tileTex->Name] = std::move(tileTex);
-	textures[iceTex->Name] = std::move(iceTex);
-	textures[fenceTex->Name] = std::move(fenceTex);
-	textures[soldierTex->Name] = std::move(soldierTex);
+	textures[bricksTex->Name] = move(bricksTex);
+	textures[stoneTex->Name] = move(stoneTex);
+	textures[tileTex->Name] = move(tileTex);
+	textures[iceTex->Name] = move(iceTex);
+	textures[fenceTex->Name] = move(fenceTex);
+	textures[soldierTex->Name] = move(soldierTex);
 }
 
 void Direct3DDemo::BuildRootSignature() {
@@ -796,7 +800,7 @@ void Direct3DDemo::BuildShapeGeometry() {
 		sphere.Vertices.size() +
 		cylinder.Vertices.size();
 
-	std::vector<Vertex> vertices(totalVertexCount);
+	vector<Vertex> vertices(totalVertexCount);
 
 	UINT k = 0;
 	for (size_t i = 0; i < box.Vertices.size(); ++i, ++k) {
@@ -823,16 +827,16 @@ void Direct3DDemo::BuildShapeGeometry() {
 		vertices[k].TexC = cylinder.Vertices[i].TexC;
 	}
 
-	std::vector<std::uint32_t> indices;
-	indices.insert(indices.end(), std::begin(box.Indices32), std::end(box.Indices32));
-	indices.insert(indices.end(), std::begin(grid.Indices32), std::end(grid.Indices32));
-	indices.insert(indices.end(), std::begin(sphere.Indices32), std::end(sphere.Indices32));
-	indices.insert(indices.end(), std::begin(cylinder.Indices32), std::end(cylinder.Indices32));
+	vector<uint32_t> indices;
+	indices.insert(indices.end(), begin(box.Indices32), end(box.Indices32));
+	indices.insert(indices.end(), begin(grid.Indices32), end(grid.Indices32));
+	indices.insert(indices.end(), begin(sphere.Indices32), end(sphere.Indices32));
+	indices.insert(indices.end(), begin(cylinder.Indices32), end(cylinder.Indices32));
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint32_t);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(uint32_t);
 
-	auto geo = std::make_unique<MeshGeometry>();
+	auto geo = make_unique<MeshGeometry>();
 	geo->Name = "shapeGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
@@ -857,7 +861,7 @@ void Direct3DDemo::BuildShapeGeometry() {
 	geo->DrawArgs["sphere"] = sphereSubmesh;
 	geo->DrawArgs["cylinder"] = cylinderSubmesh;
 
-	geometries[geo->Name] = std::move(geo);
+	geometries[geo->Name] = move(geo);
 }
 
 void Direct3DDemo::BuildPSOs() {
@@ -951,13 +955,13 @@ void Direct3DDemo::BuildPSOs() {
 
 void Direct3DDemo::BuildFrameResources() {
 	for (int i = 0; i < gNumFrameResources; ++i) {
-		frameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
+		frameResources.push_back(make_unique<FrameResource>(md3dDevice.Get(),
 			1, (UINT)allRenderItems.size(), 1, (UINT)materials.size()));
 	}
 }
 
 void Direct3DDemo::BuildMaterials() {
-	auto bricks0 = std::make_unique<Material>();
+	auto bricks0 = make_unique<Material>();
 	bricks0->Name = "bricks0";
 	bricks0->MatCBIndex = 0;
 	bricks0->DiffuseSrvHeapIndex = 0;
@@ -965,7 +969,7 @@ void Direct3DDemo::BuildMaterials() {
 	bricks0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
 	bricks0->Roughness = 0.1f;
 
-	auto stone0 = std::make_unique<Material>();
+	auto stone0 = make_unique<Material>();
 	stone0->Name = "stone0";
 	stone0->MatCBIndex = 1;
 	stone0->DiffuseSrvHeapIndex = 1;
@@ -973,7 +977,7 @@ void Direct3DDemo::BuildMaterials() {
 	stone0->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
 	stone0->Roughness = 0.3f;
 
-	auto tile0 = std::make_unique<Material>();
+	auto tile0 = make_unique<Material>();
 	tile0->Name = "tile0";
 	tile0->MatCBIndex = 2;
 	tile0->DiffuseSrvHeapIndex = 2;
@@ -981,7 +985,7 @@ void Direct3DDemo::BuildMaterials() {
 	tile0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
 	tile0->Roughness = 0.3f;
 
-	auto ice0 = std::make_unique<Material>();
+	auto ice0 = make_unique<Material>();
 	ice0->Name = "ice0";
 	ice0->MatCBIndex = 3;
 	ice0->DiffuseSrvHeapIndex = 3;
@@ -989,7 +993,7 @@ void Direct3DDemo::BuildMaterials() {
 	ice0->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	ice0->Roughness = 0.0f;
 
-	auto wirefence = std::make_unique<Material>();
+	auto wirefence = make_unique<Material>();
 	wirefence->Name = "wirefence";
 	wirefence->MatCBIndex = 4;
 	wirefence->DiffuseSrvHeapIndex = 4;
@@ -997,7 +1001,7 @@ void Direct3DDemo::BuildMaterials() {
 	wirefence->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	wirefence->Roughness = 0.25f;
 
-	auto soldier = std::make_unique<Material>();
+	auto soldier = make_unique<Material>();
 	soldier->Name = "soldier";
 	soldier->MatCBIndex = 5;
 	soldier->DiffuseSrvHeapIndex = 5;
@@ -1005,18 +1009,18 @@ void Direct3DDemo::BuildMaterials() {
 	soldier->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	soldier->Roughness = 0.25f;
 
-	materials["bricks0"] = std::move(bricks0);
-	materials["stone0"] = std::move(stone0);
-	materials["tile0"] = std::move(tile0);
-	materials["ice0"] = std::move(ice0);
-	materials["wirefence"] = std::move(wirefence);
-	materials["soldier"] = std::move(soldier);
+	materials["bricks0"] = move(bricks0);
+	materials["stone0"] = move(stone0);
+	materials["tile0"] = move(tile0);
+	materials["ice0"] = move(ice0);
+	materials["wirefence"] = move(wirefence);
+	materials["soldier"] = move(soldier);
 }
 
 void Direct3DDemo::BuildRenderItems() {
 	UINT objCBIndex = 0;
 	
-	auto boxRitem = std::make_unique<RenderItem>();
+	auto boxRitem = make_unique<RenderItem>();
 	XMStoreFloat4x4(&boxRitem->world, XMMatrixScaling(3.0f, 3.0f, 3.0f) * XMMatrixTranslation(0.0f, 3.0f, 0.0f));
 	XMStoreFloat4x4(&boxRitem->TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
 	boxRitem->objCBIndex = objCBIndex++;
@@ -1028,9 +1032,9 @@ void Direct3DDemo::BuildRenderItems() {
 	boxRitem->baseVertexLocation = boxRitem->geo->DrawArgs["box"].BaseVertexLocation;
 	
 	renderItemLayer[(unsigned int)RenderLayer::AlphaTested].push_back(boxRitem.get());
-	allRenderItems.push_back(std::move(boxRitem));
+	allRenderItems.push_back(move(boxRitem));
 
-	auto iceRitem = std::make_unique<RenderItem>();
+	auto iceRitem = make_unique<RenderItem>();
 	XMStoreFloat4x4(&iceRitem->world, XMMatrixScaling(1.0f, 1.0f, 1.0f) * 
 		XMMatrixTranslation(0.0f, 4.0f, 0.0f));
 	XMStoreFloat4x4(&iceRitem->TexTransform, XMMatrixScaling(1.0f, 1.0f, 1.0f));
@@ -1043,9 +1047,9 @@ void Direct3DDemo::BuildRenderItems() {
 	iceRitem->baseVertexLocation = iceRitem->geo->DrawArgs["box"].BaseVertexLocation;
 
 	renderItemLayer[(unsigned int)RenderLayer::Transparent].push_back(iceRitem.get());
-	allRenderItems.push_back(std::move(iceRitem));
+	allRenderItems.push_back(move(iceRitem));
 
-	auto gridRitem = std::make_unique<RenderItem>();
+	auto gridRitem = make_unique<RenderItem>();
 	gridRitem->world = MathHelper::Identity4x4();
 	XMStoreFloat4x4(&gridRitem->TexTransform, XMMatrixScaling(8.0f, 8.0f, 1.0f));
 	gridRitem->objCBIndex = objCBIndex++;
@@ -1057,11 +1061,11 @@ void Direct3DDemo::BuildRenderItems() {
 	gridRitem->baseVertexLocation = gridRitem->geo->DrawArgs["grid"].BaseVertexLocation;
 
 	renderItemLayer[(unsigned int)RenderLayer::Opaque].push_back(gridRitem.get());
-	allRenderItems.push_back(std::move(gridRitem));
+	allRenderItems.push_back(move(gridRitem));
 
 	//---------------------------------------
 	
-	auto skinnedRitem = std::make_unique<RenderItem>();
+	auto skinnedRitem = make_unique<RenderItem>();
 	skinnedRitem->world = MathHelper::Identity4x4();
 	skinnedRitem->objCBIndex = objCBIndex++;
 	skinnedRitem->material = materials["soldier"].get();
@@ -1073,24 +1077,24 @@ void Direct3DDemo::BuildRenderItems() {
 	skinnedRitem->SkinnedCBIndex = 0;
 	skinnedRitem->SkinnedModelInst = skinnedModelInst.get();
 
-	auto skinned2Ritem = std::make_unique<RenderItem>(*skinnedRitem);
+	auto skinned2Ritem = make_unique<RenderItem>(*skinnedRitem);
 
 	renderItemLayer[(unsigned int)RenderLayer::Skinned].push_back(skinnedRitem.get());
-	allRenderItems.push_back(std::move(skinnedRitem));
+	allRenderItems.push_back(move(skinnedRitem));
 
 	skinned2Ritem->indexCount = skinned2Ritem->geo->DrawArgs["1"].IndexCount;
 	skinned2Ritem->startIndexLocation = skinned2Ritem->geo->DrawArgs["1"].StartIndexLocation;
 	skinned2Ritem->baseVertexLocation = skinned2Ritem->geo->DrawArgs["1"].BaseVertexLocation;
 	renderItemLayer[(unsigned int)RenderLayer::Skinned].push_back(skinned2Ritem.get());
-	allRenderItems.push_back(std::move(skinned2Ritem));
+	allRenderItems.push_back(move(skinned2Ritem));
 	//---------------------------------------
 	
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.0f, 1.0f, 1.0f);
 	for (int i = 0; i < 5; ++i) {
-		auto leftCylRitem = std::make_unique<RenderItem>();
-		auto rightCylRitem = std::make_unique<RenderItem>();
-		auto leftSphereRitem = std::make_unique<RenderItem>();
-		auto rightSphereRitem = std::make_unique<RenderItem>();
+		auto leftCylRitem = make_unique<RenderItem>();
+		auto rightCylRitem = make_unique<RenderItem>();
+		auto leftSphereRitem = make_unique<RenderItem>();
+		auto rightSphereRitem = make_unique<RenderItem>();
 
 		XMMATRIX leftCylWorld = XMMatrixTranslation(-5.0f, 1.5f, -10.0f + i * 5.0f);
 		XMMATRIX rightCylWorld = XMMatrixTranslation(+5.0f, 1.5f, -10.0f + i * 5.0f);
@@ -1146,14 +1150,14 @@ void Direct3DDemo::BuildRenderItems() {
 
 		renderItemLayer[(unsigned int)RenderLayer::Opaque].push_back(rightSphereRitem.get());
 
-		allRenderItems.push_back(std::move(leftCylRitem));
-		allRenderItems.push_back(std::move(rightCylRitem));
-		allRenderItems.push_back(std::move(leftSphereRitem));
-		allRenderItems.push_back(std::move(rightSphereRitem));
+		allRenderItems.push_back(move(leftCylRitem));
+		allRenderItems.push_back(move(rightCylRitem));
+		allRenderItems.push_back(move(leftSphereRitem));
+		allRenderItems.push_back(move(rightSphereRitem));
 	}
 }
 
-void Direct3DDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems) {
+void Direct3DDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const vector<RenderItem*>& ritems) {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 	UINT skinnedCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(SkinnedConstants));
 	UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
@@ -1193,7 +1197,7 @@ void Direct3DDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std
 	}
 }
 
-std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> Direct3DDemo::GetStaticSamplers() {
+array<const CD3DX12_STATIC_SAMPLER_DESC, 6> Direct3DDemo::GetStaticSamplers() {
 	// Applications usually only need a handful of samplers.  So just define them all up front
 	// and keep them available as part of the root signature.  
 

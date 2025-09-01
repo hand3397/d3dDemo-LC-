@@ -1,69 +1,57 @@
 #include "SkinnedData.h"
 
 using namespace DirectX;
-
-Keyframe::Keyframe()
-	: TimePos(0.0f),
-	Translation(0.0f, 0.0f, 0.0f),
-	Scale(1.0f, 1.0f, 1.0f),
-	RotationQuat(0.0f, 0.0f, 0.0f, 1.0f)
-{
-}
-
-Keyframe::~Keyframe()
-{
-}
  
 float BoneAnimation::GetStartTime()const
 {
-	// Keyframes are sorted by time, so first keyframe gives start time.
-	return Keyframes.front().TimePos;
+	// keyframes are sorted by time, so first keyframe gives start time.
+	return keyframes_.front().timePos_;
 }
 
 float BoneAnimation::GetEndTime()const
 {
-	// Keyframes are sorted by time, so last keyframe gives end time.
-	float f = Keyframes.back().TimePos;
+	// keyframes are sorted by time, so last keyframe gives end time.
+	float f = keyframes_.back().timePos_;
 
 	return f;
 }
 
 void BoneAnimation::Interpolate(float t, XMFLOAT4X4& M)const
 {
-	if( t <= Keyframes.front().TimePos )
+	if( t <= keyframes_.front().timePos_)
 	{
-		XMVECTOR S = XMLoadFloat3(&Keyframes.front().Scale);
-		XMVECTOR P = XMLoadFloat3(&Keyframes.front().Translation);
-		XMVECTOR Q = XMLoadFloat4(&Keyframes.front().RotationQuat);
+		XMVECTOR S = XMLoadFloat3(&keyframes_.front().scale_);
+		XMVECTOR P = XMLoadFloat3(&keyframes_.front().translation_);
+		XMVECTOR Q = XMLoadFloat4(&keyframes_.front().rotationQuat_);
 
 		XMVECTOR zero = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 		XMStoreFloat4x4(&M, XMMatrixAffineTransformation(S, zero, Q, P));
 	}
-	else if( t >= Keyframes.back().TimePos )
+	else if( t >= keyframes_.back().timePos_ )
 	{
-		XMVECTOR S = XMLoadFloat3(&Keyframes.back().Scale);
-		XMVECTOR P = XMLoadFloat3(&Keyframes.back().Translation);
-		XMVECTOR Q = XMLoadFloat4(&Keyframes.back().RotationQuat);
+		XMVECTOR S = XMLoadFloat3(&keyframes_.back().scale_);
+		XMVECTOR P = XMLoadFloat3(&keyframes_.back().translation_);
+		XMVECTOR Q = XMLoadFloat4(&keyframes_.back().rotationQuat_);
 
 		XMVECTOR zero = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 		XMStoreFloat4x4(&M, XMMatrixAffineTransformation(S, zero, Q, P));
 	}
 	else
 	{
-		for(UINT i = 0; i < Keyframes.size()-1; ++i)
+		for(UINT i = 0; i < keyframes_.size()-1; ++i)
 		{
-			if( t >= Keyframes[i].TimePos && t <= Keyframes[i+1].TimePos )
+			if( t >= keyframes_[i].timePos_ && t <= keyframes_[i+1].timePos_ )
 			{
-				float lerpPercent = (t - Keyframes[i].TimePos) / (Keyframes[i+1].TimePos - Keyframes[i].TimePos);
+				float lerpPercent = (t - keyframes_[i].timePos_) / (keyframes_[i+1].timePos_ - keyframes_[i].timePos_);
 
-				XMVECTOR s0 = XMLoadFloat3(&Keyframes[i].Scale);
-				XMVECTOR s1 = XMLoadFloat3(&Keyframes[i+1].Scale);
+				XMVECTOR s0 = XMLoadFloat3(&keyframes_[i].scale_);
+				XMVECTOR s1 = XMLoadFloat3(&keyframes_[i+1].scale_);
 
-				XMVECTOR p0 = XMLoadFloat3(&Keyframes[i].Translation);
-				XMVECTOR p1 = XMLoadFloat3(&Keyframes[i+1].Translation);
+				XMVECTOR p0 = XMLoadFloat3(&keyframes_[i].translation_);
+				XMVECTOR p1 = XMLoadFloat3(&keyframes_[i+1].translation_);
 
-				XMVECTOR q0 = XMLoadFloat4(&Keyframes[i].RotationQuat);
-				XMVECTOR q1 = XMLoadFloat4(&Keyframes[i+1].RotationQuat);
+				XMVECTOR q0 = XMLoadFloat4(&keyframes_[i].rotationQuat_);
+				XMVECTOR q1 = XMLoadFloat4(&keyframes_[i+1].rotationQuat_);
 
 				XMVECTOR S = XMVectorLerp(s0, s1, lerpPercent);
 				XMVECTOR P = XMVectorLerp(p0, p1, lerpPercent);
@@ -82,9 +70,9 @@ float AnimationClip::GetClipStartTime()const
 {
 	// Find smallest start time over all bones in this clip.
 	float t = MathHelper::Infinity;
-	for(UINT i = 0; i < BoneAnimations.size(); ++i)
+	for(UINT i = 0; i < boneAnimations_.size(); ++i)
 	{
-		t = MathHelper::Min(t, BoneAnimations[i].GetStartTime());
+		t = MathHelper::Min(t, boneAnimations_[i].GetStartTime());
 	}
 
 	return t;
@@ -94,63 +82,68 @@ float AnimationClip::GetClipEndTime()const
 {
 	// Find largest end time over all bones in this clip.
 	float t = 0.0f;
-	for(UINT i = 0; i < BoneAnimations.size(); ++i)
+	for(UINT i = 0; i < boneAnimations_.size(); ++i)
 	{
-		t = MathHelper::Max(t, BoneAnimations[i].GetEndTime());
+		t = MathHelper::Max(t, boneAnimations_[i].GetEndTime());
 	}
 
 	return t;
 }
 
-void AnimationClip::Interpolate(float t, std::vector<XMFLOAT4X4>& boneTransforms)const
+void AnimationClip::Interpolate(float t, vector<XMFLOAT4X4>& boneTransforms)const
 {
-	for(UINT i = 0; i < BoneAnimations.size(); ++i)
+	for(UINT i = 0; i < boneAnimations_.size(); ++i)
 	{
-		BoneAnimations[i].Interpolate(t, boneTransforms[i]);
+		boneAnimations_[i].Interpolate(t, boneTransforms[i]);
 	}
 }
 
-float SkinnedData::GetClipStartTime(const std::string& clipName)const
+float SkinnedData::GetClipStartTime(const string& clipName)const
 {
-	auto clip = mAnimations.find(clipName);
+	auto clip = animations_.find(clipName);
 	return clip->second.GetClipStartTime();
 }
 
-float SkinnedData::GetClipEndTime(const std::string& clipName)const
+float SkinnedData::GetClipEndTime(const string& clipName)const
 {
-	auto clip = mAnimations.find(clipName);
+	auto clip = animations_.find(clipName);
 	return clip->second.GetClipEndTime();
+}
+
+void SkinnedData::Set(vector<int>& parentBone, vector<vector<int>>& childrenBone, 
+	unordered_map<string, uint32_t> nameToIdx, vector<XMFLOAT4X4>& boneOffsets)
+{
+	parentBone_ = parentBone;
+	childrenBone_ = childrenBone;
+	nameToIdx_ = nameToIdx;
+	boneOffsets_ = boneOffsets;
+}
+
+void SkinnedData::AddAnimaiton(const string& clipName, const AnimationClip& animationClip)
+{
+	animations_[clipName] = animationClip;
 }
 
 UINT SkinnedData::BoneCount()const
 {
-	return mBoneHierarchy.size();
-}
-
-void SkinnedData::Set(std::vector<int>& boneHierarchy, 
-		              std::vector<XMFLOAT4X4>& boneOffsets,
-		              std::unordered_map<std::string, AnimationClip>& animations)
-{
-	mBoneHierarchy = boneHierarchy;
-	mBoneOffsets   = boneOffsets;
-	mAnimations    = animations;
+	return parentBone_.size();
 }
  
-void SkinnedData::GetFinalTransforms(const std::string& clipName, float timePos,  std::vector<XMFLOAT4X4>& finalTransforms)const
+void SkinnedData::GetFinalTransforms(const string& clipName, float timePos,  vector<XMFLOAT4X4>& finalTransforms)const
 {
-	UINT numBones = mBoneOffsets.size();
+	UINT numBones = boneOffsets_.size();
 
-	std::vector<XMFLOAT4X4> toParentTransforms(numBones);
+	vector<XMFLOAT4X4> toParentTransforms(numBones);
 
 	// 이 클립의 모든 뼈대를 주어진 시간에 맞게 보간한다.
-	auto clip = mAnimations.find(clipName);
+	auto clip = animations_.find(clipName);
 	clip->second.Interpolate(timePos, toParentTransforms);
 
 	//
 	// Traverse the hierarchy and transform all the bones to the root space.
 	//
 
-	std::vector<XMFLOAT4X4> toRootTransforms(numBones);
+	vector<XMFLOAT4X4> toRootTransforms(numBones);
 
 	// The root bone has index 0.  The root bone has no parent, so its toRootTransform
 	// is just its local bone transform.
@@ -161,7 +154,7 @@ void SkinnedData::GetFinalTransforms(const std::string& clipName, float timePos,
 	{
 		XMMATRIX toParent = XMLoadFloat4x4(&toParentTransforms[i]);
 
-		int parentIndex = mBoneHierarchy[i];
+		int parentIndex = parentBone_[i];
 		XMMATRIX parentToRoot = XMLoadFloat4x4(&toRootTransforms[parentIndex]);
 
 		XMMATRIX toRoot = XMMatrixMultiply(toParent, parentToRoot);
@@ -172,9 +165,16 @@ void SkinnedData::GetFinalTransforms(const std::string& clipName, float timePos,
 	// Premultiply by the bone offset transform to get the final transform.
 	for(UINT i = 0; i < numBones; ++i)
 	{
-		XMMATRIX offset = XMLoadFloat4x4(&mBoneOffsets[i]);
+		XMMATRIX offset = XMLoadFloat4x4(&boneOffsets_[i]);
 		XMMATRIX toRoot = XMLoadFloat4x4(&toRootTransforms[i]);
         XMMATRIX finalTransform = XMMatrixMultiply(offset, toRoot);
 		XMStoreFloat4x4(&finalTransforms[i], XMMatrixTranspose(finalTransform));
 	}
+}
+
+int64_t SkinnedData::NameToIdx(const string& name)
+{
+	if (nameToIdx_.find(name) == nameToIdx_.end())
+		return -1;
+	return nameToIdx_[name];
 }

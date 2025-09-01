@@ -13,6 +13,18 @@
 class MathHelper
 {
 public:
+	static const float EPS;
+
+	struct FloatCompare
+	{
+		bool operator()(float a, float b) const
+		{
+			if (fabs(a - b) < MathHelper::EPS)
+				return false; // 같은 값으로 취급
+			return a < b;
+		}
+	};
+
 	// Returns random float in [0, 1).
 	static float RandF()
 	{
@@ -94,7 +106,6 @@ public:
 
 	static const float Infinity;
 	static const float Pi;
-
 
 };
 
