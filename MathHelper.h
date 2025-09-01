@@ -25,6 +25,14 @@ public:
 		}
 	};
 
+	struct FloatEqual
+	{
+		bool operator()(float a, float b) const
+		{
+			return fabs(a - b) < MathHelper::EPS;
+		}
+	};
+
 	// Returns random float in [0, 1).
 	static float RandF()
 	{

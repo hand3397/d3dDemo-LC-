@@ -2,7 +2,9 @@
 #include "Mesh.h"
 #include "include/cgltf/cgltf.h"
 #include "SkinnedData.h"
-#
+
+XMFLOAT3 SampleFloat3(const vector<pair<float, XMFLOAT3>>& keyframes, float t);
+XMFLOAT4 SampleFloat4(const vector<pair<float, XMFLOAT4>>& keyframes, float t);
 
 class ModelLoader
 {

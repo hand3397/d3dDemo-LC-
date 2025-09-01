@@ -311,6 +311,9 @@ void ModelLoader::ReadAnimationClip(const cgltf_data* data, string& animationNam
             break;
         }
     }
+
+    skinnedData.AddAnimaiton(animationName, InterpolateAnimaitonClip(
+        scaleAnimation, rotateAnimation, posAnimation));
 }
 
 AnimationClip ModelLoader::InterpolateAnimaitonClip(const vector<vector<pair<float, XMFLOAT3>>>& scaleAnimation,
@@ -327,12 +330,93 @@ AnimationClip ModelLoader::InterpolateAnimaitonClip(const vector<vector<pair<flo
         auto& rotateAnim = rotateAnimation[bi];
         auto& posAnim = posAnimation[bi];
 
-        set<float, MathHelper::FloatCompare> set;
+        vector<float> times;
+        times.reserve(scaleAnim.size() + rotateAnim.size() + posAnim.size());
+
+        for (auto& kv : scaleAnim)  times.push_back(kv.first);
+        for (auto& kv : rotateAnim) times.push_back(kv.first);
+        for (auto& kv : posAnim)    times.push_back(kv.first);
+
+        // 2. 정렬
+        std::sort(times.begin(), times.end());
+
+        // 3. 중복 제거 (EPS 허용)
+        auto it = std::unique(times.begin(), times.end(), MathHelper::FloatEqual());
+        times.erase(it, times.end());
+
+        // time마다 보간된 keyframe 구하기
+        for (float t : times) {
+            XMFLOAT3 s = SampleFloat3(scaleAnim, t);
+            XMFLOAT4 r = SampleFloat4(rotateAnim, t); // 쿼터니언
+            XMFLOAT3 p = SampleFloat3(posAnim, t);
+
+            Keyframe kf;
+            kf.timePos_ = t;
+            kf.scale_ = s;
+            kf.rotationQuat_ = r;
+            kf.translation_ = p;
+
+            animationClip.boneAnimations_[bi].keyframes_.push_back(kf);
+        }
     }
+
+    animationClip.SetClipStartTime();
+    animationClip.SetClipEndTime();
+
+    return animationClip;
 }
 
 void ModelLoader::Clear()
 {
     mesh.clear();
     skinnedMesh.clear();
+}
+
+XMFLOAT3 SampleFloat3(const vector<pair<float, XMFLOAT3>>& keyframes, float t)
+{
+    if (keyframes.empty()) return XMFLOAT3(1, 1, 1);
+    if (t <= keyframes.front().first) return keyframes.front().second;
+    if (t >= keyframes.back().first)  return keyframes.back().second;
+
+    // t를 감싸는 두 키프레임 찾기
+    for (size_t i = 0; i < keyframes.size() - 1; ++i) {
+        float t0 = keyframes[i].first;
+        float t1 = keyframes[i + 1].first;
+        if (t0 <= t && t <= t1) {
+            float alpha = (t - t0) / (t1 - t0);
+            XMFLOAT3 s0 = keyframes[i].second;
+            XMFLOAT3 s1 = keyframes[i + 1].second;
+            // 선형 보간
+            return XMFLOAT3(
+                s0.x + (s1.x - s0.x) * alpha,
+                s0.y + (s1.y - s0.y) * alpha,
+                s0.z + (s1.z - s0.z) * alpha
+            );
+        }
+    }
+
+    return keyframes.back().second;
+}
+
+XMFLOAT4 SampleFloat4(const vector<pair<float, XMFLOAT4>>& keyframes, float t)
+{
+    if (keyframes.empty()) return XMFLOAT4(0, 0, 0, 1);
+    if (t <= keyframes.front().first) return keyframes.front().second;
+    if (t >= keyframes.back().first)  return keyframes.back().second;
+
+    for (size_t i = 0; i < keyframes.size() - 1; ++i) {
+        float t0 = keyframes[i].first;
+        float t1 = keyframes[i + 1].first;
+        if (t0 <= t && t <= t1) {
+            float alpha = (t - t0) / (t1 - t0);
+            XMVECTOR q0 = XMLoadFloat4(&keyframes[i].second);
+            XMVECTOR q1 = XMLoadFloat4(&keyframes[i + 1].second);
+            XMVECTOR q = XMQuaternionSlerp(q0, q1, alpha); // slerp로 보간
+            q = XMQuaternionNormalize(q); // 보간 후 정규화
+            XMFLOAT4 result;
+            XMStoreFloat4(&result, q);
+            return result;
+        }
+    }
+    return keyframes.back().second;
 }

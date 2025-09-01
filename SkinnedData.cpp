@@ -66,28 +66,34 @@ void BoneAnimation::Interpolate(float t, XMFLOAT4X4& M)const
 	}
 }
 
-float AnimationClip::GetClipStartTime()const
+void AnimationClip::SetClipStartTime()
 {
 	// Find smallest start time over all bones in this clip.
 	float t = MathHelper::Infinity;
-	for(UINT i = 0; i < boneAnimations_.size(); ++i)
-	{
+	for (UINT i = 0; i < boneAnimations_.size(); ++i) {
 		t = MathHelper::Min(t, boneAnimations_[i].GetStartTime());
 	}
+	startTime = t;
+}
 
-	return t;
+void AnimationClip::SetClipEndTime()
+{
+	// Find largest end time over all bones in this clip.
+	float t = 0.0f;
+	for (UINT i = 0; i < boneAnimations_.size(); ++i) {
+		t = MathHelper::Max(t, boneAnimations_[i].GetEndTime());
+	}
+	endTime = t;
+}
+
+float AnimationClip::GetClipStartTime()const
+{
+	return startTime;
 }
 
 float AnimationClip::GetClipEndTime()const
 {
-	// Find largest end time over all bones in this clip.
-	float t = 0.0f;
-	for(UINT i = 0; i < boneAnimations_.size(); ++i)
-	{
-		t = MathHelper::Max(t, boneAnimations_[i].GetEndTime());
-	}
-
-	return t;
+	return endTime;
 }
 
 void AnimationClip::Interpolate(float t, vector<XMFLOAT4X4>& boneTransforms)const

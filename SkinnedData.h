@@ -36,10 +36,16 @@ struct BoneAnimation
 // 하나의 AnimationClip 객체는 애니메이션 클립을 구성하는 BoneAnimation 인스턴스들을 담는다.
 struct AnimationClip
 {
+	void SetClipStartTime();
+	void SetClipEndTime();
+
 	float GetClipStartTime()const;
 	float GetClipEndTime()const;
 
     void Interpolate(float t, vector<XMFLOAT4X4>& boneTransforms)const;
+
+	float startTime;
+	float endTime;
 
     vector<BoneAnimation> boneAnimations_;
 };
