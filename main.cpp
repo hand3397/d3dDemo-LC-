@@ -14,10 +14,10 @@ const int gNumFrameResources = 3;
 
 struct SkinnedModelInstance
 {
-	SkinnedData* SkinnedInfo = nullptr;
-	vector<DirectX::XMFLOAT4X4> FinalTransforms;
-	string ClipName;
-	float TimePos = 0.0f;
+	SkinnedData* skinnedInfo_ = nullptr;
+	vector<DirectX::XMFLOAT4X4> finalTransforms_;
+	string clipName_;
+	float timePos_ = 0.0f;
 
 	// Called every frame and increments the time position, interpolates the 
 	// animations for each bone based on the current animation clip, and 
@@ -25,14 +25,14 @@ struct SkinnedModelInstance
 	// for processing in the vertex shader.
 	void UpdateSkinnedAnimation(float dt)
 	{
-		TimePos += dt;
+		timePos_ += dt;
 
 		// Loop animation
-		if (TimePos > SkinnedInfo->GetClipEndTime(ClipName))
-			TimePos = 0.0f;
+		if (timePos_ > skinnedInfo_->GetClipEndTime(clipName_))
+			timePos_ = fmod(timePos_, skinnedInfo_->GetClipEndTime(clipName_));
 
 		// Compute the final transforms for this time position.
-		SkinnedInfo->GetFinalTransforms(ClipName, TimePos, FinalTransforms);
+		skinnedInfo_->GetFinalTransforms(clipName_, timePos_, finalTransforms_);
 	}
 };
 
@@ -380,17 +380,28 @@ void Direct3DDemo::OnKeyboardInput(const GameTimer& gt) {
 	else
 		isWireframe = false;
 
+	float moveSpeed = 20.0f;
+	if (GetAsyncKeyState(VK_LSHIFT) & 0x8000)
+		moveSpeed *= 10.0f;
+
 	if (GetAsyncKeyState('W') & 0x8000)
-		mainCamera.Walk(10.0f * dt);
+		mainCamera.Walk(moveSpeed * dt);
 
 	if (GetAsyncKeyState('S') & 0x8000)
-		mainCamera.Walk(-10.0f * dt);
+		mainCamera.Walk(-moveSpeed * dt);
 
 	if (GetAsyncKeyState('A') & 0x8000)
-		mainCamera.Strafe(-10.0f * dt);
+		mainCamera.Strafe(-moveSpeed * dt);
 
 	if (GetAsyncKeyState('D') & 0x8000)
-		mainCamera.Strafe(10.0f * dt);
+		mainCamera.Strafe(moveSpeed * dt);
+
+	if (GetAsyncKeyState(VK_SPACE) & 0x8000)
+		mainCamera.WorldUp(moveSpeed * dt);
+
+	if (GetAsyncKeyState(VK_CONTROL) & 0x8000)
+		mainCamera.WorldUp(-moveSpeed * dt);
+
 
 	mainCamera.UpdateViewMatrix();
 }
@@ -424,10 +435,18 @@ void Direct3DDemo::UpdateSkinnedCBs(const GameTimer& gt)
 {
 	auto currSkinnedCB = currFrameResource->SkinnedCB.get();
 
+	skinnedModelInst->UpdateSkinnedAnimation(gt.DeltaTime() / 10.f);
+	
 	SkinnedConstants skinnedConstants;
-	for (int i = 0; i < 96; ++i)
-		skinnedConstants.BoneTransforms[i] = MathHelper::Identity4x4();
-
+	copy(skinnedModelInst->finalTransforms_.begin(), skinnedModelInst->finalTransforms_.end(),
+		&skinnedConstants.BoneTransforms[0]);
+	/*
+	for (int i = 0; i < 96; i++) {
+		XMStoreFloat4x4(&skinnedConstants.BoneTransforms[i], XMMatrixTranspose(XMLoadFloat4x4(&MathHelper::Identity4x4())));
+	}
+	*/
+	//XMStoreFloat4x4(&skinnedConstants.BoneTransforms[0], XMMatrixTranspose(XMMatrixTranslation(0.0f, 10.0f, 0.0f)));
+	
 	currSkinnedCB->CopyData(0, skinnedConstants);
 }
 
@@ -491,38 +510,39 @@ void Direct3DDemo::UpdateMainPassCB(const GameTimer& gt) {
 void Direct3DDemo::LoadModels()
 {
 	ModelLoader modelLoader;
-	modelLoader.ReadModel("Models/Soldier/Soldier.glb");
-	modelLoader.ReadAnimation("Models/Soldier/Animation/RunForward.glb", "RunForward");
+	modelLoader.ReadModel("Models/Soldier/Vanguard.fbx");
+	//modelLoader.ReadAnimation("Models/Fox.glb");
 
-	skinnedData["skinned"] = make_unique<SkinnedData>(move(modelLoader.skinnedData));
+	skinnedData["skinned"] = make_unique<SkinnedData>(move(modelLoader.skinnedData_));
 	skinnedModelInst = make_unique<SkinnedModelInstance>();
-	skinnedModelInst.get()->SkinnedInfo = skinnedData["skinned"].get();
+	skinnedModelInst.get()->skinnedInfo_ = skinnedData["skinned"].get();
+	skinnedModelInst.get()->clipName_ = "Run";
+	skinnedModelInst.get()->finalTransforms_.resize(skinnedModelInst.get()->skinnedInfo_->BoneCount());
 
-	const UINT vbByteSize = (UINT)modelLoader.skinnedMesh.vertices.size() * sizeof(SkinnedVertex);
-	const UINT ibByteSize = (UINT)modelLoader.skinnedMesh.indices.size() * sizeof(uint32_t);
+	const UINT vbByteSize = (UINT)modelLoader.skinnedMesh_.vertices.size() * sizeof(SkinnedVertex);
+	const UINT ibByteSize = (UINT)modelLoader.skinnedMesh_.indices.size() * sizeof(uint32_t);
 
 	auto geo = make_unique<MeshGeometry>();
 	geo->Name = "skinnedGeo";
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), modelLoader.skinnedMesh.vertices.data(), vbByteSize);
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), modelLoader.skinnedMesh_.vertices.data(), vbByteSize);
 
 	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), modelLoader.skinnedMesh.indices.data(), ibByteSize);
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), modelLoader.skinnedMesh_.indices.data(), ibByteSize);
 
 	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), modelLoader.skinnedMesh.vertices.data(), vbByteSize, geo->VertexBufferUploader);
+		mCommandList.Get(), modelLoader.skinnedMesh_.vertices.data(), vbByteSize, geo->VertexBufferUploader);
 
 	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), modelLoader.skinnedMesh.indices.data(), ibByteSize, geo->IndexBufferUploader);
+		mCommandList.Get(), modelLoader.skinnedMesh_.indices.data(), ibByteSize, geo->IndexBufferUploader);
 
 	geo->VertexByteStride = sizeof(SkinnedVertex);
 	geo->VertexBufferByteSize = vbByteSize;
 	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
-	geo->DrawArgs["0"] = modelLoader.submeshes[0];
-	geo->DrawArgs["1"] = modelLoader.submeshes[1];
+	geo->DrawArgs["0"] = modelLoader.submeshes_[0];
 
 	geometries[geo->Name] = move(geo);
 }
@@ -722,15 +742,14 @@ void Direct3DDemo::BuildShadersAndInputLayout() {
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
-
+	
 	skinnedInputLayout =
 	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "WEIGHTS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 44, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "BONEINDICES", 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, 56, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(SkinnedVertex, Pos), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(SkinnedVertex, Normal), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, (UINT)offsetof(SkinnedVertex, TexC), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "WEIGHTS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(SkinnedVertex, BoneWeights), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "BONEINDICES", 0, DXGI_FORMAT_R32G32B32A32_UINT, 0, (UINT)offsetof(SkinnedVertex, BoneIndices), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
 }
 
@@ -1074,19 +1093,11 @@ void Direct3DDemo::BuildRenderItems() {
 	skinnedRitem->indexCount = skinnedRitem->geo->DrawArgs["0"].IndexCount;
 	skinnedRitem->startIndexLocation = skinnedRitem->geo->DrawArgs["0"].StartIndexLocation;
 	skinnedRitem->baseVertexLocation = skinnedRitem->geo->DrawArgs["0"].BaseVertexLocation;
-	skinnedRitem->SkinnedCBIndex = 0;
+	skinnedRitem->SkinnedCBIndex = 0; 
 	skinnedRitem->SkinnedModelInst = skinnedModelInst.get();
-
-	auto skinned2Ritem = make_unique<RenderItem>(*skinnedRitem);
 
 	renderItemLayer[(unsigned int)RenderLayer::Skinned].push_back(skinnedRitem.get());
 	allRenderItems.push_back(move(skinnedRitem));
-
-	skinned2Ritem->indexCount = skinned2Ritem->geo->DrawArgs["1"].IndexCount;
-	skinned2Ritem->startIndexLocation = skinned2Ritem->geo->DrawArgs["1"].StartIndexLocation;
-	skinned2Ritem->baseVertexLocation = skinned2Ritem->geo->DrawArgs["1"].BaseVertexLocation;
-	renderItemLayer[(unsigned int)RenderLayer::Skinned].push_back(skinned2Ritem.get());
-	allRenderItems.push_back(move(skinned2Ritem));
 	//---------------------------------------
 	
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.0f, 1.0f, 1.0f);

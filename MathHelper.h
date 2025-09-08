@@ -5,15 +5,30 @@
 //***************************************************************************************
 
 #pragma once
-
-#include <Windows.h>
+#include <stdlib.h>
 #include <DirectXMath.h>
 #include <cstdint>
+#undef max
+#undef min
+#include <limits>
+#include <algorithm>
 
 class MathHelper
 {
 public:
 	static const float EPS;
+
+	template<typename T>
+	static T TypeMax() noexcept
+	{
+		return std::numeric_limits<T>::max();
+	}
+
+	template<typename T>
+	static T TypeMin() noexcept
+	{
+		return std::numeric_limits<T>::lowest();
+	}
 
 	struct FloatCompare
 	{

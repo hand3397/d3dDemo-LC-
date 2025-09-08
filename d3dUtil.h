@@ -29,6 +29,7 @@
 #include "DDSTextureLoader.h"
 #include "MathHelper.h"
 #include <set>
+#include <queue>
 
 extern const int gNumFrameResources;
 

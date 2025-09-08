@@ -27,7 +27,7 @@ struct BoneAnimation
 	float GetStartTime()const;
 	float GetEndTime()const;
 
-    void Interpolate(float t, XMFLOAT4X4& M)const;
+    void Interpolate(float t, XMMATRIX& M)const;
 
 	vector<Keyframe> keyframes_;
 };
@@ -36,33 +36,32 @@ struct BoneAnimation
 // 하나의 AnimationClip 객체는 애니메이션 클립을 구성하는 BoneAnimation 인스턴스들을 담는다.
 struct AnimationClip
 {
-	void SetClipStartTime();
-	void SetClipEndTime();
+	void SetClipTime();
 
-	float GetClipStartTime()const;
-	float GetClipEndTime()const;
+	float GetClipStartTime() const;
+	float GetClipEndTime() const;
 
-    void Interpolate(float t, vector<XMFLOAT4X4>& boneTransforms)const;
-
-	float startTime;
-	float endTime;
+    void Interpolate(float t, vector<XMMATRIX>& boneTransforms) const;
 
     vector<BoneAnimation> boneAnimations_;
+
+private:
+	float startTime_;
+	float endTime_;
 };
 
 class SkinnedData
 {
 public:
-
 	UINT BoneCount()const;
 
 	float GetClipStartTime(const string& clipName)const;
 	float GetClipEndTime(const string& clipName)const;
 
-	void Set(vector<int>& parentBone,
-		vector<vector<int>>& childrenBone,
-		unordered_map<string, uint32_t> nameToIdx,
-		vector<XMFLOAT4X4>& boneOffsets);
+	void SetNode(vector<uint32_t>& parentNode, vector<vector<uint32_t>>& childrenNode,
+		unordered_map<string, uint32_t> nameToIdx, vector<XMFLOAT4X4>& nodeTrnasforms);
+
+	void SetBone(unordered_map<uint32_t, uint32_t> nodeToBone, vector<XMFLOAT4X4>& boneOffset);
 
 	void AddAnimaiton(const string& clipName, const AnimationClip& animationClip);
 
@@ -72,14 +71,17 @@ public:
     void GetFinalTransforms(const string& clipName, float timePos, 
 		 vector<XMFLOAT4X4>& finalTransforms)const;
 
-	int64_t NameToIdx(const string& name);
+	int32_t NameToIdx(const string& name);
+	int32_t NodeToBone(int node);
 private:
-    // Gives parentIndex of ith bone.
-	vector<int> parentBone_;
-	vector<vector<int>> childrenBone_;
+	vector<uint32_t> rootNode_;
+	vector<uint32_t> parentNode_;
+	vector<vector<uint32_t>> childrenNode_;
 
 	unordered_map<string, uint32_t> nameToIdx_;
+	unordered_map<uint32_t, uint32_t> nodeToBone_;
 
+	vector<XMFLOAT4X4> nodeTransforms_;
 	vector<XMFLOAT4X4> boneOffsets_;
     
 	unordered_map<string, AnimationClip> animations_;

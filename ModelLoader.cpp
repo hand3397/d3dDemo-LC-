@@ -1,320 +1,229 @@
-#define CGLTF_IMPLEMENTATION
 #include "ModelLoader.h"
+
+bool IsSkinnedMesh(const aiScene* scene)
+{
+    for (uint32_t i = 0; i < scene->mNumMeshes; ++i) {
+        aiMesh* mesh = scene->mMeshes[i];
+        if (mesh->mNumBones > 0) {
+            return true; // 스킨 정보가 있는 메시 존재 → SkinnedMesh
+        }
+    }
+    return false; // 모든 메시가 mNumBones == 0 → 일반 메시
+}
 
 bool ModelLoader::ReadModel(const char* fileName)
 {
-    this->Clear();
+    //this->Clear();
 
-    cgltf_options options = {};
-    cgltf_data* data = nullptr;
+    Assimp::Importer importer;
 
-    cgltf_result result = cgltf_parse_file(&options, fileName, &data);
-    if (result != cgltf_result_success) {
-        //std::cerr << "Failed to parse glTF\n";
+    // 모델 파일 로드 (예: soldier.fbx, model.gltf, model.obj 등)
+    const aiScene* scene = importer.ReadFile(fileName,
+        aiProcess_Triangulate |        // 삼각형으로 변환
+        aiProcess_FlipUVs |            // UV 좌표 뒤집기 (DirectX용)
+        aiProcess_CalcTangentSpace |   // Normal / Tangent 계산
+        aiProcess_JoinIdenticalVertices
+    );
+
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
+        //std::cerr << "Assimp Error: " << importer.GetErrorString() << std::endl;
         return false;
     }
-    
-    result = cgltf_load_buffers(&options, data, fileName);
-    if (result != cgltf_result_success) {
-        //std::cerr << "Failed to load buffers\n";`
-        cgltf_free(data);
-        return false;
+
+    if (IsSkinnedMesh(scene)) {
+        ReadMesh<SkinnedVertex>(scene, skinnedMesh_);
+        ReadNodeData(scene);
+        ReadBoneData(scene);
     }
-
-    ReadSkinnedMesh(data);
-    ReadSkinnedData(data);
-
-    cgltf_free(data);
+    else {
+        ReadMesh<Vertex>(scene, mesh_);
+    }
+    //ReadSkinnedData(scene);
 
     return true;
 }
 
-void ModelLoader::ReadSkinnedMesh(const cgltf_data* data)
+template<typename VertexType, typename MeshContainerType>
+void ModelLoader::ReadMesh(const aiScene* scene, MeshContainerType& meshContainer)
 {
-    int numMeshes = data->meshes_count;
-    size_t baseVertex = 0;
-    size_t baseIndex = 0;
-    size_t numIndices = 0;
+    uint32_t baseVertex = 0;
+    uint32_t baseIndex = 0;
+    uint32_t numIndices = 0;
 
-    for (int mi = 0; mi < data->meshes_count; ++mi) {
-        cgltf_mesh* mesh = &data->meshes[mi];
+    for (uint32_t mi = 0; mi < scene->mNumMeshes; ++mi) {
+        aiMesh* mesh = scene->mMeshes[mi];
 
-        for (int pi = 0; pi < mesh->primitives_count; ++pi) {
-            cgltf_primitive* primitive = &mesh->primitives[pi];
+        float floatMax = MathHelper::TypeMax<float>();
+        float floatMin = MathHelper::TypeMin<float>();
 
-            // POSITION 접근
-            cgltf_accessor* posAccessor = nullptr;
-            cgltf_accessor* normalAccessor = nullptr;
-            cgltf_accessor* texAccessor = nullptr;
-            //cgltf_accessor* tangentAccessor = nullptr;
-            cgltf_accessor* indicesAccessor = nullptr;
-            cgltf_accessor* jointsAccessor = nullptr;
-            cgltf_accessor* weightsAccessor = nullptr;
+        aiVector3D minVec(floatMax, floatMax, floatMax);
+        aiVector3D maxVec(floatMin, floatMin, floatMin);
 
-            for (int ai = 0; ai < primitive->attributes_count; ++ai) {
-                cgltf_attribute* attr = &primitive->attributes[ai];
-                switch (attr->type) {
-                case cgltf_attribute_type_position: posAccessor = attr->data; break;
-                case cgltf_attribute_type_normal:   normalAccessor = attr->data; break;
-                case cgltf_attribute_type_texcoord: texAccessor = attr->data; break;
-                //case cgltf_attribute_type_tangent:  tangentAccessor = attr->data; break;
-                case cgltf_attribute_type_joints:   jointsAccessor = attr->data; break;
-                case cgltf_attribute_type_weights:  weightsAccessor = attr->data; break;
-                default: break;
-                }
+        uint32_t numVertices = mesh->mNumVertices;
+        meshContainer.vertices.reserve(meshContainer.vertices.size() + numVertices);
+        for (uint32_t vi = 0; vi < numVertices; vi++) {
+            VertexType v;
+            v.Pos = { mesh->mVertices[vi].x, mesh->mVertices[vi].y, mesh->mVertices[vi].z };
+
+            minVec = { std::min(minVec.x, v.Pos.x), std::min(minVec.y, v.Pos.y), std::min(minVec.z, v.Pos.z) };
+            maxVec = { std::max(maxVec.x, v.Pos.x), std::max(maxVec.y, v.Pos.y), std::max(maxVec.z, v.Pos.z) };
+
+            if (mesh->HasNormals())
+                v.Normal = { mesh->mNormals[vi].x, mesh->mNormals[vi].y, mesh->mNormals[vi].z };
+
+            if (mesh->mTextureCoords[0]) {
+                v.TexC = { mesh->mTextureCoords[0][vi].x, mesh->mTextureCoords[0][vi].y };
             }
-
-            if (!posAccessor) 
-                continue;
-
-            BoundingBox boundingBox;
-            Submesh submesh;
-            submesh.BaseVertexLocation = baseVertex;
-            submesh.StartIndexLocation = baseIndex;
-            
-            baseVertex += posAccessor->count;
-            XMFLOAT3 maxVertex(0.0f, 0.0f, 0.0f), minVertex(0.0f, 0.0f, 0.0f);
-            if (posAccessor->has_max)
-                maxVertex = XMFLOAT3(posAccessor->max[0], posAccessor->max[1], posAccessor->max[2]);
-            if (posAccessor->has_min)
-                minVertex = XMFLOAT3(posAccessor->min[0], posAccessor->min[1], posAccessor->min[2]);
-
-            boundingBox.Center = XMFLOAT3(maxVertex.x + minVertex.x, 
-                maxVertex.y + minVertex.y, maxVertex.z + minVertex.z);
-            boundingBox.Extents = XMFLOAT3(maxVertex.x - boundingBox.Center.x, 
-                maxVertex.y - boundingBox.Center.y, maxVertex.z - boundingBox.Center.z);
-            submesh.Bounds = boundingBox;
-
-            for (int i = 0; i < posAccessor->count; ++i) {
-                SkinnedVertex v;
-                float temp[4] = {};
-                unsigned int indexTemp[4] = {};
-
-                cgltf_accessor_read_float(posAccessor, i, temp, 3);
-                v.Pos = XMFLOAT3(temp[0], temp[1], temp[2]);
-
-                if (normalAccessor) {
-                    cgltf_accessor_read_float(normalAccessor, i, temp, 3);
-                    v.Normal = XMFLOAT3(temp[0], temp[1], temp[2]); 
-                }
-                if (texAccessor) {
-                    cgltf_accessor_read_float(texAccessor, i, temp, 2);
-                    v.TexC = XMFLOAT2(temp[0], temp[1]); }
-                if (jointsAccessor) { 
-                    cgltf_accessor_read_uint(jointsAccessor, i, indexTemp, 4);
-                    for (int bi = 0; bi < 4; bi++) v.BoneIndices[bi] = indexTemp[bi];
-                }
-                if (weightsAccessor) { 
-                    cgltf_accessor_read_float(weightsAccessor, i, temp, 4);
-                    v.BoneWeights = XMFLOAT3();
-                }
-                /*
-                if (tangentAccessor) {
-                    cgltf_accessor_read_float(tangentAccessor, i, temp, 4);
-                    v. = XMFLOAT4(temp[0], temp[1], temp[2], temp[3]);
-                }
-                */
-                skinnedMesh.vertices.push_back(v);
+            else {
+                v.TexC = { 0.0f, 0.0f };
             }
-
-            // 인덱스 읽기
-            if (primitive->indices) {
-                cgltf_accessor* indexAccessor = primitive->indices;
-                baseIndex += indexAccessor->count;
-                numIndices = indexAccessor->count;
-                for (size_t i = 0; i < indexAccessor->count; ++i) {
-                    uint32_t idx = 0;
-                    cgltf_accessor_read_uint(indexAccessor, i, &idx, 1);
-                    skinnedMesh.indices.push_back(idx);
-                }
-            }
-            else // indices 없는 경우 순서대로
-            {
-                baseIndex += posAccessor->count;
-                numIndices = posAccessor->count;
-                for (size_t i = 0; i < posAccessor->count; ++i)
-                    skinnedMesh.indices.push_back((uint32_t)i);
-            }
-
-            submesh.IndexCount = numIndices;
-            submeshes.push_back(submesh);
+            meshContainer.vertices.push_back(v);
         }
+
+        meshContainer.indices.reserve(meshContainer.indices.size() + mesh->mNumFaces * 3);
+        for (uint32_t fi = 0; fi < mesh->mNumFaces; fi++) {
+            const aiFace& face = mesh->mFaces[fi];
+            for (uint32_t i = 0; i < face.mNumIndices; i++) {
+                meshContainer.indices.emplace_back(face.mIndices[i]);
+            }
+        }    
+
+        BoundingBox boundingBox = { {(minVec.x + maxVec.x) / 2.0f, (minVec.y + maxVec.y) / 2.0f, (minVec.z + maxVec.z) / 2.0f},
+            {(maxVec.x - minVec.x) / 2.0f, (maxVec.y - minVec.y) / 2.0f, (maxVec.z - minVec.z) / 2.0f} };
+        numIndices = mesh->mNumFaces * 3;
+        submeshes_.push_back({ numIndices , baseIndex , baseVertex , boundingBox });
+        baseVertex += mesh->mNumVertices;
+        baseIndex += numIndices;
     }
 }
 
-void ModelLoader::ReadSkinnedData(const cgltf_data* data)
+void ModelLoader::ReadNodeData(const aiScene* scene)
 {
-    vector<int> parentBone;
-    vector<vector<int>> childrenBone;
     unordered_map<string, uint32_t> nameToIdx;
-    vector<XMFLOAT4X4> boneOffsets;
 
-    int numSkins = data->skins_count;
-    for (int si = 0; si < numSkins; si++) {
-        cgltf_skin* skin = &data->skins[si];
+    queue<aiNode*> q;
+    q.push(scene->mRootNode);
 
-        int numJoints = skin->joints_count;
+    while (!q.empty()) {
+        aiNode* node = q.front(); q.pop();
+        nameToIdx.insert({ node->mName.C_Str(), nameToIdx.size() });
 
-        parentBone.resize(numJoints);
-        childrenBone.resize(numJoints);
-        boneOffsets.resize(numJoints);
+        for (uint32_t ci = 0; ci < node->mNumChildren; ci++)
+            q.push(node->mChildren[ci]);
+    }
 
-        // 본 이름을 idx로 매핑
-        for (int ji = 0; ji < numJoints; ji++) {
-            cgltf_node* joint = skin->joints[ji];
-            string boneName = joint->name;
+    vector<uint32_t> parentNode(nameToIdx.size());
+    vector<vector<uint32_t>> childrenNode(nameToIdx.size());
+    vector<XMFLOAT4X4> nodeTransforms(nameToIdx.size());
 
-            if (nameToIdx.find(boneName) == nameToIdx.end())
-                nameToIdx[boneName] = nameToIdx.size();
+    q.push(scene->mRootNode);
+    while (!q.empty()) {
+        aiNode* node = q.front(); q.pop();
+        uint32_t nodeIdx = nameToIdx[node->mName.C_Str()];
+
+        if (node->mParent != nullptr)
+            parentNode[nodeIdx] = nameToIdx[node->mParent->mName.C_Str()];
+        else
+            parentNode[nodeIdx] = nodeIdx;
+
+        nodeTransforms[nodeIdx] = AiToXmFloat4x4(node->mTransformation);
+
+        for (uint32_t ci = 0; ci < node->mNumChildren; ci++) {
+            childrenNode[nodeIdx].push_back(nameToIdx[node->mChildren[ci]->mName.C_Str()]);
+            q.push(node->mChildren[ci]);
         }
+    }
 
-        // read bone heritage
-        for (int ji = 0; ji < numJoints; ji++) {
-            cgltf_node* bone = skin->joints[ji];
-            string boneName = bone->name;
+    skinnedData_.SetNode(parentNode, childrenNode, nameToIdx, nodeTransforms);
+}
 
-            if (nameToIdx.find(boneName) == nameToIdx.end())
+void ModelLoader::ReadBoneData(const aiScene* scene)
+{
+    /*
+    for (int i = 0; i < scene->mNumMeshes; i++) {
+        aiMesh* me = scene->mMeshes[i];
+        for (int j = 0; j < me->mNumBones; j++) {
+            aiBone* bo = me->mBones[j];
+            int a = 1;
+        }
+    }
+    */
+    uint32_t numVertices = skinnedMesh_.vertices.size();
+    vector<vector<pair<float, uint32_t>>> boneData(numVertices);
+    unordered_map<uint32_t, uint32_t> nodeToBone;
+    vector<XMFLOAT4X4> boneOffsets;
+    
+    uint32_t numMeshes = scene->mNumMeshes;
+    for (uint32_t mi = 0; mi < numMeshes; mi++) {
+        aiMesh* mesh = scene->mMeshes[mi];
+        uint32_t numBones = mesh->mNumBones;
+
+        uint32_t baseVertex = submeshes_[mi].BaseVertexLocation;
+
+        for (uint32_t bi = 0; bi < numBones; bi++) {
+            aiBone* bone = mesh->mBones[bi];
+            int32_t nodeIdx = skinnedData_.NameToIdx(bone->mName.C_Str());
+            // 노드에 저장되지 않은 bone은 무시
+            if (nodeIdx == -1)
                 continue;
 
-            int boneIdx = nameToIdx[boneName];
+            if (nodeToBone.find(nodeIdx) == nodeToBone.end()) {
+                nodeToBone.insert({ nodeIdx, nodeToBone.size() });
+                boneOffsets.push_back(AiToXmFloat4x4(bone->mOffsetMatrix));
+            }
 
-            string parent = bone->parent->name;
-            if (nameToIdx.find(parent) == nameToIdx.end())
-                parentBone[boneIdx] = boneIdx;
-            else
-                parentBone[boneIdx] = nameToIdx[parent];
+            uint32_t boneIdx = nodeToBone[nodeIdx];
 
-            int numChildren = bone->children_count;
-            for (int ci = 0; ci < numChildren; ci++) {
-                string childName = bone->children[ci]->name;
-                if (nameToIdx.find(childName) == nameToIdx.end())
-                    continue;
-                childrenBone[boneIdx].emplace_back(nameToIdx[childName]);
+            for (uint32_t wi = 0; wi < bone->mNumWeights; wi++) {
+                aiVertexWeight vw = bone->mWeights[wi];
+                boneData[vw.mVertexId + baseVertex].push_back({ vw.mWeight, boneIdx });
             }
         }
-
-        // bind boneOffsets
-        if (skin->inverse_bind_matrices) {
-            cgltf_accessor* accessor = skin->inverse_bind_matrices;
-
-            for (cgltf_size i = 0; i < numJoints; ++i) {
-                float mat[16];
-                cgltf_accessor_read_float(accessor, i, mat, 16);
-
-                DirectX::XMMATRIX xmMat = DirectX::XMLoadFloat4x4(reinterpret_cast<DirectX::XMFLOAT4X4*>(mat));
-                xmMat = DirectX::XMMatrixTranspose(xmMat);
-                DirectX::XMStoreFloat4x4(&boneOffsets[i], xmMat);
-            }
-        }
-        else {
-            XMFLOAT4X4 identity =  MathHelper::Identity4x4();
-            fill(boneOffsets.begin(), boneOffsets.end(), identity);
-        }
-
-        skinnedData.Set(parentBone, childrenBone, nameToIdx, boneOffsets);
-    }
-}
-
-bool ModelLoader::ReadAnimation(const char* fileName, string animationName)
-{
-    cgltf_options options = {};
-    cgltf_data* data = nullptr;
-
-    cgltf_result result = cgltf_parse_file(&options, fileName, &data);
-    if (result != cgltf_result_success) {
-        //std::cerr << "Failed to parse glTF\n";
-        return false;
     }
 
-    result = cgltf_load_buffers(&options, data, fileName);
-    if (result != cgltf_result_success) {
-        //std::cerr << "Failed to load buffers\n";`
-        cgltf_free(data);
-        return false;
-    }
-    ReadAnimationClip(data, animationName);
+    skinnedData_.SetBone(nodeToBone, boneOffsets);
 
-    cgltf_free(data);
+    //boneData의 boneindex와 boneWeight를 skinnedVertex에 적재하기.
+    for (uint32_t vi = 0; vi < numVertices; vi++) {
+        vector<pair<float, uint32_t>>& weights = boneData[vi];
+        uint32_t numWeights = weights.size();
 
-    return true;
-}
-
-void ModelLoader::ReadAnimationClip(const cgltf_data* data, string& animationName)
-{
-    if (data->animations_count == 0)
-        return;
-
-    const cgltf_animation& anim = data->animations[0];
-    if (animationName.empty())
-        (animationName = anim.name ? anim.name : "noName");
-
-    int boneCount = skinnedData.BoneCount();
-    vector<vector<pair<float, XMFLOAT3>>> scaleAnimation;
-    scaleAnimation.resize(boneCount);
-    vector<vector<pair<float, XMFLOAT4>>> rotateAnimation;
-    rotateAnimation.resize(boneCount);
-    vector<vector<pair<float, XMFLOAT3>>> posAnimation;
-    posAnimation.resize(boneCount);
-
-    int numChannels = anim.channels_count;
-    for (cgltf_size c = 0; c < numChannels; ++c) {
-        const cgltf_animation_channel& channel = anim.channels[c];
-
-        cgltf_node* target = channel.target_node;
-
-        if (!(channel.target_path == cgltf_animation_path_type_translation
-            || channel.target_path == cgltf_animation_path_type_rotation
-            || channel.target_path == cgltf_animation_path_type_scale))
+        if (numWeights == 0)
             continue;
 
-        int64_t boneIdx = skinnedData.NameToIdx(target->name);
-        if (boneIdx == -1)
-            continue;
+        // weight가 4개보다 많더라도 가장 영향을 많이 미치는 4개의 bone만 선택
+        sort(weights.begin(), weights.end(), [](const pair<float, uint32_t>& a, const pair<float, uint32_t>& b) {
+            return a.first > b.first; });
 
-        const cgltf_animation_sampler* sampler = channel.sampler;
-
-        cgltf_accessor* input = sampler->input;
-        cgltf_accessor* output = sampler->output;
-
-        std::vector<float> times(input->count);
-        cgltf_accessor_unpack_floats(input, times.data(), times.size());
-
-        // 출력 값 (vec3 또는 quat)
-        size_t elem_size = cgltf_num_components(output->type);
-        std::vector<float> values(output->count * elem_size);
-        cgltf_accessor_unpack_floats(output, values.data(), values.size());
-
-        switch (channel.target_path) {
-        case cgltf_animation_path_type_translation:
-            posAnimation[boneIdx].resize(input->count);
-            for (size_t k = 0; k < input->count; ++k) {
-                posAnimation[boneIdx][k] = { times[k],
-                    XMFLOAT3(values[k * elem_size], values[k * elem_size + 1],
-                        values[k * elem_size + 2]) };
-            }
-            break;
-        case cgltf_animation_path_type_rotation:
-            rotateAnimation[boneIdx].resize(input->count);
-            for (size_t k = 0; k < input->count; ++k) {
-                rotateAnimation[boneIdx][k] = { times[k],
-                    XMFLOAT4(values[k * elem_size], values[k * elem_size + 1],
-                        values[k * elem_size + 2], values[k * elem_size + 3]) };
-            }
-            break;
-        case cgltf_animation_path_type_scale:
-            scaleAnimation[boneIdx].resize(input->count);
-            for (size_t k = 0; k < input->count; ++k) {
-                scaleAnimation[boneIdx][k] = { times[k],
-                    XMFLOAT3(values[k * elem_size], values[k * elem_size + 1],
-                        values[k * elem_size + 2]) };
-            }
-            break;
+        uint32_t boneIndices[4] = { 0, 0, 0, 0 };
+        float boneWeight[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        
+        float sumWeight = 0.0f;
+        for (int i = 0; i < 4 && i < numWeights; i++) {
+            boneIndices[i] = weights[i].second;
+            boneWeight[i] = weights[i].first;
+            sumWeight += boneWeight[i];
         }
-    }
 
-    skinnedData.AddAnimaiton(animationName, InterpolateAnimaitonClip(
-        scaleAnimation, rotateAnimation, posAnimation));
+        // boneWeight 정규화
+        if (sumWeight > 0.0f) {
+            for (int i = 0; i < 4; i++) {
+                boneWeight[i] /= sumWeight;
+            }
+        }
+
+        SkinnedVertex& v = skinnedMesh_.vertices[vi];
+        for (int i = 0; i < 4; i++)
+            v.BoneIndices[i] = boneIndices[i];
+        v.BoneWeights = { boneWeight[0], boneWeight[1], boneWeight[2] };
+    }
 }
+/*
+void ModelLoader::ReadBoneHeritage(const aiScene* scene)
+{
+    
+}
+*/
 
 AnimationClip ModelLoader::InterpolateAnimaitonClip(const vector<vector<pair<float, XMFLOAT3>>>& scaleAnimation,
     const vector<vector<pair<float, XMFLOAT4>>>& rotateAnimation, 
@@ -322,7 +231,7 @@ AnimationClip ModelLoader::InterpolateAnimaitonClip(const vector<vector<pair<flo
 {
     AnimationClip animationClip;
 
-    int boneCount = skinnedData.BoneCount();
+    int boneCount = skinnedData_.BoneCount();
     animationClip.boneAnimations_.resize(boneCount);
 
     for (int bi = 0; bi < boneCount; bi++) {
@@ -337,17 +246,15 @@ AnimationClip ModelLoader::InterpolateAnimaitonClip(const vector<vector<pair<flo
         for (auto& kv : rotateAnim) times.push_back(kv.first);
         for (auto& kv : posAnim)    times.push_back(kv.first);
 
-        // 2. 정렬
-        std::sort(times.begin(), times.end());
+        sort(times.begin(), times.end());
 
-        // 3. 중복 제거 (EPS 허용)
         auto it = std::unique(times.begin(), times.end(), MathHelper::FloatEqual());
         times.erase(it, times.end());
 
         // time마다 보간된 keyframe 구하기
         for (float t : times) {
             XMFLOAT3 s = SampleFloat3(scaleAnim, t);
-            XMFLOAT4 r = SampleFloat4(rotateAnim, t); // 쿼터니언
+            XMFLOAT4 r = SampleFloat4(rotateAnim, t);
             XMFLOAT3 p = SampleFloat3(posAnim, t);
 
             Keyframe kf;
@@ -360,16 +267,17 @@ AnimationClip ModelLoader::InterpolateAnimaitonClip(const vector<vector<pair<flo
         }
     }
 
-    animationClip.SetClipStartTime();
-    animationClip.SetClipEndTime();
+    animationClip.SetClipTime();
 
     return animationClip;
 }
 
 void ModelLoader::Clear()
 {
-    mesh.clear();
-    skinnedMesh.clear();
+    mesh_.clear();
+    skinnedMesh_.clear();
+    skinnedData_ = SkinnedData();
+    submeshes_.clear();
 }
 
 XMFLOAT3 SampleFloat3(const vector<pair<float, XMFLOAT3>>& keyframes, float t)
@@ -419,4 +327,14 @@ XMFLOAT4 SampleFloat4(const vector<pair<float, XMFLOAT4>>& keyframes, float t)
         }
     }
     return keyframes.back().second;
+}
+
+XMFLOAT4X4 AiToXmFloat4x4(const aiMatrix4x4& mat)
+{
+    XMFLOAT4X4 out;
+    out._11 = mat.a1; out._12 = mat.a2; out._13 = mat.a3; out._14 = mat.a4;
+    out._21 = mat.b1; out._22 = mat.b2; out._23 = mat.b3; out._24 = mat.b4;
+    out._31 = mat.c1; out._32 = mat.c2; out._33 = mat.c3; out._34 = mat.c4;
+    out._41 = mat.d1; out._42 = mat.d2; out._43 = mat.d3; out._44 = mat.d4;
+    return out;
 }

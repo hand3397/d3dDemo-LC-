@@ -20,23 +20,24 @@ struct Vertex
     XMFLOAT2 TexC = XMFLOAT2(0.0f, 0.0f);;
 };
 
-struct SkinnedVertex : Vertex
+struct SkinnedVertex
 {
-    SkinnedVertex() = default;
-
+    XMFLOAT3 Pos = XMFLOAT3(0.0f, 0.0f, 0.0f);
+    XMFLOAT3 Normal = XMFLOAT3(0.0f, 0.0f, 0.0f);;
+    XMFLOAT2 TexC = XMFLOAT2(0.0f, 0.0f);;
     XMFLOAT3 BoneWeights = XMFLOAT3(0.0f, 0.0f, 0.0f);
-    uint32_t  BoneIndices[4] = {0, 0, 0, 0};
+    uint32_t BoneIndices[4] = {0, 0, 0, 0};
 };
 
 struct Submesh
 {
     Submesh() = default;
-    Submesh(uint32_t indexCount, uint32_t startIndexLocation, int baseVertexLocation, BoundingBox boundingBox) :
+    Submesh(uint32_t indexCount, uint32_t startIndexLocation, uint32_t baseVertexLocation, BoundingBox boundingBox) :
         IndexCount(indexCount), StartIndexLocation(startIndexLocation), BaseVertexLocation(baseVertexLocation), Bounds(boundingBox) {}
 
     uint32_t IndexCount = 0;
     uint32_t StartIndexLocation = 0;
-    int BaseVertexLocation = 0;
+    uint32_t BaseVertexLocation = 0;
 
     BoundingBox Bounds;
 };
