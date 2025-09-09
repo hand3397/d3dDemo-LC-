@@ -37,6 +37,8 @@ struct BoneAnimation
 struct AnimationClip
 {
 	void SetClipTime();
+	void SetDuration(float duration, uint32_t tickPerSecond);
+	float SecondToTick(float& s);
 
 	float GetClipStartTime() const;
 	float GetClipEndTime() const;
@@ -46,13 +48,18 @@ struct AnimationClip
     vector<BoneAnimation> boneAnimations_;
 
 private:
-	float startTime_;
-	float endTime_;
+	float duration_ = 0.0f;
+	// 값이 0일 경우 keyframe의 timePos_를 tick이 아닌 초단위로 해석
+	float ticksPerSecond_ = 0.0f;
+
+	float startClipTime_ = 0.0f;
+	float endClipTime_ = 0.0f;
 };
 
 class SkinnedData
 {
 public:
+	UINT NodeCount()const;
 	UINT BoneCount()const;
 
 	float GetClipStartTime(const string& clipName)const;
@@ -71,14 +78,16 @@ public:
     void GetFinalTransforms(const string& clipName, float timePos, 
 		 vector<XMFLOAT4X4>& finalTransforms)const;
 
-	int32_t NameToIdx(const string& name);
-	int32_t NodeToBone(int node);
+	int32_t NodeToIdx(const string& name) const;
+	int32_t NodeToBone(const uint32_t node) const;
+
+	float SecondToTick(const string& clipName, float& s);
 private:
-	vector<uint32_t> rootNode_;
+	// rootNode = 0;
 	vector<uint32_t> parentNode_;
 	vector<vector<uint32_t>> childrenNode_;
 
-	unordered_map<string, uint32_t> nameToIdx_;
+	unordered_map<string, uint32_t> nodeToIdx_;
 	unordered_map<uint32_t, uint32_t> nodeToBone_;
 
 	vector<XMFLOAT4X4> nodeTransforms_;

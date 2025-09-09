@@ -11,7 +11,7 @@ bool IsSkinnedMesh(const aiScene* scene)
     return false; // 모든 메시가 mNumBones == 0 → 일반 메시
 }
 
-bool ModelLoader::ReadModel(const char* fileName)
+bool ModelLoader::ReadModelFile(const char* fileName)
 {
     //this->Clear();
 
@@ -38,7 +38,6 @@ bool ModelLoader::ReadModel(const char* fileName)
     else {
         ReadMesh<Vertex>(scene, mesh_);
     }
-    //ReadSkinnedData(scene);
 
     return true;
 }
@@ -99,42 +98,44 @@ void ModelLoader::ReadMesh(const aiScene* scene, MeshContainerType& meshContaine
 
 void ModelLoader::ReadNodeData(const aiScene* scene)
 {
-    unordered_map<string, uint32_t> nameToIdx;
+    unordered_map<string, uint32_t> nodeToIdx;
 
     queue<aiNode*> q;
     q.push(scene->mRootNode);
 
     while (!q.empty()) {
         aiNode* node = q.front(); q.pop();
-        nameToIdx.insert({ node->mName.C_Str(), nameToIdx.size() });
+        nodeToIdx.insert({ node->mName.C_Str(), nodeToIdx.size() });
 
         for (uint32_t ci = 0; ci < node->mNumChildren; ci++)
             q.push(node->mChildren[ci]);
     }
 
-    vector<uint32_t> parentNode(nameToIdx.size());
-    vector<vector<uint32_t>> childrenNode(nameToIdx.size());
-    vector<XMFLOAT4X4> nodeTransforms(nameToIdx.size());
+    vector<uint32_t> parentNode(nodeToIdx.size());
+    vector<vector<uint32_t>> childrenNode(nodeToIdx.size());
+    vector<XMFLOAT4X4> nodeTransforms(nodeToIdx.size());
 
     q.push(scene->mRootNode);
     while (!q.empty()) {
         aiNode* node = q.front(); q.pop();
-        uint32_t nodeIdx = nameToIdx[node->mName.C_Str()];
+        uint32_t nodeIdx = nodeToIdx[node->mName.C_Str()];
 
-        if (node->mParent != nullptr)
-            parentNode[nodeIdx] = nameToIdx[node->mParent->mName.C_Str()];
-        else
+        if (node->mParent != nullptr) {
+            parentNode[nodeIdx] = nodeToIdx[node->mParent->mName.C_Str()];
+        }            
+        else {
             parentNode[nodeIdx] = nodeIdx;
+        }
 
         nodeTransforms[nodeIdx] = AiToXmFloat4x4(node->mTransformation);
 
         for (uint32_t ci = 0; ci < node->mNumChildren; ci++) {
-            childrenNode[nodeIdx].push_back(nameToIdx[node->mChildren[ci]->mName.C_Str()]);
+            childrenNode[nodeIdx].push_back(nodeToIdx[node->mChildren[ci]->mName.C_Str()]);
             q.push(node->mChildren[ci]);
         }
     }
 
-    skinnedData_.SetNode(parentNode, childrenNode, nameToIdx, nodeTransforms);
+    skinnedData_.SetNode(parentNode, childrenNode, nodeToIdx, nodeTransforms);
 }
 
 void ModelLoader::ReadBoneData(const aiScene* scene)
@@ -162,7 +163,7 @@ void ModelLoader::ReadBoneData(const aiScene* scene)
 
         for (uint32_t bi = 0; bi < numBones; bi++) {
             aiBone* bone = mesh->mBones[bi];
-            int32_t nodeIdx = skinnedData_.NameToIdx(bone->mName.C_Str());
+            int32_t nodeIdx = skinnedData_.NodeToIdx(bone->mName.C_Str());
             // 노드에 저장되지 않은 bone은 무시
             if (nodeIdx == -1)
                 continue;
@@ -218,58 +219,118 @@ void ModelLoader::ReadBoneData(const aiScene* scene)
         v.BoneWeights = { boneWeight[0], boneWeight[1], boneWeight[2] };
     }
 }
-/*
-void ModelLoader::ReadBoneHeritage(const aiScene* scene)
+
+bool ModelLoader::ReadAnimationFile(const char* fileName, const string& animationName)
 {
-    
-}
-*/
+    Assimp::Importer importer;
 
-AnimationClip ModelLoader::InterpolateAnimaitonClip(const vector<vector<pair<float, XMFLOAT3>>>& scaleAnimation,
-    const vector<vector<pair<float, XMFLOAT4>>>& rotateAnimation, 
-    const vector<vector<pair<float, XMFLOAT3>>>& posAnimation)
-{
-    AnimationClip animationClip;
+    // 모델 파일 로드 (예: soldier.fbx, model.gltf, model.obj 등)
+    const aiScene* scene = importer.ReadFile(fileName,
+        aiProcess_Triangulate |        // 삼각형으로 변환
+        aiProcess_FlipUVs |            // UV 좌표 뒤집기 (DirectX용)
+        aiProcess_CalcTangentSpace |   // Normal / Tangent 계산
+        aiProcess_JoinIdenticalVertices
+    );
 
-    int boneCount = skinnedData_.BoneCount();
-    animationClip.boneAnimations_.resize(boneCount);
-
-    for (int bi = 0; bi < boneCount; bi++) {
-        auto& scaleAnim = scaleAnimation[bi];
-        auto& rotateAnim = rotateAnimation[bi];
-        auto& posAnim = posAnimation[bi];
-
-        vector<float> times;
-        times.reserve(scaleAnim.size() + rotateAnim.size() + posAnim.size());
-
-        for (auto& kv : scaleAnim)  times.push_back(kv.first);
-        for (auto& kv : rotateAnim) times.push_back(kv.first);
-        for (auto& kv : posAnim)    times.push_back(kv.first);
-
-        sort(times.begin(), times.end());
-
-        auto it = std::unique(times.begin(), times.end(), MathHelper::FloatEqual());
-        times.erase(it, times.end());
-
-        // time마다 보간된 keyframe 구하기
-        for (float t : times) {
-            XMFLOAT3 s = SampleFloat3(scaleAnim, t);
-            XMFLOAT4 r = SampleFloat4(rotateAnim, t);
-            XMFLOAT3 p = SampleFloat3(posAnim, t);
-
-            Keyframe kf;
-            kf.timePos_ = t;
-            kf.scale_ = s;
-            kf.rotationQuat_ = r;
-            kf.translation_ = p;
-
-            animationClip.boneAnimations_[bi].keyframes_.push_back(kf);
-        }
+    if (!scene) {
+        //std::cerr << "Assimp Error: " << importer.GetErrorString() << std::endl;
+        return false;
     }
 
-    animationClip.SetClipTime();
+    if (scene->HasAnimations()) {
+        ReadAnimations(scene, animationName);
+        return true;
+    }
+    return false;
+}
 
-    return animationClip;
+void ModelLoader::ReadAnimations(const aiScene* scene, const string& animationName)
+{
+    uint32_t numAnimations = scene->mNumAnimations;
+    for (uint32_t ai = 0; ai < numAnimations; ai++) {
+        aiAnimation* anim = scene->mAnimations[ai];
+        
+        string animName = animationName + to_string(ai);
+
+        AnimationClip animationClip;
+        animationClip.SetDuration(anim->mDuration, anim->mTicksPerSecond);
+        
+        animationClip.boneAnimations_.resize(skinnedData_.NodeCount());
+
+        uint32_t numChannels = anim->mNumChannels;
+        for (uint32_t ci = 0; ci < numChannels; ci++) {
+            aiNodeAnim* channel = anim->mChannels[ci];
+
+            string nodeName = channel->mNodeName.C_Str();
+            uint32_t nodeIdx = skinnedData_.NodeToIdx(nodeName);
+            if (nodeIdx == -1)
+                continue;
+
+            vector<pair<double, XMFLOAT3>> positions(channel->mNumPositionKeys);
+            for (uint32_t pi = 0; pi < channel->mNumPositionKeys; pi++) {
+                const aiVectorKey &key = channel->mPositionKeys[pi];
+                positions[pi] = { key.mTime, {key.mValue.x, key.mValue.y, key.mValue.z} };
+            }
+
+            vector<pair<double, XMFLOAT4>> rotateQuats(channel->mNumRotationKeys);
+            for (uint32_t pi = 0; pi < channel->mNumRotationKeys; pi++) {
+                const aiQuatKey& key = channel->mRotationKeys[pi];
+                rotateQuats[pi] = { key.mTime, {key.mValue.x, key.mValue.y, key.mValue.z, key.mValue.w} };
+            }
+
+            vector<pair<double, XMFLOAT3>> scales(channel->mNumScalingKeys);
+            for (uint32_t pi = 0; pi < channel->mNumScalingKeys; pi++) {
+                const aiVectorKey& key = channel->mScalingKeys[pi];
+                scales[pi] = { key.mTime, {key.mValue.x, key.mValue.y, key.mValue.z} };
+            }
+            
+            InterpolateKeyframes(animationClip.boneAnimations_[nodeIdx].keyframes_, 
+                positions, rotateQuats, scales);
+        }
+
+        animationClip.SetClipTime();
+        skinnedData_.AddAnimaiton(animName, animationClip);
+    }
+}
+
+void ModelLoader::InterpolateKeyframes(vector<Keyframe>& keyframes, 
+    const vector<pair<double, XMFLOAT3>>& positions,
+    const vector<pair<double, XMFLOAT4>>& rotateQuats,
+    const vector<pair<double, XMFLOAT3>>& scales)
+{
+    vector<double> times;
+    times.reserve(positions.size() + rotateQuats.size() + scales.size());
+
+    for (auto& kv : positions)  
+        times.push_back(kv.first);
+    for (auto& kv : rotateQuats) 
+        times.push_back(kv.first);
+    for (auto& kv : scales)    
+        times.push_back(kv.first);
+
+    sort(times.begin(), times.end());
+
+    auto it = std::unique(times.begin(), times.end(), MathHelper::FloatEqual());
+    times.erase(it, times.end());
+
+    uint32_t numTimes = times.size();
+    keyframes.resize(numTimes);
+
+    // time마다 보간된 keyframe 구하기
+    for (uint32_t i = 0; i < numTimes; ++i) {
+        double t = times[i];
+        XMFLOAT3 p = SampleFloat3(positions, t);
+        XMFLOAT4 r = SampleFloat4(rotateQuats, t);
+        XMFLOAT3 s = SampleFloat3(scales, t);
+
+        Keyframe kf;
+        kf.timePos_ = t;
+        kf.scale_ = s;
+        kf.rotationQuat_ = r;
+        kf.translation_ = p;
+
+        keyframes[i] = kf;
+    }
 }
 
 void ModelLoader::Clear()
@@ -280,7 +341,7 @@ void ModelLoader::Clear()
     submeshes_.clear();
 }
 
-XMFLOAT3 SampleFloat3(const vector<pair<float, XMFLOAT3>>& keyframes, float t)
+XMFLOAT3 SampleFloat3(const vector<pair<double, XMFLOAT3>>& keyframes, double t)
 {
     if (keyframes.empty()) return XMFLOAT3(1, 1, 1);
     if (t <= keyframes.front().first) return keyframes.front().second;
@@ -288,10 +349,10 @@ XMFLOAT3 SampleFloat3(const vector<pair<float, XMFLOAT3>>& keyframes, float t)
 
     // t를 감싸는 두 키프레임 찾기
     for (size_t i = 0; i < keyframes.size() - 1; ++i) {
-        float t0 = keyframes[i].first;
-        float t1 = keyframes[i + 1].first;
+        double t0 = keyframes[i].first;
+        double t1 = keyframes[i + 1].first;
         if (t0 <= t && t <= t1) {
-            float alpha = (t - t0) / (t1 - t0);
+            double alpha = (t - t0) / (t1 - t0);
             XMFLOAT3 s0 = keyframes[i].second;
             XMFLOAT3 s1 = keyframes[i + 1].second;
             // 선형 보간
@@ -306,17 +367,17 @@ XMFLOAT3 SampleFloat3(const vector<pair<float, XMFLOAT3>>& keyframes, float t)
     return keyframes.back().second;
 }
 
-XMFLOAT4 SampleFloat4(const vector<pair<float, XMFLOAT4>>& keyframes, float t)
+XMFLOAT4 SampleFloat4(const vector<pair<double, XMFLOAT4>>& keyframes, double t)
 {
     if (keyframes.empty()) return XMFLOAT4(0, 0, 0, 1);
     if (t <= keyframes.front().first) return keyframes.front().second;
     if (t >= keyframes.back().first)  return keyframes.back().second;
 
     for (size_t i = 0; i < keyframes.size() - 1; ++i) {
-        float t0 = keyframes[i].first;
-        float t1 = keyframes[i + 1].first;
+        double t0 = keyframes[i].first;
+        double t1 = keyframes[i + 1].first;
         if (t0 <= t && t <= t1) {
-            float alpha = (t - t0) / (t1 - t0);
+            double alpha = (t - t0) / (t1 - t0);
             XMVECTOR q0 = XMLoadFloat4(&keyframes[i].second);
             XMVECTOR q1 = XMLoadFloat4(&keyframes[i + 1].second);
             XMVECTOR q = XMQuaternionSlerp(q0, q1, alpha); // slerp로 보간

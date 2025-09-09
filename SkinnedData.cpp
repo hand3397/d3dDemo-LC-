@@ -82,18 +82,36 @@ void AnimationClip::SetClipTime()
 		et = MathHelper::Max(et, boneAnimations_[i].GetEndTime());
 	}
 
-	startTime_ = st;
-	endTime_ = et;
+	startClipTime_ = st;
+	endClipTime_ = MathHelper::Max(et, duration_);
+}
+
+void AnimationClip::SetDuration(float duration, uint32_t tickPerSecond)
+{
+	duration_ = duration;
+	ticksPerSecond_ = tickPerSecond;
+}
+
+float AnimationClip::SecondToTick(float& s)
+{
+	if (ticksPerSecond_ == 0.0f) {
+		s = fmodf(s, duration_);
+		return s;
+	}
+	else {
+		s = fmodf(s, duration_ / ticksPerSecond_);
+		return s * ticksPerSecond_;
+	}
 }
 
 float AnimationClip::GetClipStartTime()const
 {
-	return startTime_;
+	return startClipTime_;
 }
 
 float AnimationClip::GetClipEndTime()const
 {
-	return endTime_;
+	return endClipTime_;
 }
 
 void AnimationClip::Interpolate(float t, vector<XMMATRIX>& boneTransforms)const
@@ -117,11 +135,11 @@ float SkinnedData::GetClipEndTime(const string& clipName)const
 }
 
 void SkinnedData::SetNode(vector<uint32_t>& parentNode, vector<vector<uint32_t>>& childrenNode,
-	unordered_map<string, uint32_t> nameToIdx, vector<XMFLOAT4X4>& nodeTransforms)
+	unordered_map<string, uint32_t> nodeToIdx, vector<XMFLOAT4X4>& nodeTransforms)
 {
 	parentNode_ = parentNode;
 	childrenNode_ = childrenNode;
-	nameToIdx_ = nameToIdx;
+	nodeToIdx_ = nodeToIdx;
 	nodeTransforms_ = nodeTransforms;
 }
 
@@ -136,6 +154,11 @@ void SkinnedData::AddAnimaiton(const string& clipName, const AnimationClip& anim
 	animations_[clipName] = animationClip;
 }
 
+UINT SkinnedData::NodeCount()const
+{
+	return nodeToIdx_.size();
+}
+
 UINT SkinnedData::BoneCount()const
 {
 	return nodeToBone_.size();
@@ -143,50 +166,57 @@ UINT SkinnedData::BoneCount()const
  
 void SkinnedData::GetFinalTransforms(const string& clipName, float timePos,  vector<XMFLOAT4X4>& finalTransforms)const
 {
+	uint32_t numNodes = NodeCount();
 	uint32_t numBones = BoneCount();
 
 	
-	// 이 클립의 모든 뼈대를 주어진 시간에 맞게 보간한다.
 	auto it = animations_.find(clipName);
+	fill(finalTransforms.begin(), finalTransforms.begin() + numBones, MathHelper::Identity4x4());
 	if (it == animations_.end()) {
-		fill(finalTransforms.begin(), finalTransforms.begin() + numBones, MathHelper::Identity4x4());
 		return;
 	}
-	vector<XMMATRIX> transforms(numBones, XMMatrixIdentity());
+	vector<XMMATRIX> transforms(numNodes, XMMatrixIdentity());
+	// 이 클립의 모든 뼈대를 주어진 시간에 맞게 보간한다.
 	it->second.Interpolate(timePos, transforms);
-
-	/*
-	queue<uint32_t> q;
-	for (uint32_t rb : rootBone_)
-		for(uint32_t cb : childrenBone_[rb])
-			q.push(cb);
 	
-	while (!q.empty()) {
-		uint32_t boneIdx = q.front(); q.pop();
-		transforms[boneIdx] = transforms[parentBone_[boneIdx]] * transforms[boneIdx];
-		for (uint32_t cb : childrenBone_[boneIdx])
-			q.push(cb);
+	// rootNode = 0
+	for (uint32_t ni = 1; ni < numNodes; ni++) {
+		transforms[ni] = transforms[ni] * transforms[parentNode_[ni]];
 	}
 
+	
 	//XMMatrixTranspose
-	for (uint32_t i = 0; i < numBones; ++i) {
-		XMMATRIX finalTransform = transforms[i] * XMLoadFloat4x4(&boneOffsets_[i]);
+	for (uint32_t ni = 0; ni < numNodes; ++ni) {
+		int32_t bi = NodeToBone(ni);
+		if (bi == -1)
+			continue;
+		XMMATRIX finalTransform = transforms[ni] * XMLoadFloat4x4(&nodeTransforms_[ni]) * XMLoadFloat4x4(&boneOffsets_[bi]);
 		//XMMATRIX finalTransform = XMLoadFloat4x4(&boneOffsets_[i]);
-		XMStoreFloat4x4(&finalTransforms[i], XMMatrixTranspose(finalTransform));
+		XMStoreFloat4x4(&finalTransforms[bi], XMMatrixTranspose(finalTransform));
 	}
-	*/
 }
 
-int32_t SkinnedData::NameToIdx(const string& name)
+int32_t SkinnedData::NodeToIdx(const string& name) const
 {
-	if (nameToIdx_.find(name) == nameToIdx_.end())
+	auto it = nodeToIdx_.find(name);
+	if (it == nodeToIdx_.end())
 		return -1;
-	return nameToIdx_[name];
+	return it->second;
 }
 
-int32_t SkinnedData::NodeToBone(int node)
+int32_t SkinnedData::NodeToBone(const uint32_t node) const
 {
-	if (nodeToBone_.find(node) == nodeToBone_.end())
+	auto it = nodeToBone_.find(node);
+	if (it == nodeToBone_.end())
 		return -1;
-	return nodeToBone_[node];
+	return it->second;
+}
+
+float SkinnedData::SecondToTick(const string& clipName, float& s)
+{
+	auto it = animations_.find(clipName);
+	if (it != animations_.end()) {
+		return it->second.SecondToTick(s);
+	}
+	return 0.0f;
 }

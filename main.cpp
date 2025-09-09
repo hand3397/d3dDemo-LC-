@@ -28,11 +28,10 @@ struct SkinnedModelInstance
 		timePos_ += dt;
 
 		// Loop animation
-		if (timePos_ > skinnedInfo_->GetClipEndTime(clipName_))
-			timePos_ = fmod(timePos_, skinnedInfo_->GetClipEndTime(clipName_));
+		float animationTick = skinnedInfo_->SecondToTick(clipName_, timePos_);
 
 		// Compute the final transforms for this time position.
-		skinnedInfo_->GetFinalTransforms(clipName_, timePos_, finalTransforms_);
+		skinnedInfo_->GetFinalTransforms(clipName_, animationTick, finalTransforms_);
 	}
 };
 
@@ -435,16 +434,15 @@ void Direct3DDemo::UpdateSkinnedCBs(const GameTimer& gt)
 {
 	auto currSkinnedCB = currFrameResource->SkinnedCB.get();
 
-	skinnedModelInst->UpdateSkinnedAnimation(gt.DeltaTime() / 10.f);
+	skinnedModelInst->UpdateSkinnedAnimation(gt.DeltaTime());
 	
 	SkinnedConstants skinnedConstants;
 	copy(skinnedModelInst->finalTransforms_.begin(), skinnedModelInst->finalTransforms_.end(),
 		&skinnedConstants.BoneTransforms[0]);
-	/*
-	for (int i = 0; i < 96; i++) {
-		XMStoreFloat4x4(&skinnedConstants.BoneTransforms[i], XMMatrixTranspose(XMLoadFloat4x4(&MathHelper::Identity4x4())));
-	}
-	*/
+	
+	
+	//for (int i = 0; i < 96; i++)
+	//	XMStoreFloat4x4(&skinnedConstants.BoneTransforms[i], XMMatrixTranspose(XMLoadFloat4x4(&MathHelper::Identity4x4())));
 	//XMStoreFloat4x4(&skinnedConstants.BoneTransforms[0], XMMatrixTranspose(XMMatrixTranslation(0.0f, 10.0f, 0.0f)));
 	
 	currSkinnedCB->CopyData(0, skinnedConstants);
@@ -510,13 +508,14 @@ void Direct3DDemo::UpdateMainPassCB(const GameTimer& gt) {
 void Direct3DDemo::LoadModels()
 {
 	ModelLoader modelLoader;
-	modelLoader.ReadModel("Models/Soldier/Vanguard.fbx");
+	modelLoader.ReadModelFile("Models/Soldier/Vanguard.fbx");
 	//modelLoader.ReadAnimation("Models/Fox.glb");
+	modelLoader.ReadAnimationFile("Models/Soldier/Animation/RunForward.fbx", "RunForward");
 
 	skinnedData["skinned"] = make_unique<SkinnedData>(move(modelLoader.skinnedData_));
 	skinnedModelInst = make_unique<SkinnedModelInstance>();
 	skinnedModelInst.get()->skinnedInfo_ = skinnedData["skinned"].get();
-	skinnedModelInst.get()->clipName_ = "Run";
+	skinnedModelInst.get()->clipName_ = "RunForward0";
 	skinnedModelInst.get()->finalTransforms_.resize(skinnedModelInst.get()->skinnedInfo_->BoneCount());
 
 	const UINT vbByteSize = (UINT)modelLoader.skinnedMesh_.vertices.size() * sizeof(SkinnedVertex);
@@ -543,6 +542,7 @@ void Direct3DDemo::LoadModels()
 	geo->IndexBufferByteSize = ibByteSize;
 
 	geo->DrawArgs["0"] = modelLoader.submeshes_[0];
+	geo->DrawArgs["1"] = modelLoader.submeshes_[1];
 
 	geometries[geo->Name] = move(geo);
 }
@@ -1098,6 +1098,22 @@ void Direct3DDemo::BuildRenderItems() {
 
 	renderItemLayer[(unsigned int)RenderLayer::Skinned].push_back(skinnedRitem.get());
 	allRenderItems.push_back(move(skinnedRitem));
+	
+	auto skinnedRitem2 = make_unique<RenderItem>();
+	skinnedRitem2->world = MathHelper::Identity4x4();
+	skinnedRitem2->objCBIndex = objCBIndex++;
+	skinnedRitem2->material = materials["soldier"].get();
+	skinnedRitem2->geo = geometries["skinnedGeo"].get();
+	skinnedRitem2->primitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	skinnedRitem2->indexCount = skinnedRitem2->geo->DrawArgs["1"].IndexCount;
+	skinnedRitem2->startIndexLocation = skinnedRitem2->geo->DrawArgs["1"].StartIndexLocation;
+	skinnedRitem2->baseVertexLocation = skinnedRitem2->geo->DrawArgs["1"].BaseVertexLocation;
+	skinnedRitem2->SkinnedCBIndex = 0;
+	skinnedRitem2->SkinnedModelInst = skinnedModelInst.get();
+
+	renderItemLayer[(unsigned int)RenderLayer::Skinned].push_back(skinnedRitem2.get());
+	allRenderItems.push_back(move(skinnedRitem2));
+	
 	//---------------------------------------
 	
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.0f, 1.0f, 1.0f);
