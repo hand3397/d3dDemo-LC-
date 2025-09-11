@@ -98,7 +98,7 @@ struct MeshGeometry
 
     // 하나의 MeshGeometry는 여러 geometry를 하나의 vertex/index 버퍼에 저장할 수 있다.
     // 이 컨테이너를 사용해 SubmeshGeometry를 정의하면, 개별 Submesh를 따로 렌더링할 수 있다.
-    std::unordered_map<std::string, Submesh> DrawArgs;
+    std::unordered_map<std::string, Submesh> subMeshes_;
 
     D3D12_VERTEX_BUFFER_VIEW VertexBufferView()const
     {

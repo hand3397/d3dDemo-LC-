@@ -108,7 +108,7 @@ void ModelLoader::ReadMesh(const aiScene* scene, MeshContainerType& meshContaine
         BoundingBox boundingBox = { {(minVec.x + maxVec.x) / 2.0f, (minVec.y + maxVec.y) / 2.0f, (minVec.z + maxVec.z) / 2.0f},
             {(maxVec.x - minVec.x) / 2.0f, (maxVec.y - minVec.y) / 2.0f, (maxVec.z - minVec.z) / 2.0f} };
         numIndices = mesh->mNumFaces * 3;
-        submeshes_.push_back({ numIndices , baseIndex , baseVertex , boundingBox });
+        subMeshes_.push_back({ numIndices , baseIndex , baseVertex , boundingBox });
         baseVertex += mesh->mNumVertices;
         baseIndex += numIndices;
     }
@@ -179,7 +179,7 @@ void ModelLoader::ReadBoneData(const aiScene* scene)
         aiMesh* mesh = scene->mMeshes[mi];
         uint32_t numBones = mesh->mNumBones;
 
-        uint32_t baseVertex = submeshes_[mi].BaseVertexLocation;
+        uint32_t baseVertex = subMeshes_[mi].BaseVertexLocation;
 
         for (uint32_t bi = 0; bi < numBones; bi++) {
             aiBone* bone = mesh->mBones[bi];
@@ -362,7 +362,7 @@ void ModelLoader::Clear()
     mesh_.clear();
     skinnedMesh_.clear();
     skinnedData_ = SkinnedData();
-    submeshes_.clear();
+    subMeshes_.clear();
 }
 
 XMFLOAT3 SampleFloat3(const vector<pair<double, XMFLOAT3>>& keyframes, double t)

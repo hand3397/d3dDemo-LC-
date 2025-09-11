@@ -39,7 +39,7 @@ public:
     Mesh mesh_;
     SkinnedMesh skinnedMesh_;
 
-    vector<Submesh> submeshes_;
+    vector<Submesh> subMeshes_;
 
     SkinnedData skinnedData_;
 };
