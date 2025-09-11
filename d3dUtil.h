@@ -31,6 +31,9 @@
 #include <set>
 #include <queue>
 
+using namespace std;
+using namespace DirectX;
+
 extern const int gNumFrameResources;
 
 inline void d3dSetDebugName(IDXGIObject* obj, const char* name)
@@ -169,29 +172,41 @@ struct MaterialConstants {
 // 간단한 Material 구조체. 데모 용도로 사용됨.
 // 실제 상용 3D 엔진에서는 보통 Material을 클래스 계층 구조로 관리한다.
 struct Material {
-    // 이름 (lookup용)
-    std::string Name;
+    Material() = default;
+    Material(const string& name, int matCBIndex_,
+        int diffuseSrvHeapIndex_ = -1, int normalSrvHeapIndex_ = -1,
+        const XMFLOAT4& diffuseAlbedo = XMFLOAT4(1, 1, 1, 1),
+        const XMFLOAT3& fresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f),
+        float roughness = 0.25f,
+        const XMFLOAT4X4& matTransform = MathHelper::Identity4x4())
+        : name_(name), matCBIndex_(matCBIndex_),
+        diffuseSrvHeapIndex_(diffuseSrvHeapIndex_),
+        normalSrvHeapIndex_(normalSrvHeapIndex_),
+        diffuseAlbedo_(diffuseAlbedo), fresnelR0_(fresnelR0),
+        roughness_(roughness), matTransform_(matTransform) {}
+
+    string name_;
 
     // 상수 버퍼(Constant Buffer)에서 이 Material이 참조하는 인덱스
-    int MatCBIndex = -1;
+    int matCBIndex_ = -1;
 
     // Diffuse 텍스처의 SRV 힙 인덱스
-    int DiffuseSrvHeapIndex = -1;
+    int diffuseSrvHeapIndex_ = -1;
 
-    // Normal 텍스처의 SRV 힙 인덱스
-    int NormalSrvHeapIndex = -1;
+    int normalSrvHeapIndex_ = -1;
 
     // Dirty 플래그: Material이 수정되었음을 표시. → 상수 버퍼 업데이트 필요
     // FrameResource마다 Material 상수 버퍼가 존재하므로,
     // 수정 시 NumFramesDirty = gNumFrameResources 로 설정해야
     // 모든 프레임 리소스가 업데이트를 받는다.
-    int NumFramesDirty = gNumFrameResources;
+    int numFramesDirty_ = gNumFrameResources;
 
     // 셰이딩에 사용되는 Material 상수 버퍼 데이터
-    DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
-    DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
-    float Roughness = .25f;
-    DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
+    XMFLOAT4 diffuseAlbedo_ = { 1.0f, 1.0f, 1.0f, 1.0f };
+    XMFLOAT3 fresnelR0_ = { 0.01f, 0.01f, 0.01f };
+    float roughness_ = 0.25f;
+
+    XMFLOAT4X4 matTransform_ = MathHelper::Identity4x4();
 };
 
 struct Texture {

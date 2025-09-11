@@ -135,6 +135,7 @@ private:
 
 	ComPtr<ID3D12DescriptorHeap> srvDescriptorHeap = nullptr;
 
+	unordered_map <string, pair<uint32_t, wstring>> texList;
 	unordered_map<string, unique_ptr<MeshGeometry>> geometries;
 	unordered_map<string, unique_ptr<Material>> materials;
 	unordered_map<string, unique_ptr<Texture>> textures; 
@@ -162,8 +163,7 @@ private:
 	POINT lastMousePos;
 };
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
-				   PSTR cmdLine, int showCmd)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
 	// Enable run-time memory check for debug builds.
 #if defined(DEBUG) | defined(_DEBUG)
@@ -455,19 +455,19 @@ void Direct3DDemo::UpdateMaterialCBs(const GameTimer& gt) {
 		// Only update the cbuffer data if the constants have changed.  If the cbuffer
 		// data changes, it needs to be updated for each FrameResource.
 		Material* mat = e.second.get();
-		if (mat->NumFramesDirty > 0) {
-			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
+		if (mat->numFramesDirty_ > 0) {
+			XMMATRIX matTransform = XMLoadFloat4x4(&mat->matTransform_);
 
 			MaterialConstants matConstants;
-			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
-			matConstants.FresnelR0 = mat->FresnelR0;
-			matConstants.Roughness = mat->Roughness;
+			matConstants.DiffuseAlbedo = mat->diffuseAlbedo_;
+			matConstants.FresnelR0 = mat->fresnelR0_;
+			matConstants.Roughness = mat->roughness_;
 			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
 
-			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
+			currMaterialCB->CopyData(mat->matCBIndex_, matConstants);
 
 			// Next FrameResource need to be updated too.
-			mat->NumFramesDirty--;
+			mat->numFramesDirty_--;
 		}
 	}
 }
@@ -557,9 +557,11 @@ void Direct3DDemo::LoadTextures() {
 		{"fenceTex",	L"Textures/d3d12/WireFence.dds"},
 		{"soldierTex",	L"Textures/soldier.dds"},
 	};
+	for (auto& [name, filepath] : texNames)
+		texList.insert({ name, {texList.size(), filepath} });
 
-	for(auto& [name, filepath] : texNames)
-		LoadTexture(name, filepath);
+	for (auto& [name, v] : texList)
+		LoadTexture(name, v.second);
 }
 
 void Direct3DDemo::BuildRootSignature() {
@@ -943,61 +945,25 @@ void Direct3DDemo::BuildFrameResources() {
 	}
 }
 
-void Direct3DDemo::BuildMaterials() {
-	auto bricks0 = make_unique<Material>();
-	bricks0->Name = "bricks0";
-	bricks0->MatCBIndex = 0;
-	bricks0->DiffuseSrvHeapIndex = 0;
-	bricks0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	bricks0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-	bricks0->Roughness = 0.1f;
+void Direct3DDemo::BuildMaterials()
+{
+	materials.insert({ "bricks0",	make_unique<Material>("bricks0",	materials.size(), texList["bricksTex"].first, -1,
+		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),	XMFLOAT3(0.02f, 0.02f, 0.02f),	0.1f) });
 
-	auto stone0 = make_unique<Material>();
-	stone0->Name = "stone0";
-	stone0->MatCBIndex = 1;
-	stone0->DiffuseSrvHeapIndex = 1;
-	stone0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	stone0->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
-	stone0->Roughness = 0.3f;
+	materials.insert({ "stone0",	make_unique<Material>("stone0",		materials.size(), texList["stoneTex"].first, -1,
+		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),	XMFLOAT3(0.05f, 0.05f, 0.05f),	0.3f) });
 
-	auto tile0 = make_unique<Material>();
-	tile0->Name = "tile0";
-	tile0->MatCBIndex = 2;
-	tile0->DiffuseSrvHeapIndex = 2;
-	tile0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	tile0->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-	tile0->Roughness = 0.3f;
+	materials.insert({ "tile0",		make_unique<Material>("tile0",		materials.size(), texList["tileTex"].first, -1,
+		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),	XMFLOAT3(0.02f, 0.02f, 0.02f),	0.3f) });
+	
+	materials.insert({ "ice0",		make_unique<Material>("ice0",		materials.size(), texList["iceTex"].first, -1,
+		XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f),	XMFLOAT3(0.1f, 0.1f, 0.1f),		0.0f) });
+	
+	materials.insert({ "wirefence", make_unique<Material>("wirefence",	materials.size(), texList["fenceTex"].first, -1,
+		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),	XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f) });
 
-	auto ice0 = make_unique<Material>();
-	ice0->Name = "ice0";
-	ice0->MatCBIndex = 3;
-	ice0->DiffuseSrvHeapIndex = 3;
-	ice0->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f);
-	ice0->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	ice0->Roughness = 0.0f;
-
-	auto wirefence = make_unique<Material>();
-	wirefence->Name = "wirefence";
-	wirefence->MatCBIndex = 4;
-	wirefence->DiffuseSrvHeapIndex = 4;
-	wirefence->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	wirefence->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	wirefence->Roughness = 0.25f;
-
-	auto soldier = make_unique<Material>();
-	soldier->Name = "soldier";
-	soldier->MatCBIndex = 5;
-	soldier->DiffuseSrvHeapIndex = 5;
-	soldier->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	soldier->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-	soldier->Roughness = 0.25f;
-
-	materials["bricks0"] = move(bricks0);
-	materials["stone0"] = move(stone0);
-	materials["tile0"] = move(tile0);
-	materials["ice0"] = move(ice0);
-	materials["wirefence"] = move(wirefence);
-	materials["soldier"] = move(soldier);
+	materials.insert({ "soldier",	make_unique<Material>("soldier",	materials.size(), texList["soldierTex"].first, -1,
+		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),	XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f) });
 }
 
 void Direct3DDemo::BuildRenderItems() {
@@ -1168,10 +1134,10 @@ void Direct3DDemo::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const vec
 		cmdList->IASetPrimitiveTopology(ri->primitiveType);
 
 		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(srvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		tex.Offset(ri->material->DiffuseSrvHeapIndex, cbvSrvDescriptorSize);
+		tex.Offset(ri->material->diffuseSrvHeapIndex_, cbvSrvDescriptorSize);
 
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->objCBIndex * objCBByteSize;
-		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = materialCB->GetGPUVirtualAddress() + ri->material->MatCBIndex * matCBByteSize;
+		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = materialCB->GetGPUVirtualAddress() + ri->material->matCBIndex_ * matCBByteSize;
 
 		cmdList->SetGraphicsRootDescriptorTable(0, tex);
 		cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
