@@ -122,6 +122,7 @@ private:
 	
 	array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 
+	void LoadTexture(const string& name, const wstring& fileName);
 private:
 
 	vector<unique_ptr<FrameResource>> frameResources;
@@ -548,54 +549,17 @@ void Direct3DDemo::LoadModels()
 }
 
 void Direct3DDemo::LoadTextures() {
-	auto bricksTex = make_unique<Texture>();
-	bricksTex->Name = "bricksTex";
-	bricksTex->Filename = L"Textures/d3d12/bricks.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), bricksTex->Filename.c_str(),
-		bricksTex->Resource, bricksTex->UploadHeap));
+	vector<pair<string, wstring>> texNames = {
+		{"bricksTex",	L"Textures/d3d12/bricks.dds"},
+		{"stoneTex",	L"Textures/d3d12/stone.dds"},
+		{"tileTex",		L"Textures/d3d12/tile.dds"},
+		{"iceTex",		L"Textures/d3d12/ice.dds"},
+		{"fenceTex",	L"Textures/d3d12/WireFence.dds"},
+		{"soldierTex",	L"Textures/soldier.dds"},
+	};
 
-	auto stoneTex = make_unique<Texture>();
-	stoneTex->Name = "stoneTex";
-	stoneTex->Filename = L"Textures/d3d12/stone.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), stoneTex->Filename.c_str(),
-		stoneTex->Resource, stoneTex->UploadHeap));
-
-	auto tileTex = make_unique<Texture>();
-	tileTex->Name = "tileTex";
-	tileTex->Filename = L"Textures/d3d12/tile.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), tileTex->Filename.c_str(),
-		tileTex->Resource, tileTex->UploadHeap));
-
-	auto iceTex = make_unique<Texture>();
-	iceTex->Name = "iceTex";
-	iceTex->Filename = L"Textures/d3d12/ice.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), iceTex->Filename.c_str(),
-		iceTex->Resource, iceTex->UploadHeap));
-
-	auto fenceTex = make_unique<Texture>();
-	fenceTex->Name = "fenceTex";
-	fenceTex->Filename = L"Textures/d3d12/WireFence.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), fenceTex->Filename.c_str(),
-		fenceTex->Resource, fenceTex->UploadHeap));
-
-	auto soldierTex = make_unique<Texture>();
-	soldierTex->Name = "soldierTex";
-	soldierTex->Filename = L"Textures/soldier.dds";
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), soldierTex->Filename.c_str(),
-		soldierTex->Resource, soldierTex->UploadHeap));
-
-	textures[bricksTex->Name] = move(bricksTex);
-	textures[stoneTex->Name] = move(stoneTex);
-	textures[tileTex->Name] = move(tileTex);
-	textures[iceTex->Name] = move(iceTex);
-	textures[fenceTex->Name] = move(fenceTex);
-	textures[soldierTex->Name] = move(soldierTex);
+	for(auto& [name, filepath] : texNames)
+		LoadTexture(name, filepath);
 }
 
 void Direct3DDemo::BuildRootSignature() {
@@ -1280,4 +1244,16 @@ array<const CD3DX12_STATIC_SAMPLER_DESC, 6> Direct3DDemo::GetStaticSamplers() {
 		pointWrap, pointClamp,
 		linearWrap, linearClamp,
 		anisotropicWrap, anisotropicClamp };
+}
+
+void Direct3DDemo::LoadTexture(const string& name, const wstring& fileName)
+{
+	auto bricksTex = make_unique<Texture>();
+	bricksTex->Name = name;
+	bricksTex->Filename = fileName;
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
+		mCommandList.Get(), bricksTex->Filename.c_str(),
+		bricksTex->Resource, bricksTex->UploadHeap));
+
+	textures[bricksTex->Name] = move(bricksTex);
 }
