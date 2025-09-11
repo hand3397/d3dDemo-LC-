@@ -19,20 +19,14 @@ float BoneAnimation::GetEndTime()const
 }
 
 void BoneAnimation::Interpolate(float t, XMMATRIX& M)const
-{
-	if (keyframes_.empty()) {
-		M = XMMatrixIdentity();
-		return;
-	}
-		
+{	
 	if( t <= keyframes_.front().timePos_)
 	{
 		XMVECTOR S = XMLoadFloat3(&keyframes_.front().scale_);
 		XMVECTOR P = XMLoadFloat3(&keyframes_.front().translation_);
 		XMVECTOR Q = XMLoadFloat4(&keyframes_.front().rotationQuat_);
 
-		XMVECTOR zero = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
-		M = XMMatrixAffineTransformation(S, zero, Q, P);
+		M = XMMatrixAffineTransformation(S, XMVectorZero(), Q, P);
 	}
 	else if( t >= keyframes_.back().timePos_ )
 	{
@@ -40,8 +34,7 @@ void BoneAnimation::Interpolate(float t, XMMATRIX& M)const
 		XMVECTOR P = XMLoadFloat3(&keyframes_.back().translation_);
 		XMVECTOR Q = XMLoadFloat4(&keyframes_.back().rotationQuat_);
 
-		XMVECTOR zero = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
-		M = XMMatrixAffineTransformation(S, zero, Q, P);
+		M = XMMatrixAffineTransformation(S, XMVectorZero(), Q, P);
 	}
 	else
 	{
@@ -64,8 +57,7 @@ void BoneAnimation::Interpolate(float t, XMMATRIX& M)const
 				XMVECTOR P = XMVectorLerp(p0, p1, lerpPercent);
 				XMVECTOR Q = XMQuaternionSlerp(q0, q1, lerpPercent);
 
-				XMVECTOR zero = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
-				M = XMMatrixAffineTransformation(S, zero, Q, P);
+				M = XMMatrixAffineTransformation(S, XMVectorZero(), Q, P);
 
 				break;
 			}
@@ -118,7 +110,8 @@ void AnimationClip::Interpolate(float t, vector<XMMATRIX>& boneTransforms)const
 {
 	int numBoenAnims = boneAnimations_.size();
 	for(UINT i = 0; i < numBoenAnims; ++i) {
-		boneAnimations_[i].Interpolate(t, boneTransforms[i]);
+		if (!boneAnimations_[i].keyframes_.empty())
+			boneAnimations_[i].Interpolate(t, boneTransforms[i]);
 	}
 }
 
@@ -168,7 +161,6 @@ void SkinnedData::GetFinalTransforms(const string& clipName, float timePos,  vec
 {
 	uint32_t numNodes = NodeCount();
 	uint32_t numBones = BoneCount();
-
 	
 	auto it = animations_.find(clipName);
 	fill(finalTransforms.begin(), finalTransforms.begin() + numBones, MathHelper::Identity4x4());
@@ -184,14 +176,13 @@ void SkinnedData::GetFinalTransforms(const string& clipName, float timePos,  vec
 		transforms[ni] = transforms[ni] * transforms[parentNode_[ni]];
 	}
 
-	
 	//XMMatrixTranspose
 	for (uint32_t ni = 0; ni < numNodes; ++ni) {
 		int32_t bi = NodeToBone(ni);
 		if (bi == -1)
 			continue;
-		XMMATRIX finalTransform = transforms[ni] * XMLoadFloat4x4(&nodeTransforms_[ni]) * XMLoadFloat4x4(&boneOffsets_[bi]);
-		//XMMATRIX finalTransform = XMLoadFloat4x4(&boneOffsets_[i]);
+		XMMATRIX finalTransform = XMLoadFloat4x4(&boneOffsets_[bi]) * transforms[ni];
+		//XMMATRIX finalTransform = XMLoadFloat4x4(&boneOffsets_[bi]);
 		XMStoreFloat4x4(&finalTransforms[bi], XMMatrixTranspose(finalTransform));
 	}
 }

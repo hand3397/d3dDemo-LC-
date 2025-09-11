@@ -13,16 +13,33 @@ bool IsSkinnedMesh(const aiScene* scene)
 
 bool ModelLoader::ReadModelFile(const char* fileName)
 {
-    //this->Clear();
+    this->Clear();
+
+    /*
+        aiProcess_JoinIdenticalVertices |        // 동일한 꼭지점 결합, 인덱싱 최적화
+        aiProcess_ValidateDataStructure |        // 로더의 출력을 검증
+        aiProcess_ImproveCacheLocality |        // 출력 정점의 캐쉬위치를 개선
+        aiProcess_RemoveRedundantMaterials |    // 중복된 매터리얼 제거
+        aiProcess_GenUVCoords |                    // 구형, 원통형, 상자 및 평면 매핑을 적절한 UV로 변환
+        aiProcess_TransformUVCoords |            // UV 변환 처리기 (스케일링, 변환...)
+        aiProcess_FindInstances |                // 인스턴스된 매쉬를 검색하여 하나의 마스터에 대한 참조로 제거
+        aiProcess_LimitBoneWeights |            // 정점당 뼈의 가중치를 최대 4개로 제한
+        aiProcess_OptimizeMeshes |                // 가능한 경우 작은 매쉬를 조인
+        aiProcess_GenSmoothNormals |            // 부드러운 노말벡터(법선벡터) 생성
+        aiProcess_SplitLargeMeshes |            // 거대한 하나의 매쉬를 하위매쉬들로 분활(나눔)
+        aiProcess_Triangulate |                    // 3개 이상의 모서리를 가진 다각형 면을 삼각형으로 나눔
+        aiProcess_ConvertToLeftHanded |            // D3D의 왼손좌표계로 변환
+    */
 
     Assimp::Importer importer;
 
     // 모델 파일 로드 (예: soldier.fbx, model.gltf, model.obj 등)
     const aiScene* scene = importer.ReadFile(fileName,
         aiProcess_Triangulate |        // 삼각형으로 변환
-        aiProcess_FlipUVs |            // UV 좌표 뒤집기 (DirectX용)
         aiProcess_CalcTangentSpace |   // Normal / Tangent 계산
-        aiProcess_JoinIdenticalVertices
+        aiProcess_JoinIdenticalVertices | 
+        aiProcess_LimitBoneWeights |
+        aiProcess_ConvertToLeftHanded
     );
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
@@ -127,7 +144,9 @@ void ModelLoader::ReadNodeData(const aiScene* scene)
             parentNode[nodeIdx] = nodeIdx;
         }
 
-        nodeTransforms[nodeIdx] = AiToXmFloat4x4(node->mTransformation);
+        XMFLOAT4X4 nodeTransform;
+        XMStoreFloat4x4(&nodeTransform, XMMatrixTranspose(XMMATRIX(&node->mTransformation.a1)));
+        nodeTransforms[nodeIdx] = nodeTransform;
 
         for (uint32_t ci = 0; ci < node->mNumChildren; ci++) {
             childrenNode[nodeIdx].push_back(nodeToIdx[node->mChildren[ci]->mName.C_Str()]);
@@ -170,7 +189,9 @@ void ModelLoader::ReadBoneData(const aiScene* scene)
 
             if (nodeToBone.find(nodeIdx) == nodeToBone.end()) {
                 nodeToBone.insert({ nodeIdx, nodeToBone.size() });
-                boneOffsets.push_back(AiToXmFloat4x4(bone->mOffsetMatrix));
+                XMFLOAT4X4 offsetMat;
+                XMStoreFloat4x4(&offsetMat, XMMatrixTranspose(XMMATRIX(&bone->mOffsetMatrix.a1)));
+                boneOffsets.push_back(offsetMat);
             }
 
             uint32_t boneIdx = nodeToBone[nodeIdx];
@@ -227,9 +248,10 @@ bool ModelLoader::ReadAnimationFile(const char* fileName, const string& animatio
     // 모델 파일 로드 (예: soldier.fbx, model.gltf, model.obj 등)
     const aiScene* scene = importer.ReadFile(fileName,
         aiProcess_Triangulate |        // 삼각형으로 변환
-        aiProcess_FlipUVs |            // UV 좌표 뒤집기 (DirectX용)
         aiProcess_CalcTangentSpace |   // Normal / Tangent 계산
-        aiProcess_JoinIdenticalVertices
+        aiProcess_JoinIdenticalVertices |
+        aiProcess_LimitBoneWeights |
+        aiProcess_ConvertToLeftHanded
     );
 
     if (!scene) {
