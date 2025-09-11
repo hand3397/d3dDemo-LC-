@@ -1086,6 +1086,7 @@ void Direct3DDemo::BuildRenderItems() {
 	
 	auto skinnedRitem = make_unique<RenderItem>();
 	skinnedRitem->world = MathHelper::Identity4x4();
+	XMStoreFloat4x4(&skinnedRitem->world, XMMatrixScaling(0.1f, 0.1f, 0.1f));
 	skinnedRitem->objCBIndex = objCBIndex++;
 	skinnedRitem->material = materials["soldier"].get();
 	skinnedRitem->geo = geometries["skinnedGeo"].get();
@@ -1101,6 +1102,7 @@ void Direct3DDemo::BuildRenderItems() {
 	
 	auto skinnedRitem2 = make_unique<RenderItem>();
 	skinnedRitem2->world = MathHelper::Identity4x4();
+	XMStoreFloat4x4(&skinnedRitem2->world, XMMatrixScaling(0.1f, 0.1f, 0.1f));
 	skinnedRitem2->objCBIndex = objCBIndex++;
 	skinnedRitem2->material = materials["soldier"].get();
 	skinnedRitem2->geo = geometries["skinnedGeo"].get();

@@ -32,6 +32,7 @@ bool ModelLoader::ReadModelFile(const char* fileName)
     */
 
     Assimp::Importer importer;
+    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
 
     // 모델 파일 로드 (예: soldier.fbx, model.gltf, model.obj 등)
     const aiScene* scene = importer.ReadFile(fileName,
@@ -244,6 +245,7 @@ void ModelLoader::ReadBoneData(const aiScene* scene)
 bool ModelLoader::ReadAnimationFile(const char* fileName, const string& animationName)
 {
     Assimp::Importer importer;
+    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
 
     // 모델 파일 로드 (예: soldier.fbx, model.gltf, model.obj 등)
     const aiScene* scene = importer.ReadFile(fileName,
