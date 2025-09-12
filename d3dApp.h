@@ -11,6 +11,7 @@
 
 #include "d3dUtil.h"
 #include "GameTimer.h"
+#include "KeyInput.h"
 
 // Link necessary d3d12 libraries.
 #pragma comment(lib,"d3dcompiler.lib")
@@ -48,11 +49,7 @@ protected:
 	virtual void Update(const GameTimer& gt)=0;
     virtual void Draw(const GameTimer& gt)=0;
 
-    // 마우스 입력을 처리하기 위한 편의상 오버라이드 함수들.
-	virtual void OnMouseDown(WPARAM btnState, int x, int y){ }
-	virtual void OnMouseUp(WPARAM btnState, int x, int y)  { }
-	virtual void OnMouseMove(WPARAM btnState, int x, int y){ }
-
+	virtual void OnKeyInput(const GameTimer& gt){ }
 protected:
 
 	bool InitMainWindow();
@@ -91,6 +88,8 @@ protected:
     // Δt (델타 타임)과 게임 시간을 추적하는 데 사용된다.
     GameTimer mTimer;
 	
+    KeyInput keyInput_;
+
     Microsoft::WRL::ComPtr<IDXGIFactory4> mdxgiFactory;
     Microsoft::WRL::ComPtr<IDXGISwapChain> mSwapChain;
     Microsoft::WRL::ComPtr<ID3D12Device> md3dDevice;

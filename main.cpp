@@ -91,17 +91,14 @@ public:
 	~Direct3DDemo();
 
 	virtual bool Initialize()override;
-
+	 
 private:
     virtual void OnResize()override;
     virtual void Update(const GameTimer& gt)override;
     virtual void Draw(const GameTimer& gt)override;
 
-	virtual void OnMouseDown(WPARAM btnState, int x, int y);
-	virtual void OnMouseUp(WPARAM btnState, int x, int y);
-	virtual void OnMouseMove(WPARAM btnState, int x, int y);
+	virtual void OnKeyInput(const GameTimer& gt);
 
-	void OnKeyboardInput(const GameTimer& gt);
 	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateSkinnedCBs(const GameTimer& gt);
@@ -255,7 +252,8 @@ void Direct3DDemo::OnResize()
 
 void Direct3DDemo::Update(const GameTimer& gt)
 {
-	OnKeyboardInput(gt);
+	keyInput_.Update();
+	mainCamera.UpdateViewMatrix();
 
 	// 순환적으로 자원 프레임 배열의 다음 원소에 접근한다.
 	currFrameResourceIndex = (currFrameResourceIndex + 1) % gNumFrameResources;
@@ -355,63 +353,37 @@ void Direct3DDemo::Draw(const GameTimer& gt)
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-void Direct3DDemo::OnMouseDown(WPARAM btnState, int x, int y) {
-	lastMousePos.x = x;
-	lastMousePos.y = y;
+void Direct3DDemo::OnKeyInput(const GameTimer& gt)
+{
+	float dt = gt.DeltaTime();
+	
+	// Mouse
+	if (keyInput_.WasMousePressed(MouseButton::LMB))
+		SetCapture(mhMainWnd);
+	if (keyInput_.WasMouseReleased(MouseButton::LMB))
+		ReleaseCapture();
+	
+	if (keyInput_.IsMouseDown(MouseButton::LMB)) {
+		int dx, dy;
+		keyInput_.GetMouseDelta(dx, dy);
 
-	SetCapture(mhMainWnd);
-}
-
-void Direct3DDemo::OnMouseUp(WPARAM btnState, int x, int y) {
-	ReleaseCapture();
-}
-
-void Direct3DDemo::OnMouseMove(WPARAM btnState, int x, int y) {
-	if ((btnState & MK_LBUTTON) != 0) {
-		// Make each pixel correspond to a quarter of a degree.
-		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - lastMousePos.x));
-		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - lastMousePos.y));
-
-		mainCamera.Pitch(dy);
-		mainCamera.RotateY(dx);
+		mainCamera.Pitch(static_cast<float>(dy) * 0.01f);
+		mainCamera.RotateY(static_cast<float>(dx) * 0.01f);
 	}
 
-	lastMousePos.x = x;
-	lastMousePos.y = y;
-}
+	// KeyBoard
+	isWireframe = keyInput_.IsKeyDown('L');
 
-void Direct3DDemo::OnKeyboardInput(const GameTimer& gt) {
-	const float dt = gt.DeltaTime();
-	
-	if (GetAsyncKeyState('1') & 0x8000)
-		isWireframe = true;
-	else
-		isWireframe = false;
-
-	float moveSpeed = 20.0f;
-	if (GetAsyncKeyState(VK_LSHIFT) & 0x8000)
+	float moveSpeed = 20.0f * dt;
+	if (keyInput_.IsKeyDown(VK_LSHIFT)) 
 		moveSpeed *= 10.0f;
 
-	if (GetAsyncKeyState('W') & 0x8000)
-		mainCamera.Walk(moveSpeed * dt);
-
-	if (GetAsyncKeyState('S') & 0x8000)
-		mainCamera.Walk(-moveSpeed * dt);
-
-	if (GetAsyncKeyState('A') & 0x8000)
-		mainCamera.Strafe(-moveSpeed * dt);
-
-	if (GetAsyncKeyState('D') & 0x8000)
-		mainCamera.Strafe(moveSpeed * dt);
-
-	if (GetAsyncKeyState(VK_SPACE) & 0x8000)
-		mainCamera.WorldUp(moveSpeed * dt);
-
-	if (GetAsyncKeyState(VK_CONTROL) & 0x8000)
-		mainCamera.WorldUp(-moveSpeed * dt);
-
-
-	mainCamera.UpdateViewMatrix();
+	if (keyInput_.IsKeyDown('W')) mainCamera.Walk(moveSpeed);
+	if (keyInput_.IsKeyDown('A')) mainCamera.Strafe(-moveSpeed);
+	if (keyInput_.IsKeyDown('S')) mainCamera.Walk(-moveSpeed);
+	if (keyInput_.IsKeyDown('D')) mainCamera.Strafe(moveSpeed);
+	if (keyInput_.IsKeyDown(VK_SPACE)) mainCamera.WorldUp(moveSpeed);
+	if (keyInput_.IsKeyDown(VK_CONTROL)) mainCamera.WorldUp(-moveSpeed);
 }
 
 void Direct3DDemo::AnimateMaterials(const GameTimer& gt) {

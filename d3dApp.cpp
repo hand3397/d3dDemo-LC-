@@ -9,7 +9,7 @@ using Microsoft::WRL::ComPtr;
 using namespace std;
 using namespace DirectX;
 
-LRESULT CALLBACK
+LRESULT CALLBACK 
 MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	// hwnd를 전달합니다. WM_CREATE 등 메시지는 CreateWindow가 반환되기 전,
@@ -23,8 +23,7 @@ D3DApp* D3DApp::GetApp()
     return mApp;
 }
 
-D3DApp::D3DApp(HINSTANCE hInstance)
-:	mhAppInst(hInstance)
+D3DApp::D3DApp(HINSTANCE hInstance) : mhAppInst(hInstance)
 {
 	// 한 번에 하나의 D3DApp만 생성될 수 있습니다.
     assert(mApp == nullptr);
@@ -91,6 +90,7 @@ int D3DApp::Run()
 			if( !mAppPaused )
 			{
 				CalculateFrameStats();
+				OnKeyInput(mTimer);
 				Update(mTimer);	
                 Draw(mTimer);
 			}
@@ -330,33 +330,35 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		((MINMAXINFO*)lParam)->ptMinTrackSize.x = 200;
 		((MINMAXINFO*)lParam)->ptMinTrackSize.y = 200;
 		return 0;
-
-	case WM_LBUTTONDOWN:
-	case WM_MBUTTONDOWN:
-	case WM_RBUTTONDOWN:
-		OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-		return 0;
-	case WM_LBUTTONUP:
-	case WM_MBUTTONUP:
-	case WM_RBUTTONUP:
-		OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+	case WM_LBUTTONDOWN: keyInput_.OnMouseDown(MouseButton::LMB); return 0;
+	case WM_LBUTTONUP:   keyInput_.OnMouseUp(MouseButton::LMB); return 0;
+	case WM_RBUTTONDOWN: keyInput_.OnMouseDown(MouseButton::RMB); return 0;
+	case WM_RBUTTONUP:   keyInput_.OnMouseUp(MouseButton::RMB); return 0;
+	case WM_MBUTTONDOWN: keyInput_.OnMouseDown(MouseButton::MMB); return 0;
+	case WM_MBUTTONUP:   keyInput_.OnMouseUp(MouseButton::MMB); return 0;
 		return 0;
 	case WM_MOUSEMOVE:
-		OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+		keyInput_.SetMousePos(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		return 0;
 	case WM_KEYUP:
 		if (wParam == VK_ESCAPE) {
 			PostQuitMessage(0);
 		}
-		else if ((int)wParam == VK_F2)
-			Set4xMsaaState(!m4xMsaaState);
-
+		if (wParam == VK_SHIFT)
+			(lParam & (1 << 24)) ?
+			keyInput_.OnKeyDown(VK_RSHIFT) : keyInput_.OnKeyDown(VK_LSHIFT);
+		keyInput_.OnKeyUp(wParam);
+		return 0;
+	case WM_KEYDOWN:
+		if (wParam == VK_SHIFT)
+			(lParam & (1 << 24)) ? 
+				keyInput_.OnKeyDown(VK_RSHIFT) : keyInput_.OnKeyDown(VK_LSHIFT);
+		keyInput_.OnKeyDown(wParam);
 		return 0;
 	}
 
 	return DefWindowProc(hwnd, msg, wParam, lParam);
 }
-
 
 bool D3DApp::InitMainWindow()
 {
