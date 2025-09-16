@@ -1,6 +1,7 @@
 #pragma once
 
 #include "d3dUtil.h"
+#include "RenderItem.h"
 
 using namespace std;
 using namespace DirectX;

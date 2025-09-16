@@ -99,7 +99,7 @@ private:
 struct SkinnedModelInstance
 {
 	SkinnedData* skinnedInfo_ = nullptr;
-	vector<DirectX::XMFLOAT4X4> finalTransforms_;
+	vector<XMFLOAT4X4> finalTransforms_;
 	string clipName_;
 	float timePos_ = 0.0f;
 

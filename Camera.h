@@ -1,16 +1,4 @@
-//***************************************************************************************
-// Camera.h by Frank Luna (C) 2011 All Rights Reserved.
-//   
-// Simple first person style camera class that lets the viewer explore the 3D scene.
-//   -It keeps track of the camera coordinate system relative to the world space
-//    so that the view matrix can be constructed.  
-//   -It keeps track of the viewing frustum of the camera so that the projection
-//    matrix can be obtained.
-//***************************************************************************************
-
-#ifndef CAMERA_H
-#define CAMERA_H
-
+#pragma once
 #include "d3dUtil.h"
 
 enum class CameraMode
@@ -23,7 +11,6 @@ enum class CameraMode
 class Camera
 {
 public:
-
 	Camera();
 	~Camera();
 
@@ -85,11 +72,11 @@ public:
 
 	// After modifying camera position/orientation, call to rebuild the view matrix.
 	void UpdateViewMatrix();
-
+private:
 	void UpdateFPS();
 	void UpdateTPS();
 	void UpdateTopDown();
-private:
+
 	CameraMode cameraMode_ = CameraMode::FPS;
 
 	// Camera coordinate system with coordinates relative to world space.
@@ -121,5 +108,3 @@ private:
 	XMFLOAT4X4 viewMat_ = MathHelper::Identity4x4();
 	XMFLOAT4X4 projMat_ = MathHelper::Identity4x4();
 };
-
-#endif // CAMERA_H

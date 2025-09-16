@@ -12,8 +12,9 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
         int dx, dy;
         keyInput.GetMouseDelta(dx, dy);
 
-        camera_.Pitch(static_cast<float>(dy) * 0.01f);
-        camera_.RotateY(static_cast<float>(dx) * 0.01f);
+        camera_.RotatePitch(static_cast<float>(dy) * 0.01f);
+        camera_.RotateYaw(static_cast<float>(dx) * 0.01f);
+        camera_.UpdateViewMatrix();
     }
 
     //keyboard input

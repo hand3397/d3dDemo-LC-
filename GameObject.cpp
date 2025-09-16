@@ -5,10 +5,6 @@ void GameObject::Update(float dt)
     UpdateRenderItem();
 }
 
-MovingObject::MovingObject()
-{
-}
-
 void MovingObject::Update(float dt)
 {
     UpdatePhysics(dt);

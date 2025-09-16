@@ -42,29 +42,6 @@ struct PassConstants
     Light Lights[MaxLights];
 };
 
-struct SkinnedModelInstance
-{
-    SkinnedData* skinnedInfo_ = nullptr;
-    vector<DirectX::XMFLOAT4X4> finalTransforms_;
-    string clipName_;
-    float timePos_ = 0.0f;
-
-    // Called every frame and increments the time position, interpolates the 
-    // animations for each bone based on the current animation clip, and 
-    // generates the final transforms which are ultimately set to the effect
-    // for processing in the vertex shader.
-    void UpdateSkinnedAnimation(float dt)
-    {
-        timePos_ += dt;
-
-        // Loop animation
-        float animationTick = skinnedInfo_->SecondToTick(clipName_, timePos_);
-
-        // Compute the final transforms for this time position.
-        skinnedInfo_->GetFinalTransforms(clipName_, animationTick, finalTransforms_);
-    }
-};
-
 // CPU가 한 프레임의 명령 목록들을 구축하는 데 필요한 자원들을 대표하는 클래스
 // 응용 프로그램마다 필요한 자원이 다를 것 이므로, 이런 클래스의 멤버 구성 역시 
 // 응용 프로그램마다 달라야한다.

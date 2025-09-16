@@ -306,8 +306,9 @@ void Direct3DDemo::KeyInput(const GameTimer& gt)
 		int dx, dy;
 		keyInput_.GetMouseDelta(dx, dy);
 
-		mainCamera.Pitch(static_cast<float>(dy) * 0.01f);
-		mainCamera.RotateY(static_cast<float>(dx) * 0.01f);
+		mainCamera.RotatePitch(static_cast<float>(dy) * 0.01f);
+		mainCamera.RotateYaw(static_cast<float>(dx) * 0.01f);
+		mainCamera.UpdateViewMatrix();
 	}
 
 	// KeyBoard
