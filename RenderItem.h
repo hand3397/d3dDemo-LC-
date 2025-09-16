@@ -3,6 +3,17 @@
 #include "Mesh.h"
 #include "SkinnedData.h"
 
+
+enum class RenderLayer : uint8_t
+{
+    Opaque = 0,
+    Transparent,
+    AlphaTested,
+    Skinned,
+    Count
+};
+
+
 // 하나의 물체를 그리는 데 필요한 매개변수들을 담는 가벼운 구조체
 // 이런 구조체의 구체적인 구성은 응용 프로그램마다 다를 수 있다.
 struct RenderItem

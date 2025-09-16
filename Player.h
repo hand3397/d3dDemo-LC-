@@ -11,7 +11,8 @@ public:
     void KeyInput(const KeyInputManager& keyInput, float dt);
     virtual void Update(float dt) override;
 
-    void SetCameraOffset(const XMFLOAT4X4& cameraOffset);
+    Camera* GetCamera();
+    void SetCameraOffset(const XMFLOAT3& offset);
 
 private:
     Camera camera_;

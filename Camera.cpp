@@ -168,6 +168,11 @@ void Camera::LookAt(const XMFLOAT3& pos, const XMFLOAT3& target, const XMFLOAT3&
 	viewDirty_ = true;
 }
 
+void Camera::SetOffset(const XMFLOAT3& offset)
+{
+	cameraOffset_ = offset;
+}
+
 XMMATRIX Camera::GetView()const
 {
 	assert(!viewDirty_);
@@ -276,6 +281,10 @@ void Camera::UpdateFPS()
 	XMStoreFloat3(&right_, right);
 	XMStoreFloat3(&up_, up);
 
+	position_ = {target_.x + cameraOffset_.x,
+		target_.y + cameraOffset_.y, 
+		target_.z + cameraOffset_.z };
+
 	// ºä Çà·Ä »ý¼º
 	XMVECTOR pos = XMLoadFloat3(&position_);
 	XMVECTOR target = pos + look;
@@ -289,7 +298,9 @@ void Camera::UpdateTPS()
 	float y = radius_ * sinf(pitch_);
 	float z = radius_ * cosf(pitch_) * sinf(yaw_);
 
-	position_ = { target_.x + x, target_.y + y, target_.z + z };
+	position_ = { target_.x + cameraOffset_.x + x,
+		target_.y + cameraOffset_.y + y,
+		target_.z + cameraOffset_.z + z };
 
 	XMVECTOR pos = XMLoadFloat3(&position_);
 	XMVECTOR target = XMLoadFloat3(&target_);
@@ -305,7 +316,9 @@ void Camera::UpdateTopDown()
 
 	XMFLOAT3 offset = { dist, height, dist };
 
-	position_ = { target_.x + offset.x, target_.y + offset.y, target_.z + offset.z };
+	position_ = { target_.x + cameraOffset_.x + offset.x,
+		target_.y + cameraOffset_.y + offset.y,
+		target_.z + cameraOffset_.z + offset.z };
 
 	XMVECTOR pos = XMLoadFloat3(&position_);
 	XMVECTOR target = XMLoadFloat3(&target_);

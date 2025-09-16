@@ -2,7 +2,7 @@
 
 Player::Player(const string& name) : MovingObject(name)
 {
-    speed_ = 10.0f;
+    speed_ = 500.0f;
 }
 
 void Player::KeyInput(const KeyInputManager& keyInput, float dt)
@@ -19,19 +19,19 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
 
     //keyboard input
     XMVECTOR force = XMVectorZero();
-    XMVECTOR lookDir = camera_.GetLook();
-    XMVECTOR rightDir = camera_.GetRight();
+    XMVECTOR lookXZDir = XMVector3NormalizeEst(XMVectorSet(camera_.GetLook3f().x, 0.0f, camera_.GetLook3f().z, 0.0f));
+    XMVECTOR rightXZDir = XMVector3NormalizeEst(XMVectorSet(camera_.GetRight3f().x, 0.0f, camera_.GetRight3f().z, 0.0f));
     if (keyInput.IsKeyDown('W')) {
-        force += lookDir * speed_ * dt;
+        force += lookXZDir * speed_ * dt;
     }
     if (keyInput.IsKeyDown('A')) {
-        force += -rightDir * speed_ * dt;
+        force += -rightXZDir * speed_ * dt;
     }
     if (keyInput.IsKeyDown('S')) {
-        force += -lookDir * speed_ * dt;
+        force += -lookXZDir * speed_ * dt;
     }
     if (keyInput.IsKeyDown('D')) {
-        force += rightDir * speed_ * dt;
+        force += rightXZDir * speed_ * dt;
     }
 
     XMFLOAT3 force3f;
@@ -44,10 +44,16 @@ void Player::Update(float dt)
     //pos Update
     MovingObject::Update(dt);
 
+    camera_.SetTarget(position_);
     camera_.UpdateViewMatrix();
 }
 
-void Player::SetCameraOffset(const XMFLOAT4X4& cameraOffset)
+Camera* Player::GetCamera()
 {
-    cameraOffset_ = cameraOffset;
+    return &camera_ ;
+}
+
+void Player::SetCameraOffset(const XMFLOAT3& offset)
+{
+    camera_.SetOffset(offset);
 }

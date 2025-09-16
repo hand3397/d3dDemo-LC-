@@ -24,6 +24,7 @@ public:
 	XMFLOAT3 GetPosition3f()const;
 	
 	void SetTarget(const XMFLOAT3& target);
+	void SetOffset(const XMFLOAT3& offset);
 
 	// Get camera basis vectors.
 	DirectX::XMVECTOR GetRight()const;
@@ -54,11 +55,11 @@ public:
 	void LookAt(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& target, const DirectX::XMFLOAT3& up);
 
 	// Get View/Proj matrices.
-	DirectX::XMMATRIX GetView()const;
-	DirectX::XMMATRIX GetProj()const;
+	XMMATRIX GetView()const;
+	XMMATRIX GetProj()const;
 
-	DirectX::XMFLOAT4X4 GetView4x4f()const;
-	DirectX::XMFLOAT4X4 GetProj4x4f()const;
+	XMFLOAT4X4 GetView4x4f()const;
+	XMFLOAT4X4 GetProj4x4f()const;
 
 	// Strafe/Walk the camera a distance d.
 	void Strafe(float d);
@@ -82,6 +83,7 @@ private:
 	// Camera coordinate system with coordinates relative to world space.
 	XMFLOAT3 position_ = { 0.0f, 0.0f, 0.0f };
 	XMFLOAT3 target_ = { 0.0f, 0.0f, 0.0f };
+	XMFLOAT3 cameraOffset_ = { 0.0f, 0.0f, 0.0f };
 
 	XMFLOAT3 right_ = { 1.0f, 0.0f, 0.0f };
 	XMFLOAT3 up_ = { 0.0f, 1.0f, 0.0f };

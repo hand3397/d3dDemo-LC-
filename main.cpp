@@ -6,6 +6,8 @@
 #include "Camera.h"
 #include "ModelLoader.h"
 #include "RenderItem.h"
+#include "Player.h"
+
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -13,13 +15,6 @@ using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
 
-enum class RenderLayer : uint8_t {
-	Opaque = 0,
-	Transparent,
-	AlphaTested,
-	Skinned,
-	Count
-};
 
 class Direct3DDemo : public D3DApp
 {
@@ -55,10 +50,10 @@ private:
 	void BuildMaterials();
 
 	void BuildRenderItems();
-	void BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
+	RenderItem* BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
 		const XMFLOAT4X4& worldTransform = MathHelper::Identity4x4(), const XMFLOAT4X4& texTransform = MathHelper::Identity4x4(),
 		SkinnedModelInstance* skinnedModelInstance = nullptr, uint32_t skinnedCBIndex = -1);
-	void BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
+	RenderItem* BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
 		const XMMATRIX& worldTransform = XMMatrixIdentity(), const XMMATRIX& texTransform = XMMatrixIdentity(),
 		SkinnedModelInstance* skinnedModelInstance = nullptr, uint32_t skinnedCBIndex = -1);
 
@@ -102,9 +97,8 @@ private:
 
 	bool isWireframe = false;
 
-	Camera mainCamera;
-
-	POINT lastMousePos;
+	Player* player_ = nullptr;
+	Camera* mainCamera = nullptr;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
@@ -155,8 +149,12 @@ bool Direct3DDemo::Initialize()
 	// 이 힙 타입에서 하나의 디스크립터가 차지하는 크기를 가져옵니다. 
 	// 이 값은 하드웨어마다 다르므로 직접 쿼리해야 합니다.
 	cbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-	mainCamera.SetPosition(0.0f, 2.0f, -15.0f);
+	
+	player_ = new Player("Player");
+	player_->SetPosition(XMFLOAT3(0.0f, 0.0f, 0.0f));
+	player_->SetCameraOffset(XMFLOAT3(0.0f, 20.0f, 5.0f));
+	mainCamera = player_->GetCamera();
+	mainCamera->SetLens(0.25f * MathHelper::Pi, AspectRatio(), 0.1f, 1000.0f);
 
 	LoadModels();
 	LoadTextures();
@@ -186,13 +184,15 @@ void Direct3DDemo::OnResize()
 
 	// 창의 크기가 바뀌면 종횡비를 다시 갱신한다.
 	// 투영 행렬을 다시 계산한다.
-	mainCamera.SetLens(0.25f * MathHelper::Pi, AspectRatio(), 0.1f, 1000.0f);
+	if (mainCamera)
+		mainCamera->SetLens(0.25f * MathHelper::Pi, AspectRatio(), 0.1f, 1000.0f);
 }
 
 void Direct3DDemo::Update(const GameTimer& gt)
 {
+	const float dt = gt.DeltaTime();
 	keyInput_.Update();
-	mainCamera.UpdateViewMatrix();
+	player_->Update(dt);
 
 	// 순환적으로 자원 프레임 배열의 다음 원소에 접근한다.
 	currFrameResourceIndex = (currFrameResourceIndex + 1) % gNumFrameResources;
@@ -301,29 +301,11 @@ void Direct3DDemo::KeyInput(const GameTimer& gt)
 		SetCapture(mhMainWnd);
 	if (keyInput_.WasMouseReleased(MouseButton::LMB))
 		ReleaseCapture();
-	
-	if (keyInput_.IsMouseDown(MouseButton::LMB)) {
-		int dx, dy;
-		keyInput_.GetMouseDelta(dx, dy);
-
-		mainCamera.RotatePitch(static_cast<float>(dy) * 0.01f);
-		mainCamera.RotateYaw(static_cast<float>(dx) * 0.01f);
-		mainCamera.UpdateViewMatrix();
-	}
 
 	// KeyBoard
 	isWireframe = keyInput_.IsKeyDown('L');
 
-	float moveSpeed = 20.0f * dt;
-	if (keyInput_.IsKeyDown(VK_LSHIFT)) 
-		moveSpeed *= 10.0f;
-
-	if (keyInput_.IsKeyDown('W')) mainCamera.Walk(moveSpeed);
-	if (keyInput_.IsKeyDown('A')) mainCamera.Strafe(-moveSpeed);
-	if (keyInput_.IsKeyDown('S')) mainCamera.Walk(-moveSpeed);
-	if (keyInput_.IsKeyDown('D')) mainCamera.Strafe(moveSpeed);
-	if (keyInput_.IsKeyDown(VK_SPACE)) mainCamera.WorldUp(moveSpeed);
-	if (keyInput_.IsKeyDown(VK_CONTROL)) mainCamera.WorldUp(-moveSpeed);
+	player_->KeyInput(keyInput_, dt);
 }
 
 void Direct3DDemo::AnimateMaterials(const GameTimer& gt) {
@@ -393,8 +375,8 @@ void Direct3DDemo::UpdateMaterialCBs(const GameTimer& gt) {
 }
 
 void Direct3DDemo::UpdateMainPassCB(const GameTimer& gt) {
-	XMMATRIX view = mainCamera.GetView();
-	XMMATRIX proj = mainCamera.GetProj();
+	XMMATRIX view = mainCamera->GetView();
+	XMMATRIX proj = mainCamera->GetProj();
 
 	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
@@ -407,11 +389,11 @@ void Direct3DDemo::UpdateMainPassCB(const GameTimer& gt) {
 	XMStoreFloat4x4(&mainPassCB.InvProj, XMMatrixTranspose(invProj));
 	XMStoreFloat4x4(&mainPassCB.ViewProj, XMMatrixTranspose(viewProj));
 	XMStoreFloat4x4(&mainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
-	mainPassCB.EyePosW = mainCamera.GetPosition3f();
+	mainPassCB.EyePosW = mainCamera->GetPosition3f();
 	mainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
 	mainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
-	mainPassCB.NearZ = mainCamera.GetNearZ();
-	mainPassCB.FarZ = mainCamera.GetFarZ();
+	mainPassCB.NearZ = mainCamera->GetNearZ();
+	mainPassCB.FarZ = mainCamera->GetFarZ();
 	mainPassCB.TotalTime = gt.TotalTime();
 	mainPassCB.DeltaTime = gt.DeltaTime();
 	mainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
@@ -901,6 +883,12 @@ void Direct3DDemo::BuildRenderItems() {
 		meshes["shapeGeo"].get(), meshes["shapeGeo"].get()->subMeshes_["grid"], materials["tile0"].get(),
 		XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f));
 
+	auto palyerRenderItem = BuildRenderItem((uint8_t)RenderLayer::Opaque,
+		meshes["shapeGeo"].get(), meshes["shapeGeo"].get()->subMeshes_["box"], materials["soldier"].get(),
+		XMMatrixIdentity());
+
+	player_->AddRenderItem(palyerRenderItem);
+
 	BuildRenderItem((uint8_t)RenderLayer::Skinned,
 		meshes["skinnedGeo"].get(), meshes["skinnedGeo"].get()->subMeshes_["0"], materials["soldier"].get(),
 		XMMatrixScaling(0.1f, 0.1f, 0.1f), XMMatrixIdentity(),
@@ -1046,7 +1034,7 @@ void Direct3DDemo::LoadTexture(const string& name, const wstring& fileName)
 	textures[bricksTex->Name] = move(bricksTex);
 }
 
-void Direct3DDemo::BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
+RenderItem* Direct3DDemo::BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
 	const XMFLOAT4X4& worldTransform, const XMFLOAT4X4& texTransform,
 	SkinnedModelInstance* skinnedModelInstance, uint32_t skinnedCBIndex)
 {
@@ -1063,11 +1051,14 @@ void Direct3DDemo::BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, cons
 	renderItem->skinnedModelInst_ = skinnedModelInstance;
 	renderItem->skinnedCBIndex_ = skinnedCBIndex;
 
-	renderItemLayer[renderLayer].push_back(renderItem.get());
+	RenderItem* rItem = renderItem.get();
+
+	renderItemLayer[renderLayer].push_back(rItem);
 	allRenderItems.push_back(move(renderItem));
+	return rItem;
 }
 
-void Direct3DDemo::BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
+RenderItem* Direct3DDemo::BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
 	const XMMATRIX& worldTransform, const XMMATRIX& texTransform,
 	SkinnedModelInstance* skinnedModelInstance, uint32_t skinnedCBIndex)
 {
@@ -1084,6 +1075,9 @@ void Direct3DDemo::BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, cons
 	renderItem->skinnedModelInst_ = skinnedModelInstance;
 	renderItem->skinnedCBIndex_ = skinnedCBIndex;
 
-	renderItemLayer[renderLayer].push_back(renderItem.get());
+	RenderItem* rItem = renderItem.get();
+
+	renderItemLayer[renderLayer].push_back(rItem);
 	allRenderItems.push_back(move(renderItem));
+	return rItem;
 }

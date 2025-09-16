@@ -1,8 +1,54 @@
 #include "GameObject.h"
 
+GameObject::GameObject(const string& name) : name_(name)
+{
+}
+
 void GameObject::Update(float dt)
 {
     UpdateRenderItem();
+}
+
+void GameObject::SetRenderItems(const vector<RenderItem*>& renderItems)
+{
+    for(auto ri : renderItems)
+    renderItems_.push_back(ri);
+}
+
+void GameObject::AddRenderItem(RenderItem* renderItem)
+{
+    renderItems_.push_back(renderItem);
+}
+
+vector<RenderItem*> GameObject::GetRenderItems() const 
+{ 
+    return renderItems_; 
+}
+
+void GameObject::UpdateRenderItem()
+{
+    for (auto &ri : renderItems_)
+        if (ri) {
+            XMStoreFloat4x4(&ri->world_,
+                XMMatrixScaling(scale_.x, scale_.y, scale_.z) *
+                XMMatrixRotationRollPitchYaw(rotation_.x, rotation_.y, rotation_.z) *
+                XMMatrixTranslation(position_.x, position_.y, position_.z));
+            ri->numFramesDirty_ = gNumFrameResources;
+        }
+}
+
+void GameObject::SetPosition(const XMFLOAT3& pos) 
+{ 
+    position_ = pos; 
+}
+
+XMFLOAT3 GameObject::GetPosition() const 
+{
+    return position_; 
+}
+
+MovingObject::MovingObject(const string& name) : GameObject(name) 
+{
 }
 
 void MovingObject::Update(float dt)
