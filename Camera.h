@@ -13,6 +13,13 @@
 
 #include "d3dUtil.h"
 
+enum class CameraMode
+{
+	FPS,      // 기존 FPS/Fly 모드 (Walk, Strafe, Pitch, RotateY 등 사용)
+	TPS,       // 캐릭터 중심 공전
+	TopDown    // 쿼터뷰/탑뷰
+};
+
 class Camera
 {
 public:
@@ -20,12 +27,17 @@ public:
 	Camera();
 	~Camera();
 
+	void SetMode(CameraMode cameraMode);
+	CameraMode GetMode() const;
+	
 	// Get/Set world camera position.
-	DirectX::XMVECTOR GetPosition()const;
-	DirectX::XMFLOAT3 GetPosition3f()const;
 	void SetPosition(float x, float y, float z);
 	void SetPosition(const DirectX::XMFLOAT3& v);
+	XMVECTOR GetPosition()const;
+	XMFLOAT3 GetPosition3f()const;
 	
+	void SetTarget(const XMFLOAT3& target);
+
 	// Get camera basis vectors.
 	DirectX::XMVECTOR GetRight()const;
 	DirectX::XMFLOAT3 GetRight3f()const;
@@ -67,33 +79,47 @@ public:
 	void WorldUp(float d);
 
 	// Rotate the camera.
-	void Pitch(float angle);
-	void RotateY(float angle);
+	void RotatePitch(float angle);
+	void RotateYaw(float angle);
+	void RotateRoll(float angle);
 
 	// After modifying camera position/orientation, call to rebuild the view matrix.
 	void UpdateViewMatrix();
 
+	void UpdateFPS();
+	void UpdateTPS();
+	void UpdateTopDown();
 private:
+	CameraMode cameraMode_ = CameraMode::FPS;
 
 	// Camera coordinate system with coordinates relative to world space.
-	DirectX::XMFLOAT3 mPosition = { 0.0f, 0.0f, 0.0f };
-	DirectX::XMFLOAT3 mRight = { 1.0f, 0.0f, 0.0f };
-	DirectX::XMFLOAT3 mUp = { 0.0f, 1.0f, 0.0f };
-	DirectX::XMFLOAT3 mLook = { 0.0f, 0.0f, 1.0f };
+	XMFLOAT3 position_ = { 0.0f, 0.0f, 0.0f };
+	XMFLOAT3 target_ = { 0.0f, 0.0f, 0.0f };
+
+	XMFLOAT3 right_ = { 1.0f, 0.0f, 0.0f };
+	XMFLOAT3 up_ = { 0.0f, 1.0f, 0.0f };
+	XMFLOAT3 look_ = { 0.0f, 0.0f, 1.0f };
+
+	float pitch_ = 0.0f;
+	float yaw_ = 0.0f;
+	float roll_ = 0.0f;
+	// TPSmode targetPos to cameraPos distance
+	float radius_ = 10.0f;
+	const float maxPitch_ = XMConvertToRadians(89.0f);
 
 	// Cache frustum properties.
-	float mNearZ = 0.0f;
-	float mFarZ = 0.0f;
-	float mAspect = 0.0f;
-	float mFovY = 0.0f;
-	float mNearWindowHeight = 0.0f;
-	float mFarWindowHeight = 0.0f;
+	float nearZ_ = 0.0f;
+	float farZ_ = 0.0f;
+	float aspect_ = 0.0f;
+	float fovY_ = 0.0f;
+	float nearWindowHeight_ = 0.0f;
+	float farWindowHeight_ = 0.0f;
 
-	bool mViewDirty = true;
+	bool viewDirty_ = true;
 
 	// Cache View/Proj matrices.
-	DirectX::XMFLOAT4X4 mView = MathHelper::Identity4x4();
-	DirectX::XMFLOAT4X4 mProj = MathHelper::Identity4x4();
+	XMFLOAT4X4 viewMat_ = MathHelper::Identity4x4();
+	XMFLOAT4X4 projMat_ = MathHelper::Identity4x4();
 };
 
 #endif // CAMERA_H
