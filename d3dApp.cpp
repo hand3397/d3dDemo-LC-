@@ -90,7 +90,7 @@ int D3DApp::Run()
 			if( !mAppPaused )
 			{
 				CalculateFrameStats();
-				OnKeyInput(mTimer);
+				KeyInput(mTimer);
 				Update(mTimer);	
                 Draw(mTimer);
 			}

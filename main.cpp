@@ -5,74 +5,13 @@
 #include "GeometryGenerator.h"
 #include "Camera.h"
 #include "ModelLoader.h"
+#include "RenderItem.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
-
-struct SkinnedModelInstance
-{
-	SkinnedData* skinnedInfo_ = nullptr;
-	vector<DirectX::XMFLOAT4X4> finalTransforms_;
-	string clipName_;
-	float timePos_ = 0.0f;
-
-	// Called every frame and increments the time position, interpolates the 
-	// animations for each bone based on the current animation clip, and 
-	// generates the final transforms which are ultimately set to the effect
-	// for processing in the vertex shader.
-	void UpdateSkinnedAnimation(float dt)
-	{
-		timePos_ += dt;
-
-		// Loop animation
-		float animationTick = skinnedInfo_->SecondToTick(clipName_, timePos_);
-
-		// Compute the final transforms for this time position.
-		skinnedInfo_->GetFinalTransforms(clipName_, animationTick, finalTransforms_);
-	}
-};
-
-// 하나의 물체를 그리는 데 필요한 매개변수들을 담는 가벼운 구조체
-// 이런 구조체의 구체적인 구성은 응용 프로그램마다 다를 수 있다.
-struct RenderItem {
-	RenderItem() = default;
-
-	// 셰계 공간을 기준으로 물체의 국소 공간을 서술하는 세계 행렬
-	// 이 행렬은 세계공간에서의 물체의 크기, 회전, 위치를 결정.
-	XMFLOAT4X4 world_ = MathHelper::Identity4x4();
-
-	XMFLOAT4X4 texTransform_ = MathHelper::Identity4x4();
-
-	// 더티 플래그는 물체의 자료가 변해서 버퍼를 갱신해야 하는지의 여부를 나타낸다.
-	// 물체의 자료를 수정할 때에는 반드시 NumFramesDirty = gNumFrameResources로 설정한다.
-	//  그래야 각각의 프레임 자원이 갱신된다.
-	int numFramesDirty_ = gNumFrameResources;
-
-	// GPU 상수 버퍼의 색인
-	uint32_t objCBIndex_ = -1;
-
-	Material* material_ = nullptr;
-	MeshGeometry* mesh_ = nullptr;
-
-	// Primitive topology.
-	D3D12_PRIMITIVE_TOPOLOGY primitiveType_ = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-	BoundingBox boundBox_;
-
-	// DrawIndexedInstanced parameters.
-	uint32_t indexCount_ = 0;
-	uint32_t startIndexLocation_ = 0;
-	uint32_t baseVertexLocation_ = 0;
-
-	// Only applicable to skinned render-items.
-	uint32_t skinnedCBIndex_ = -1;
-
-	// nullptr if this render-item is not animated by skinned mesh.
-	SkinnedModelInstance* skinnedModelInst_ = nullptr;
-};
 
 enum class RenderLayer : uint8_t {
 	Opaque = 0,
@@ -97,7 +36,7 @@ private:
     virtual void Update(const GameTimer& gt)override;
     virtual void Draw(const GameTimer& gt)override;
 
-	virtual void OnKeyInput(const GameTimer& gt);
+	virtual void KeyInput(const GameTimer& gt);
 
 	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
@@ -353,7 +292,7 @@ void Direct3DDemo::Draw(const GameTimer& gt)
 	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-void Direct3DDemo::OnKeyInput(const GameTimer& gt)
+void Direct3DDemo::KeyInput(const GameTimer& gt)
 {
 	float dt = gt.DeltaTime();
 	
@@ -959,7 +898,7 @@ void Direct3DDemo::BuildRenderItems() {
 
 	BuildRenderItem((uint8_t)RenderLayer::Opaque,
 		meshes["shapeGeo"].get(), meshes["shapeGeo"].get()->subMeshes_["grid"], materials["tile0"].get(),
-		XMMatrixScaling(8.0f, 8.0f, 1.0f));
+		XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f));
 
 	BuildRenderItem((uint8_t)RenderLayer::Skinned,
 		meshes["skinnedGeo"].get(), meshes["skinnedGeo"].get()->subMeshes_["0"], materials["soldier"].get(),

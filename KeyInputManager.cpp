@@ -1,6 +1,6 @@
-#include "KeyInput.h"
+#include "KeyInputManager.h"
 
-KeyInput::KeyInput()
+KeyInputManager::KeyInputManager()
     : mouseX_(0), mouseY_(0), prevMouseX_(0), prevMouseY_(0)
 {
     prevKeyState_.fill(false);
@@ -14,35 +14,35 @@ KeyInput::KeyInput()
     mouseReleased_.fill(false);
 }
 
-void KeyInput::OnKeyDown(WPARAM wparam)
+void KeyInputManager::OnKeyDown(WPARAM wparam)
 {
     if (wparam < NUM_KEYS)
         currKeyState_[wparam] = true;
 }
 
-void KeyInput::OnKeyUp(WPARAM wparam)
+void KeyInputManager::OnKeyUp(WPARAM wparam)
 {
     if (wparam < NUM_KEYS)
         currKeyState_[wparam] = false;
 }
 
-void KeyInput::OnMouseDown(MouseButton button)
+void KeyInputManager::OnMouseDown(MouseButton button)
 {
     currMouseState_[button] = true;
 }
 
-void KeyInput::OnMouseUp(MouseButton button)
+void KeyInputManager::OnMouseUp(MouseButton button)
 {
     currMouseState_[button] = false;
 }
 
-void KeyInput::SetMousePos(int x, int y)
+void KeyInputManager::SetMousePos(int x, int y)
 {
     mouseX_ = x;
     mouseY_ = y;
 }
 
-void KeyInput::Update()
+void KeyInputManager::Update()
 {
     // 키보드 상태
     for (int i = 0; i < NUM_KEYS; i++) {
@@ -63,43 +63,43 @@ void KeyInput::Update()
 }
 
 // -------------------- 상태 쿼리 --------------------
-bool KeyInput::IsKeyDown(UINT key) const
+bool KeyInputManager::IsKeyDown(UINT key) const
 {
     return key < NUM_KEYS ? currKeyState_[key] : false;
 }
 
-bool KeyInput::WasKeyPressed(UINT key) const
+bool KeyInputManager::WasKeyPressed(UINT key) const
 {
     return key < NUM_KEYS ? keyPressed_[key] : false;
 }
 
-bool KeyInput::WasKeyReleased(UINT key) const
+bool KeyInputManager::WasKeyReleased(UINT key) const
 {
     return key < NUM_KEYS ? keyReleased_[key] : false;
 }
 
-bool KeyInput::IsMouseDown(UINT button) const
+bool KeyInputManager::IsMouseDown(UINT button) const
 {
     return button < NUM_MOUSE_BUTTONS ? currMouseState_[button] : false;
 }
 
-bool KeyInput::WasMousePressed(UINT button) const
+bool KeyInputManager::WasMousePressed(UINT button) const
 {
     return button < NUM_MOUSE_BUTTONS ? mousePressed_[button] : false;
 }
 
-bool KeyInput::WasMouseReleased(UINT button) const
+bool KeyInputManager::WasMouseReleased(UINT button) const
 {
     return button < NUM_MOUSE_BUTTONS ? mouseReleased_[button] : false;
 }
 
-void KeyInput::GetMousePos(int& x, int& y) const
+void KeyInputManager::GetMousePos(int& x, int& y) const
 {
     x = mouseX_;
     y = mouseY_;
 }
 
-void KeyInput::GetMouseDelta(int& dx, int& dy) const
+void KeyInputManager::GetMouseDelta(int& dx, int& dy) const
 {
     dx = mouseX_ - prevMouseX_;
     dy = mouseY_ - prevMouseY_;

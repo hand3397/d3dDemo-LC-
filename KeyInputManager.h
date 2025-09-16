@@ -15,10 +15,10 @@ enum MouseButton : uint8_t
     X2 = 4
 };
 
-class KeyInput
+class KeyInputManager
 {
 public:
-    KeyInput();
+    KeyInputManager();
 
     // Win32 이벤트 처리
     void OnKeyDown(WPARAM wparam);
