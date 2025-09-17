@@ -27,12 +27,12 @@ public:
 	void SetOffset(const XMFLOAT3& offset);
 
 	// Get camera basis vectors.
-	DirectX::XMVECTOR GetRight()const;
-	DirectX::XMFLOAT3 GetRight3f()const;
-	DirectX::XMVECTOR GetUp()const;
-	DirectX::XMFLOAT3 GetUp3f()const;
-	DirectX::XMVECTOR GetLook()const;
-	DirectX::XMFLOAT3 GetLook3f()const;
+	XMVECTOR GetRight()const;
+	XMFLOAT3 GetRight3f()const;
+	XMVECTOR GetUp()const;
+	XMFLOAT3 GetUp3f()const;
+	XMVECTOR GetLook()const;
+	XMFLOAT3 GetLook3f()const;
 
 	// Get frustum properties.
 	float GetNearZ()const;
@@ -67,9 +67,13 @@ public:
 	void WorldUp(float d);
 
 	// Rotate the camera.
-	void RotatePitch(float angle);
-	void RotateYaw(float angle);
-	void RotateRoll(float angle);
+	void RotatePitch(float radian);
+	void RotateYaw(float radian);
+	void RotateRoll(float radian);
+
+	void SetPitch(float radian);
+	void SetYaw(float radian);
+	void SetRoll(float radian);
 
 	// After modifying camera position/orientation, call to rebuild the view matrix.
 	void UpdateViewMatrix();

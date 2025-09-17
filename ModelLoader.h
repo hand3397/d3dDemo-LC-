@@ -13,10 +13,10 @@ XMFLOAT4X4 AiToXmFloat4x4(const aiMatrix4x4& mat);
 class ModelLoader
 {
 public:
-    ModelLoader() {}
+    ModelLoader();
     ~ModelLoader() {}
     
-    bool ReadModelFile(const char* fileName);
+    bool ReadModelFile(const char* fileName, float globalScale);
     // ReadModel이후 해당 모델에 쓸 애니메이션 할당
 
     template<typename VertexType, typename MeshContainerType>
@@ -36,6 +36,8 @@ public:
     void Clear();
     
 public:
+    Assimp::Importer importer_;
+
     Mesh mesh_;
     SkinnedMesh skinnedMesh_;
 

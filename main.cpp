@@ -130,6 +130,9 @@ Direct3DDemo::Direct3DDemo(HINSTANCE hInstance)
 
 Direct3DDemo::~Direct3DDemo()
 {
+	if (player_)
+		delete player_;
+
 	if (md3dDevice != nullptr)
 		FlushCommandQueue();
 }
@@ -151,8 +154,6 @@ bool Direct3DDemo::Initialize()
 	cbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	
 	player_ = new Player("Player");
-	player_->SetPosition(XMFLOAT3(0.0f, 0.0f, 0.0f));
-	player_->SetCameraOffset(XMFLOAT3(0.0f, 20.0f, 5.0f));
 	mainCamera = player_->GetCamera();
 	mainCamera->SetLens(0.25f * MathHelper::Pi, AspectRatio(), 0.1f, 1000.0f);
 
@@ -337,12 +338,11 @@ void Direct3DDemo::UpdateSkinnedCBs(const GameTimer& gt)
 {
 	auto currSkinnedCB = currFrameResource->SkinnedCB.get();
 
-	skinnedModelInst->UpdateSkinnedAnimation(gt.DeltaTime());
+	skinnedModelInst->UpdateSkinnedAnimation();
 	
 	SkinnedConstants skinnedConstants;
 	copy(skinnedModelInst->finalTransforms_.begin(), skinnedModelInst->finalTransforms_.end(),
 		&skinnedConstants.BoneTransforms[0]);
-	
 	
 	//for (int i = 0; i < 96; i++)
 	//	XMStoreFloat4x4(&skinnedConstants.BoneTransforms[i], XMMatrixTranspose(XMLoadFloat4x4(&MathHelper::Identity4x4())));
@@ -411,9 +411,11 @@ void Direct3DDemo::UpdateMainPassCB(const GameTimer& gt) {
 void Direct3DDemo::LoadModels()
 {
 	ModelLoader modelLoader;
-	modelLoader.ReadModelFile("Models/Soldier/Vanguard.fbx");
-	//modelLoader.ReadAnimation("Models/Fox.glb");
-	modelLoader.ReadAnimationFile("Models/Soldier/Animation/RunForward.fbx", "RunForward");
+	modelLoader.ReadModelFile("Models/Vanguard/Vanguard.fbx", 1.0f);
+	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/Idle.fbx", "Idle");
+	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/RunForward.fbx", "RunForward");
+	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/WalkForward.fbx", "WalkForward");
+	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/Jump.fbx", "Jump");
 
 	skinnedData["skinned"] = make_unique<SkinnedData>(move(modelLoader.skinnedData_));
 	skinnedModelInst = make_unique<SkinnedModelInstance>();
@@ -882,23 +884,24 @@ void Direct3DDemo::BuildRenderItems() {
 	BuildRenderItem((uint8_t)RenderLayer::Opaque,
 		meshes["shapeGeo"].get(), meshes["shapeGeo"].get()->subMeshes_["grid"], materials["tile0"].get(),
 		XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f));
-
-	auto palyerRenderItem = BuildRenderItem((uint8_t)RenderLayer::Opaque,
+	
+	auto demoBox = BuildRenderItem((uint8_t)RenderLayer::Opaque,
 		meshes["shapeGeo"].get(), meshes["shapeGeo"].get()->subMeshes_["box"], materials["soldier"].get(),
 		XMMatrixIdentity());
 
-	player_->AddRenderItem(palyerRenderItem);
-
-	BuildRenderItem((uint8_t)RenderLayer::Skinned,
+	auto palyerRenderItem1 = BuildRenderItem((uint8_t)RenderLayer::Skinned,
 		meshes["skinnedGeo"].get(), meshes["skinnedGeo"].get()->subMeshes_["0"], materials["soldier"].get(),
-		XMMatrixScaling(0.1f, 0.1f, 0.1f), XMMatrixIdentity(),
+		XMMatrixIdentity(), XMMatrixIdentity(),
 		skinnedModelInst.get(), 0);
 
-	BuildRenderItem((uint8_t)RenderLayer::Skinned,
+	auto palyerRenderItem2 = BuildRenderItem((uint8_t)RenderLayer::Skinned,
 		meshes["skinnedGeo"].get(), meshes["skinnedGeo"].get()->subMeshes_["1"], materials["soldier"].get(),
-		XMMatrixScaling(0.1f, 0.1f, 0.1f), XMMatrixIdentity(),
+		XMMatrixIdentity(), XMMatrixIdentity(),
 		skinnedModelInst.get(), 0);
 	
+	player_->AddRenderItem(palyerRenderItem1);
+	player_->AddRenderItem(palyerRenderItem2);
+
 	//---------------------------------------
 	
 	for (int i = 0; i < 5; ++i) {

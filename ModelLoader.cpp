@@ -11,7 +11,12 @@ bool IsSkinnedMesh(const aiScene* scene)
     return false; // 모든 메시가 mNumBones == 0 → 일반 메시
 }
 
-bool ModelLoader::ReadModelFile(const char* fileName)
+ModelLoader::ModelLoader()
+{
+    importer_.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
+}
+
+bool ModelLoader::ReadModelFile(const char* fileName, float globalScale = 1.0f)
 {
     this->Clear();
 
@@ -31,16 +36,16 @@ bool ModelLoader::ReadModelFile(const char* fileName)
         aiProcess_ConvertToLeftHanded |            // D3D의 왼손좌표계로 변환
     */
 
-    Assimp::Importer importer;
-    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
+    importer_.SetPropertyFloat(AI_CONFIG_GLOBAL_SCALE_FACTOR_KEY, globalScale);
 
     // 모델 파일 로드 (예: soldier.fbx, model.gltf, model.obj 등)
-    const aiScene* scene = importer.ReadFile(fileName,
+    const aiScene* scene = importer_.ReadFile(fileName,
         aiProcess_Triangulate |        // 삼각형으로 변환
         aiProcess_CalcTangentSpace |   // Normal / Tangent 계산
         aiProcess_JoinIdenticalVertices | 
         aiProcess_LimitBoneWeights |
-        aiProcess_ConvertToLeftHanded
+        aiProcess_ConvertToLeftHanded |
+        aiProcess_GlobalScale
     );
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
@@ -244,16 +249,14 @@ void ModelLoader::ReadBoneData(const aiScene* scene)
 
 bool ModelLoader::ReadAnimationFile(const char* fileName, const string& animationName)
 {
-    Assimp::Importer importer;
-    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
-
     // 모델 파일 로드 (예: soldier.fbx, model.gltf, model.obj 등)
-    const aiScene* scene = importer.ReadFile(fileName,
+    const aiScene* scene = importer_.ReadFile(fileName,
         aiProcess_Triangulate |        // 삼각형으로 변환
         aiProcess_CalcTangentSpace |   // Normal / Tangent 계산
         aiProcess_JoinIdenticalVertices |
         aiProcess_LimitBoneWeights |
-        aiProcess_ConvertToLeftHanded
+        aiProcess_ConvertToLeftHanded |
+        aiProcess_GlobalScale
     );
 
     if (!scene) {

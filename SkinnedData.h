@@ -103,14 +103,18 @@ struct SkinnedModelInstance
 	string clipName_;
 	float timePos_ = 0.0f;
 
+	void SetAnimtion(const string& clipName, float animationTime)
+	{
+		clipName_ = clipName;
+		timePos_ = animationTime;
+	}
+
 	// Called every frame and increments the time position, interpolates the 
 	// animations for each bone based on the current animation clip, and 
 	// generates the final transforms which are ultimately set to the effect
 	// for processing in the vertex shader.
-	void UpdateSkinnedAnimation(float dt)
+	void UpdateSkinnedAnimation()
 	{
-		timePos_ += dt;
-
 		// Loop animation
 		float animationTick = skinnedInfo_->SecondToTick(clipName_, timePos_);
 

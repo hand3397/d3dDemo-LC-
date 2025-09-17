@@ -57,6 +57,15 @@ void MovingObject::Update(float dt)
     UpdateRenderItem();
 }
 
+bool MovingObject::IsAccelerating() const
+{
+    if (fabs(acceleration_.x) <= MathHelper::EPS
+        && fabs(acceleration_.y) <= MathHelper::EPS
+        && fabs(acceleration_.z) <= MathHelper::EPS)
+        return false;
+    return true;
+}
+
 void MovingObject::ApplyForce(const XMFLOAT3& force)
 {
     acceleration_.x += force.x;
@@ -72,9 +81,32 @@ void MovingObject::UpdatePhysics(float dt)
 
     acceleration_ = { 0.0f, 0.0f, 0.0f };
 
-    velocity_.x *= (1.0f - friction_ * dt);
-    velocity_.y *= (1.0f - gravity_ * dt);
-    velocity_.z *= (1.0f - friction_ * dt);
+    velocity_.x *= powf(1.0f - friction_, dt);
+    velocity_.y *= powf(1.0f - friction_, dt);
+    velocity_.z *= powf(1.0f - friction_, dt);
+
+    float lf = linearFriction_ * dt;
+    if (velocity_.x > 0.0f) {
+        velocity_.x -= lf;
+        if (velocity_.x < 0.0f) velocity_.x = 0.0f;
+    }
+    else if (velocity_.x < 0.0f) {
+        velocity_.x += lf;
+        if (velocity_.x > 0.0f) velocity_.x = 0.0f;
+    }
+    if (velocity_.z > 0.0f) {
+        velocity_.z -= lf;
+        if (velocity_.z < 0.0f) velocity_.z = 0.0f;
+    }
+    else if (velocity_.z < 0.0f) {
+        velocity_.z += lf;
+        if (velocity_.z > 0.0f) velocity_.z = 0.0f;
+    }
+
+    if (fabs(velocity_.x) + fabs(velocity_.z) < 0.01f) {
+        velocity_.x = 0.0f;
+        velocity_.z = 0.0f;
+    }
 
     position_.x += velocity_.x * dt;
     position_.y += velocity_.y * dt;

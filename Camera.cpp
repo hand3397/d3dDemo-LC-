@@ -38,6 +38,7 @@ XMFLOAT3 Camera::GetPosition3f()const
 void Camera::SetTarget(const XMFLOAT3& target)
 {
 	target_ = target;
+	viewDirty_ = true;
 }
 
 void Camera::SetPosition(float x, float y, float z)
@@ -226,30 +227,45 @@ void Camera::WorldUp(float d)
 	viewDirty_ = true;
 }
 
-void Camera::RotatePitch(float angle)
+void Camera::RotatePitch(float radian)
 {
 	// Rotate up and look vector about the right vector.
-	pitch_ += angle;
+	pitch_ += radian;
 	pitch_ = std::clamp(pitch_, -maxPitch_, maxPitch_);
 
 	viewDirty_ = true;
 }
 
-void Camera::RotateYaw(float angle)
+void Camera::RotateYaw(float radian)
 {
 	// Rotate the basis vectors about the world y-axis.
-	yaw_ += angle;
+	yaw_ += radian;
 	yaw_ = fmodf(yaw_, XM_2PI);
 
 	viewDirty_ = true;
 }
 
-void Camera::RotateRoll(float angle)
+void Camera::RotateRoll(float radian)
 {
-	roll_ += angle;
+	roll_ += radian;
 	roll_ = fmodf(roll_, XM_2PI);
 
 	viewDirty_ = true;
+}
+
+void Camera::SetPitch(float radian)
+{
+	pitch_ = radian;
+}
+
+void Camera::SetYaw(float radian)
+{
+	yaw_ = radian;
+}
+
+void Camera::SetRoll(float radian)
+{
+	roll_ = radian;
 }
 
 void Camera::UpdateViewMatrix()
@@ -294,17 +310,25 @@ void Camera::UpdateFPS()
 
 void Camera::UpdateTPS()
 {
-	float x = radius_ * cosf(pitch_) * cosf(yaw_);
+	float x = radius_ * cosf(pitch_) * sinf(yaw_);
 	float y = radius_ * sinf(pitch_);
-	float z = radius_ * cosf(pitch_) * sinf(yaw_);
+	float z = radius_ * cosf(pitch_) * cosf(yaw_);
 
-	position_ = { target_.x + cameraOffset_.x + x,
-		target_.y + cameraOffset_.y + y,
-		target_.z + cameraOffset_.z + z };
+	position_ = { target_.x + x + cameraOffset_.x,
+		target_.y + y + cameraOffset_.y,
+		target_.z + z + cameraOffset_.z };
 
 	XMVECTOR pos = XMLoadFloat3(&position_);
-	XMVECTOR target = XMLoadFloat3(&target_);
-	XMVECTOR up = XMVectorSet(0, 1, 0, 0);
+	XMVECTOR target = XMLoadFloat3(&target_) + XMLoadFloat3(&cameraOffset_);
+	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+	XMVECTOR look = XMVector3Normalize(target - pos);
+	XMStoreFloat3(&look_, look);
+
+	XMVECTOR right = XMVector3Normalize(XMVector3Cross(up, look));
+	XMStoreFloat3(&right_, right);
+
+	XMStoreFloat3(&up_, up);
 
 	XMStoreFloat4x4(&viewMat_, XMMatrixLookAtLH(pos, target, up));
 }
