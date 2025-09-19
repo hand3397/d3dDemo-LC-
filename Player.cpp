@@ -4,11 +4,26 @@ Player::Player(const string& name) : MovingObject(name), fsm_(this)
 {
     fsm_.Change(IdleState::Instance());
 
-    speed_ = 500.0f;
+    speed_ = 250.0f;
     camera_.SetMode(CameraMode::TPS);
     SetPosition(XMFLOAT3(0.0f, 0.0f, 20.0f));
     SetCameraOffset(XMFLOAT3(0.0f, 2.0f, 0.0f));
     SetCameraAngle(XMConvertToRadians(30), 0.0f, 0.0f);
+}
+
+bool Player::IsMoving() const
+{
+    return isMoving_;
+}
+
+bool Player::IsRunning() const
+{
+    return isRunning_;
+}
+
+bool Player::IsFalling() const
+{
+    return isFalling_;
 }
 
 void Player::KeyInput(const KeyInputManager& keyInput, float dt)
@@ -27,18 +42,38 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
     XMVECTOR force = XMVectorZero();
     XMVECTOR lookXZDir = XMVector3NormalizeEst(XMVectorSet(camera_.GetLook3f().x, 0.0f, camera_.GetLook3f().z, 0.0f));
     XMVECTOR rightXZDir = XMVector3NormalizeEst(XMVectorSet(camera_.GetRight3f().x, 0.0f, camera_.GetRight3f().z, 0.0f));
+    float moveSpeed = speed_;
+    bool isMove = false, isRun = false;
+
+    if (!isFalling_ && keyInput.IsKeyDown(VK_SPACE)) {
+        isFalling_ = true;
+        force += XMVectorSet(0, 10000.0f * dt, 0, 0);
+        fsm_.Change(JumpState::Instance());
+    }
+
+    if (keyInput.IsKeyDown(VK_LSHIFT)) {
+        moveSpeed *= 2.5f;
+        isRun = true;
+    }
     if (keyInput.IsKeyDown('W')) {
-        force += lookXZDir * speed_ * dt;
+        force += lookXZDir * moveSpeed * dt;
+        isMove = true;
     }
     if (keyInput.IsKeyDown('A')) {
-        force += -rightXZDir * speed_ * dt;
+        force += -rightXZDir * moveSpeed * dt;
+        isMove = true;
     }
     if (keyInput.IsKeyDown('S')) {
-        force += -lookXZDir * speed_ * dt;
+        force += -lookXZDir * moveSpeed * dt;
+        isMove = true;
     }
     if (keyInput.IsKeyDown('D')) {
-        force += rightXZDir * speed_ * dt;
+        force += rightXZDir * moveSpeed * dt;
+        isMove = true;
     }
+
+    isMoving_ = isMove;
+    isRunning_ = (isMove && isRun);
 
     XMFLOAT3 force3f;
     XMStoreFloat3(&force3f, force);
@@ -47,9 +82,14 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
 
 void Player::Update(float dt)
 {
-    fsm_.Update();
-    //pos Update
     MovingObject::Update(dt);
+    isFalling_ = true;
+    if (position_.y < 0.0f) {
+        position_.y = 0.0f;
+        isFalling_ = false;
+    }
+
+    fsm_.Update();
 
     //update animaiton
     animationTime_ += dt;
@@ -78,7 +118,7 @@ void Player::SetCameraAngle(float pitch, float yaw, float roll)
     camera_.SetRoll(roll);
 }
 
-string Player::GetAnimtionName()
+string Player::GetAnimationName()
 {
     return animationName_;
 }
@@ -111,7 +151,7 @@ void IdleState::Enter(Player* owner)
 
 void IdleState::Update(Player* owner, FSM<Player>& fsm)
 {
-    if (owner->IsAccelerating())
+    if (owner->IsMoving())
         fsm.Change(MoveState::Instance());
 }
 
@@ -136,10 +176,80 @@ void MoveState::Enter(Player* owner)
 
 void MoveState::Update(Player* owner, FSM<Player>& fsm)
 {
-    if (!owner->IsAccelerating())
+    if (!owner->IsMoving()) {
         fsm.Change(IdleState::Instance());
+        return;
+    }
+
+    if (owner->IsRunning()) {
+        if (owner->GetAnimationName() != "RunForward0")
+            owner->SetAnimation("RunForward0");
+    }
+    else {
+        if (owner->GetAnimationName() != "WalkForward0")
+            owner->SetAnimation("WalkForward0");
+    }
+        
 }
 
 void MoveState::Exit(Player* owner)
+{
+}
+
+//-----------------------------------------------------------------
+//  JumpState
+//-----------------------------------------------------------------
+
+JumpState* JumpState::Instance()
+{
+    static JumpState instance;
+    return &instance;
+}
+
+void JumpState::Enter(Player* owner)
+{
+    owner->SetAnimation("Jump0");
+}
+
+void JumpState::Update(Player* owner, FSM<Player>& fsm)
+{
+    if (!owner->IsFalling()) {
+        fsm.Change(IdleState::Instance());
+        return;
+    }
+    float animationTime = owner->GetAnimtionTime();
+    float jumpDuration = 1.0f;
+    if (animationTime >= jumpDuration)
+        fsm.Change(FallingState::Instance());
+}
+
+void JumpState::Exit(Player* owner)
+{
+}
+
+//-----------------------------------------------------------------
+//  FallingState
+//-----------------------------------------------------------------
+
+FallingState* FallingState::Instance()
+{
+    static FallingState instance;
+    return &instance;
+}
+
+void FallingState::Enter(Player* owner)
+{
+    owner->SetAnimation("Falling0");
+}
+
+void FallingState::Update(Player* owner, FSM<Player>& fsm)
+{
+    if (!owner->IsFalling()) {
+        fsm.Change(IdleState::Instance());
+        return;
+    }
+}
+
+void FallingState::Exit(Player* owner)
 {
 }

@@ -49,6 +49,9 @@ private:
 	void BuildFrameResources();
 	void BuildMaterials();
 
+	template<typename VertexType>
+	void BuildMeshGeo(const vector<VertexType> vertices, const vector<uint32_t> indices);
+
 	void BuildRenderItems();
 	RenderItem* BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
 		const XMFLOAT4X4& worldTransform = MathHelper::Identity4x4(), const XMFLOAT4X4& texTransform = MathHelper::Identity4x4(),
@@ -139,7 +142,7 @@ Direct3DDemo::~Direct3DDemo()
 
 bool Direct3DDemo::Initialize()
 {
-	mMainWndCaption = L"d3d Demo";
+	mMainWndCaption = L"d3d_Demo";
 	mClientWidth = 1280;
 	mClientHeight = 720;
 
@@ -416,6 +419,7 @@ void Direct3DDemo::LoadModels()
 	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/RunForward.fbx", "RunForward");
 	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/WalkForward.fbx", "WalkForward");
 	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/Jump.fbx", "Jump");
+	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/Falling.fbx", "Falling");
 
 	skinnedData["skinned"] = make_unique<SkinnedData>(move(modelLoader.skinnedData_));
 	skinnedModelInst = make_unique<SkinnedModelInstance>();
@@ -427,29 +431,11 @@ void Direct3DDemo::LoadModels()
 	const UINT ibByteSize = (UINT)modelLoader.skinnedMesh_.indices.size() * sizeof(uint32_t);
 
 	auto geo = make_unique<MeshGeometry>();
-	geo->Name = "skinnedGeo";
-
-	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), modelLoader.skinnedMesh_.vertices.data(), vbByteSize);
-
-	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), modelLoader.skinnedMesh_.indices.data(), ibByteSize);
-
-	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), modelLoader.skinnedMesh_.vertices.data(), vbByteSize, geo->VertexBufferUploader);
-
-	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), modelLoader.skinnedMesh_.indices.data(), ibByteSize, geo->IndexBufferUploader);
-
-	geo->VertexByteStride = sizeof(SkinnedVertex);
-	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
-	geo->IndexBufferByteSize = ibByteSize;
-
-	geo->subMeshes_["0"] = modelLoader.subMeshes_[0];
-	geo->subMeshes_["1"] = modelLoader.subMeshes_[1];
-
-	meshes[geo->Name] = move(geo);
+	geo->BuildMeshGeo("skinnedGeo", modelLoader.skinnedMesh_.vertices, modelLoader.skinnedMesh_.indices,
+		md3dDevice.Get(), mCommandList.Get());
+	geo->AddSubmesh("0", modelLoader.subMeshes_[0]);
+	geo->AddSubmesh("1", modelLoader.subMeshes_[1]);
+	meshes[geo->name_] = move(geo);
 }
 
 void Direct3DDemo::LoadTextures() {
@@ -722,35 +708,13 @@ void Direct3DDemo::BuildShapeGeometry() {
 	indices.insert(indices.end(), begin(sphere.Indices32), end(sphere.Indices32));
 	indices.insert(indices.end(), begin(cylinder.Indices32), end(cylinder.Indices32));
 
-	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(uint32_t);
-
 	auto geo = make_unique<MeshGeometry>();
-	geo->Name = "shapeGeo";
-
-	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-
-	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
-
-	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
-
-	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
-
-	geo->VertexByteStride = sizeof(Vertex);
-	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
-	geo->IndexBufferByteSize = ibByteSize;
-
-	geo->subMeshes_["box"] = boxSubmesh;
-	geo->subMeshes_["grid"] = gridSubmesh;
-	geo->subMeshes_["sphere"] = sphereSubmesh;
-	geo->subMeshes_["cylinder"] = cylinderSubmesh;
-
-	meshes[geo->Name] = move(geo);
+	geo->BuildMeshGeo("shapeGeo", vertices, indices, md3dDevice.Get(), mCommandList.Get());
+	geo->AddSubmesh("box", boxSubmesh);
+	geo->AddSubmesh("grid", gridSubmesh);
+	geo->AddSubmesh("sphere", sphereSubmesh);
+	geo->AddSubmesh("cylinder", cylinderSubmesh);
+	meshes[geo->name_] = move(geo);
 }
 
 void Direct3DDemo::BuildPSOs() {

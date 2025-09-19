@@ -52,5 +52,7 @@ protected:
     float drag_ = 0.0f;            // 공기 저항
     float friction_ = 0.7f;        // 바닥 마찰 계수
     float linearFriction_ = 3.0f;
-    float gravity_ = 0.98f;
+
+    bool hasGravity = true;
+    float gravity_ = 9.8f;
 };

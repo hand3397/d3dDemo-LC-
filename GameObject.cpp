@@ -79,6 +79,9 @@ void MovingObject::UpdatePhysics(float dt)
     velocity_.y += acceleration_.y * dt;
     velocity_.z += acceleration_.z * dt;
 
+    if (hasGravity && position_.y >= 0.0f)
+        velocity_.y -= gravity_ * dt;
+
     acceleration_ = { 0.0f, 0.0f, 0.0f };
 
     velocity_.x *= powf(1.0f - friction_, dt);
@@ -111,4 +114,9 @@ void MovingObject::UpdatePhysics(float dt)
     position_.x += velocity_.x * dt;
     position_.y += velocity_.y * dt;
     position_.z += velocity_.z * dt;
+
+    if (position_.y <= 0.0f) {
+        position_.y = 0.0f;
+        velocity_.y = 0.0f;
+    }
 }
