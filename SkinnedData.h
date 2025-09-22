@@ -16,7 +16,6 @@ struct Keyframe
 	XMFLOAT3 translation_ = XMFLOAT3(0.0f, 0.0f, 0.0f);
     XMFLOAT3 scale_ = XMFLOAT3(1.0f, 1.0f, 1.0f);
     XMFLOAT4 rotationQuat_ = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-	float weight_ = 1.0f;
 };
 
 // BoneAnimation은 키프레임들의 리스트로 정의된다.  
@@ -28,6 +27,8 @@ struct BoneAnimation
 	float GetEndTime()const;
 
     void Interpolate(float t, XMMATRIX& M)const;
+	Keyframe InterpolateKeyframe(float t) const;
+	Keyframe InterpolateKeyframeAlpha(float alpha) const;
 
 	vector<Keyframe> keyframes_;
 };
@@ -40,15 +41,17 @@ struct AnimationClip
 	void SetDuration(float duration, uint32_t tickPerSecond);
 	float SecondToTick(float& s);
 
+	float GetDuration() const;
+	uint32_t GetTicksPerSecond() const;
 	float GetClipStartTime() const;
 	float GetClipEndTime() const;
 
     void Interpolate(float t, vector<XMMATRIX>& boneTransforms) const;
 
     vector<BoneAnimation> boneAnimations_;
-
 private:
 	float duration_ = 0.0f;
+
 	// 값이 0일 경우 keyframe의 timePos_를 tick이 아닌 초단위로 해석
 	float ticksPerSecond_ = 0.0f;
 
@@ -77,6 +80,10 @@ public:
 	 // the same timePos.
     void GetFinalTransforms(const string& clipName, float timePos, 
 		 vector<XMFLOAT4X4>& finalTransforms)const;
+	void GetFinalTransforms(const string& clipName1, float timePos,
+		const string& clipName2, float alpha, vector<XMFLOAT4X4>& finalTransforms)const;
+	
+	void AddBlendingAnimation(const string& name, const string& clip1, const string& clip2, float alpha = 0.5f);
 
 	int32_t NodeToIdx(const string& name) const;
 	int32_t NodeToBone(const uint32_t node) const;
@@ -100,13 +107,25 @@ struct SkinnedModelInstance
 {
 	SkinnedData* skinnedInfo_ = nullptr;
 	vector<XMFLOAT4X4> finalTransforms_;
+	// 여러 애니메이션이 들어오면 애니메이션을 혼합
 	string clipName_;
+	string blendingClipName_;
+	float blendingAlpha_ = 1.0f; // (blendingClipNames_) 0.0f ~ 1.0f (clipNames_)
 	float timePos_ = 0.0f;
 
 	void SetAnimtion(const string& clipName, float animationTime)
 	{
 		clipName_ = clipName;
+		blendingClipName_.clear();
 		timePos_ = animationTime;
+	}
+
+	void SetAnimtion(const string& clipName, float animationTime, const string& blendingClip, float alpha)
+	{
+		clipName_ = clipName;
+		timePos_ = animationTime;
+		blendingClipName_ = blendingClip;
+		blendingAlpha_ = alpha;
 	}
 
 	// Called every frame and increments the time position, interpolates the 
@@ -118,7 +137,13 @@ struct SkinnedModelInstance
 		// Loop animation
 		float animationTick = skinnedInfo_->SecondToTick(clipName_, timePos_);
 
-		// Compute the final transforms for this time position.
-		skinnedInfo_->GetFinalTransforms(clipName_, animationTick, finalTransforms_);
+		if (blendingClipName_.empty()) {
+			// Compute the final transforms for this time position.
+			skinnedInfo_->GetFinalTransforms(clipName_, animationTick, finalTransforms_);
+		}
+		else {
+			// Compute the final transforms for this time position.
+			skinnedInfo_->GetFinalTransforms(clipName_, animationTick, finalTransforms_);
+		}
 	}
 };

@@ -26,6 +26,28 @@ bool Player::IsFalling() const
     return isFalling_;
 }
 
+bool Player::wasJump() const
+{
+    return wasJump_;
+}
+
+XMFLOAT3 Player::GetMoveDir() const
+{
+    return moveDir_;
+}
+
+XMVECTOR Player::GetLookXZ() const
+{
+    XMFLOAT3 look = camera_.GetLook3f();
+    return XMVector3NormalizeEst(XMVectorSet(look.x, 0.0f, look.z, 0.0f));;
+}
+
+XMVECTOR Player::GetRightXZ() const
+{
+    XMFLOAT3 right = camera_.GetRight3f();
+    return XMVector3NormalizeEst(XMVectorSet(right.x, 0.0f, right.z, 0.0f));;
+}
+
 void Player::KeyInput(const KeyInputManager& keyInput, float dt)
 {
     //mouse input
@@ -39,45 +61,33 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
     }
 
     //keyboard input
-    XMVECTOR force = XMVectorZero();
-    XMVECTOR lookXZDir = XMVector3NormalizeEst(XMVectorSet(camera_.GetLook3f().x, 0.0f, camera_.GetLook3f().z, 0.0f));
-    XMVECTOR rightXZDir = XMVector3NormalizeEst(XMVectorSet(camera_.GetRight3f().x, 0.0f, camera_.GetRight3f().z, 0.0f));
-    float moveSpeed = speed_;
-    bool isMove = false, isRun = false;
-
+    wasJump_ = false;
     if (!isFalling_ && keyInput.IsKeyDown(VK_SPACE)) {
         isFalling_ = true;
-        force += XMVectorSet(0, 10000.0f * dt, 0, 0);
+        wasJump_ = true;
         fsm_.Change(JumpState::Instance());
     }
 
-    if (keyInput.IsKeyDown(VK_LSHIFT)) {
-        moveSpeed *= 2.5f;
-        isRun = true;
-    }
+    isMoving_ = false;
+    isRunning_ = false;
+    moveDir_ = { 0.0f, 0.0f, 0.0f };
     if (keyInput.IsKeyDown('W')) {
-        force += lookXZDir * moveSpeed * dt;
-        isMove = true;
+        moveDir_.z += 1.0f;
     }
     if (keyInput.IsKeyDown('A')) {
-        force += -rightXZDir * moveSpeed * dt;
-        isMove = true;
+        moveDir_.x -= 1.0f;
     }
     if (keyInput.IsKeyDown('S')) {
-        force += -lookXZDir * moveSpeed * dt;
-        isMove = true;
+        moveDir_.z -= 1.0f;
     }
     if (keyInput.IsKeyDown('D')) {
-        force += rightXZDir * moveSpeed * dt;
-        isMove = true;
+        moveDir_.x += 1.0f;
     }
+    if (moveDir_.x != 0.0f || moveDir_.z != 0.0f)
+        isMoving_ = true;
 
-    isMoving_ = isMove;
-    isRunning_ = (isMove && isRun);
-
-    XMFLOAT3 force3f;
-    XMStoreFloat3(&force3f, force);
-    ApplyForce(force3f);
+    if (isMoving_ && keyInput.IsKeyDown(VK_LSHIFT))
+        isRunning_ = true;
 }
 
 void Player::Update(float dt)
@@ -93,12 +103,20 @@ void Player::Update(float dt)
 
     //update animaiton
     animationTime_ += dt;
+    blendAnimationTime_ += dt;
+
     for(auto &ri : renderItems_)
         if (ri->skinnedModelInst_ && ri->skinnedCBIndex_ >= 0)
-            ri->skinnedModelInst_->SetAnimtion(animationName_, animationTime_);
+            ri->skinnedModelInst_->SetAnimtion(currAnimations_, animationTime_, prevAnimations_, 
+                clamp(blendAnimationTime_ / blendAnimationTimeMax_, 0.0f, 1.0f));
 
     camera_.SetTarget(position_);
     camera_.UpdateViewMatrix();
+}
+
+FSM<Player> Player::GetFSM()
+{
+    return fsm_;
 }
 
 Camera* Player::GetCamera()
@@ -118,9 +136,9 @@ void Player::SetCameraAngle(float pitch, float yaw, float roll)
     camera_.SetRoll(roll);
 }
 
-string Player::GetAnimationName()
+const vector<string>& Player::GetAnimationNames()
 {
-    return animationName_;
+    return currAnimations_;
 }
 
 float Player::GetAnimtionTime()
@@ -128,10 +146,19 @@ float Player::GetAnimtionTime()
     return animationTime_;
 }
 
-void Player::SetAnimation(const string& animName)
+void Player::SetAnimation(const vector<string>& animNames)
+{
+    prevAnimations_ = currAnimations_;
+    currAnimations_.clear();
+    for (const string& name : animNames)
+        currAnimations_.push_back(name);
+    // 0.3초 동안 과거의 애니메이션과 블렌딩됨
+    blendAnimationTime_ = 0.0f;
+}
+
+void Player::SetAnimationTime()
 {
     animationTime_ = 0.0f;
-    animationName_ = animName;
 }
 
 //-----------------------------------------------------------------
@@ -146,7 +173,8 @@ IdleState* IdleState::Instance()
 
 void IdleState::Enter(Player* owner)
 {
-    owner->SetAnimation("Idle0");
+    owner->SetAnimationTime();
+    owner->SetAnimation({ "Idle" });
 }
 
 void IdleState::Update(Player* owner, FSM<Player>& fsm)
@@ -171,7 +199,7 @@ MoveState* MoveState::Instance()
 
 void MoveState::Enter(Player* owner)
 {
-    owner->SetAnimation("WalkForward0");
+    owner->SetAnimationTime();
 }
 
 void MoveState::Update(Player* owner, FSM<Player>& fsm)
@@ -181,15 +209,26 @@ void MoveState::Update(Player* owner, FSM<Player>& fsm)
         return;
     }
 
-    if (owner->IsRunning()) {
-        if (owner->GetAnimationName() != "RunForward0")
-            owner->SetAnimation("RunForward0");
-    }
-    else {
-        if (owner->GetAnimationName() != "WalkForward0")
-            owner->SetAnimation("WalkForward0");
-    }
-        
+    XMFLOAT3 moveDir = owner->GetMoveDir();
+    vector<string> animNames;
+
+    // 걷는 방향에 따라 애니메이션 설정
+    static const string dirs[8] = {
+        "WalkF",  "WalkFR", "WalkR1", "WalkBR",
+        "WalkB",  "WalkBL", "WalkL1", "WalkFL"
+    };
+
+    if (moveDir.x == 0.0f && moveDir.z == 0.0f)
+        return animNames.push_back("WalkF");
+
+    float angle = std::atan2(moveDir.x, moveDir.z);
+    float deg = XMConvertToDegrees(angle);
+    if (deg < 0) deg += 360.0f;
+    int index = static_cast<int>((deg + 22.5f) / 45.0f) % 8;
+
+    animNames.push_back(dirs[index]);
+
+    owner->SetAnimation(animNames);
 }
 
 void MoveState::Exit(Player* owner)
@@ -208,7 +247,8 @@ JumpState* JumpState::Instance()
 
 void JumpState::Enter(Player* owner)
 {
-    owner->SetAnimation("Jump0");
+    owner->SetAnimationTime();
+    owner->SetAnimation({ "Jump" });
 }
 
 void JumpState::Update(Player* owner, FSM<Player>& fsm)
@@ -239,7 +279,8 @@ FallingState* FallingState::Instance()
 
 void FallingState::Enter(Player* owner)
 {
-    owner->SetAnimation("Falling0");
+    owner->SetAnimationTime();
+    owner->SetAnimation({ "Falling" });
 }
 
 void FallingState::Update(Player* owner, FSM<Player>& fsm)

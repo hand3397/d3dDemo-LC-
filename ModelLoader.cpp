@@ -277,7 +277,9 @@ void ModelLoader::ReadAnimations(const aiScene* scene, const string& animationNa
     for (uint32_t ai = 0; ai < numAnimations; ai++) {
         aiAnimation* anim = scene->mAnimations[ai];
         
-        string animName = animationName + to_string(ai);
+        string animName;
+        if (numAnimations > 1) animName = animationName + to_string(ai);
+        else animName = animationName;
 
         AnimationClip animationClip;
         animationClip.SetDuration(anim->mDuration, anim->mTicksPerSecond);

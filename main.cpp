@@ -416,16 +416,23 @@ void Direct3DDemo::LoadModels()
 	ModelLoader modelLoader;
 	modelLoader.ReadModelFile("Models/Vanguard/Vanguard.fbx", 1.0f);
 	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/Idle.fbx", "Idle");
-	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/RunForward.fbx", "RunForward");
-	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/WalkForward.fbx", "WalkForward");
+	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/RunForward.fbx", "RunF");
+	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/WalkForward.fbx", "WalkF");
+	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/WalkBack.fbx", "WalkB");
+	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/StrafeLeft1.fbx", "WalkL1");
+	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/StrafeLeft2.fbx", "WalkL2");
+	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/StrafeRight1.fbx", "WalkR1");
+	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/StrafeRight2.fbx", "WalkR2");
 	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/Jump.fbx", "Jump");
 	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/Falling.fbx", "Falling");
 
 	skinnedData["skinned"] = make_unique<SkinnedData>(move(modelLoader.skinnedData_));
 	skinnedModelInst = make_unique<SkinnedModelInstance>();
 	skinnedModelInst.get()->skinnedInfo_ = skinnedData["skinned"].get();
-	skinnedModelInst.get()->clipName_ = "RunForward0";
 	skinnedModelInst.get()->finalTransforms_.resize(skinnedModelInst.get()->skinnedInfo_->BoneCount());
+
+	skinnedData["skinned"]->AddBlendingAnimation("WalkFL", "WalkF", "WalkL1", 0.5f);
+	skinnedData["skinned"]->AddBlendingAnimation("WalkFR", "WalkF", "WalkR1", 0.5f);
 
 	const UINT vbByteSize = (UINT)modelLoader.skinnedMesh_.vertices.size() * sizeof(SkinnedVertex);
 	const UINT ibByteSize = (UINT)modelLoader.skinnedMesh_.indices.size() * sizeof(uint32_t);
