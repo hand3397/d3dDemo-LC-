@@ -84,6 +84,8 @@ public:
 		const string& clipName2, float alpha, vector<XMFLOAT4X4>& finalTransforms)const;
 	
 	void AddBlendingAnimation(const string& name, const string& clip1, const string& clip2, float alpha = 0.5f);
+	void BlendInterpolate(const AnimationClip& clip1, const AnimationClip& clip2, float timePos,
+		vector<XMMATRIX>& transforms, float alpha = 0.5f)const;
 
 	int32_t NodeToIdx(const string& name) const;
 	int32_t NodeToBone(const uint32_t node) const;
@@ -142,8 +144,10 @@ struct SkinnedModelInstance
 			skinnedInfo_->GetFinalTransforms(clipName_, animationTick, finalTransforms_);
 		}
 		else {
-			// Compute the final transforms for this time position.
-			skinnedInfo_->GetFinalTransforms(clipName_, animationTick, finalTransforms_);
+			if (clipName_ == blendingClipName_ || blendingAlpha_ >= 1.0f)
+				skinnedInfo_->GetFinalTransforms(clipName_, animationTick, finalTransforms_);
+			else
+				skinnedInfo_->GetFinalTransforms(clipName_, animationTick, blendingClipName_, blendingAlpha_, finalTransforms_);
 		}
 	}
 };

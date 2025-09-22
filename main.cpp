@@ -48,11 +48,8 @@ private:
 	void BuildPSOs();
 	void BuildFrameResources();
 	void BuildMaterials();
-
-	template<typename VertexType>
-	void BuildMeshGeo(const vector<VertexType> vertices, const vector<uint32_t> indices);
-
 	void BuildRenderItems();
+
 	RenderItem* BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
 		const XMFLOAT4X4& worldTransform = MathHelper::Identity4x4(), const XMFLOAT4X4& texTransform = MathHelper::Identity4x4(),
 		SkinnedModelInstance* skinnedModelInstance = nullptr, uint32_t skinnedCBIndex = -1);

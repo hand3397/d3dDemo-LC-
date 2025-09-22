@@ -259,10 +259,8 @@ void SkinnedData::GetFinalTransforms(const string& clipName1, float timePos, con
 	}
 	vector<XMMATRIX> transforms(numNodes, XMMatrixIdentity());
 	// 이 클립의 모든 뼈대를 주어진 시간에 맞게 보간한다.
-
-	//------------------------------------------- 여기부터 작성해야함
-	it1->second.Interpolate(timePos, transforms);
-
+	BlendInterpolate(it1->second, it2->second, timePos, transforms, alpha);
+	
 	// rootNode = 0
 	for (uint32_t ni = 1; ni < numNodes; ni++) {
 		transforms[ni] = transforms[ni] * transforms[parentNode_[ni]];
@@ -338,6 +336,25 @@ void SkinnedData::AddBlendingAnimation(const string& name, const string& clip1, 
 	}
 	blendedAnimation.SetClipTime();
 	AddAnimaiton(name, blendedAnimation);
+}
+
+void SkinnedData::BlendInterpolate(const AnimationClip& mainClip, const AnimationClip& subClip, float timePos, 
+	vector<XMMATRIX>& transforms, float alpha)const
+{
+	// alpha = (sub) 0.0f ~ 1.0f (main)
+	uint32_t numNodes = NodeCount();
+	for (uint32_t ni = 0; ni < numNodes; ni++) {
+		Keyframe mainKey = mainClip.boneAnimations_[ni].keyframes_.empty() ? Keyframe() : 
+			mainClip.boneAnimations_[ni].InterpolateKeyframe(timePos);
+		Keyframe subKey = subClip.boneAnimations_[ni].keyframes_.empty() ? Keyframe() :
+			subClip.boneAnimations_[ni].InterpolateKeyframe(timePos);
+
+		XMVECTOR S = XMVectorLerp(XMLoadFloat3(&subKey.scale_), XMLoadFloat3(&mainKey.scale_), alpha);
+		XMVECTOR P = XMVectorLerp(XMLoadFloat3(&subKey.translation_), XMLoadFloat3(&mainKey.translation_), alpha);
+		XMVECTOR Q = XMQuaternionSlerp(XMLoadFloat4(&subKey.rotationQuat_), XMLoadFloat4(&mainKey.rotationQuat_), alpha);
+
+		transforms[ni] = XMMatrixAffineTransformation(S, XMVectorZero(), Q, P);
+	}
 }
 
 int32_t SkinnedData::NodeToIdx(const string& name) const

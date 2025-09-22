@@ -42,9 +42,9 @@ public:
     void SetCameraOffset(const XMFLOAT3& offset);
     void SetCameraAngle(float pitch, float yaw, float roll);
 
-    const vector<string>& GetAnimationNames();
+    const string& GetAnimationName();
     float GetAnimtionTime();
-    void SetAnimation(const vector<string>& animNames);
+    void SetAnimation(const string& animName);
     void SetAnimationTime();
 private:
     FSM<Player> fsm_;
@@ -55,8 +55,8 @@ private:
     float animationTime_;
     float blendAnimationTime_;
     float blendAnimationTimeMax_ = 0.3f;
-    vector<string> currAnimations_;
-    vector<string> prevAnimations_;
+    string currAnimation_;
+    string prevAnimation_;
     float animationAlpha = 1.0f; // (prev) 0.0f ~ 1.0f (curr)
 
     bool isMoving_ = false;

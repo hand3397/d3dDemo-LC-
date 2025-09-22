@@ -2,6 +2,7 @@
 
 Player::Player(const string& name) : MovingObject(name), fsm_(this)
 {
+    SetAnimation({ "Idle" });
     fsm_.Change(IdleState::Instance());
 
     speed_ = 250.0f;
@@ -107,7 +108,7 @@ void Player::Update(float dt)
 
     for(auto &ri : renderItems_)
         if (ri->skinnedModelInst_ && ri->skinnedCBIndex_ >= 0)
-            ri->skinnedModelInst_->SetAnimtion(currAnimations_, animationTime_, prevAnimations_, 
+            ri->skinnedModelInst_->SetAnimtion(currAnimation_, animationTime_, prevAnimation_, 
                 clamp(blendAnimationTime_ / blendAnimationTimeMax_, 0.0f, 1.0f));
 
     camera_.SetTarget(position_);
@@ -136,9 +137,9 @@ void Player::SetCameraAngle(float pitch, float yaw, float roll)
     camera_.SetRoll(roll);
 }
 
-const vector<string>& Player::GetAnimationNames()
+const string& Player::GetAnimationName()
 {
-    return currAnimations_;
+    return currAnimation_;
 }
 
 float Player::GetAnimtionTime()
@@ -146,12 +147,10 @@ float Player::GetAnimtionTime()
     return animationTime_;
 }
 
-void Player::SetAnimation(const vector<string>& animNames)
+void Player::SetAnimation(const string& animName)
 {
-    prevAnimations_ = currAnimations_;
-    currAnimations_.clear();
-    for (const string& name : animNames)
-        currAnimations_.push_back(name);
+    prevAnimation_ = currAnimation_;
+    currAnimation_ = animName;
     // 0.3초 동안 과거의 애니메이션과 블렌딩됨
     blendAnimationTime_ = 0.0f;
 }
@@ -210,7 +209,6 @@ void MoveState::Update(Player* owner, FSM<Player>& fsm)
     }
 
     XMFLOAT3 moveDir = owner->GetMoveDir();
-    vector<string> animNames;
 
     // 걷는 방향에 따라 애니메이션 설정
     static const string dirs[8] = {
@@ -219,16 +217,14 @@ void MoveState::Update(Player* owner, FSM<Player>& fsm)
     };
 
     if (moveDir.x == 0.0f && moveDir.z == 0.0f)
-        return animNames.push_back("WalkF");
+        return owner->SetAnimation("WalkF");
 
     float angle = std::atan2(moveDir.x, moveDir.z);
     float deg = XMConvertToDegrees(angle);
     if (deg < 0) deg += 360.0f;
     int index = static_cast<int>((deg + 22.5f) / 45.0f) % 8;
 
-    animNames.push_back(dirs[index]);
-
-    owner->SetAnimation(animNames);
+    return owner->SetAnimation(dirs[index]);
 }
 
 void MoveState::Exit(Player* owner)
