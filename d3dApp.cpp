@@ -117,25 +117,13 @@ bool D3DApp::Initialize()
 
 	return true;
 }
- 
+
 void D3DApp::CreateRtvAndDsvDescriptorHeaps()
 {
-    D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
-    rtvHeapDesc.NumDescriptors = SwapChainBufferCount;
-    rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-    rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	rtvHeapDesc.NodeMask = 0;
-    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
-        &rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
-
-
-    D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
-    dsvHeapDesc.NumDescriptors = 1;
-    dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-    dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	dsvHeapDesc.NodeMask = 0;
-    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
-        &dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
+	// 각 디스크립터 크기를 가져옵니다.
+	rtvDescriptorSize_ = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	dsvDescriptorSize_ = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+	cbvSrvUavDescriptorSize_ = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
 void D3DApp::OnResize()
@@ -152,7 +140,6 @@ void D3DApp::OnResize()
 	// Release the previous resources we will be recreating.
 	for (int i = 0; i < SwapChainBufferCount; ++i)
 		mSwapChainBuffer[i].Reset();
-    mDepthStencilBuffer.Reset();
 	
 	// Resize the swap chain.
     ThrowIfFailed(mSwapChain->ResizeBuffers(
@@ -171,47 +158,6 @@ void D3DApp::OnResize()
 		rtvHeapHandle.Offset(1, mRtvDescriptorSize);
 	}
 
-    // Create the depth/stencil buffer and view.
-    D3D12_RESOURCE_DESC depthStencilDesc;
-    depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-    depthStencilDesc.Alignment = 0;
-    depthStencilDesc.Width = mClientWidth;
-    depthStencilDesc.Height = mClientHeight;
-    depthStencilDesc.DepthOrArraySize = 1;
-    depthStencilDesc.MipLevels = 1;
-
-	// SSAO 챕터에서는 깊이 버퍼를 읽기 위해 SRV가 필요합니다.
-	// 따라서 같은 리소스에 두 개의 뷰를 생성해야 합니다:
-	//   1. SRV 형식: DXGI_FORMAT_R24_UNORM_X8_TYPELESS
-	//   2. DSV 형식: DXGI_FORMAT_D24_UNORM_S8_UINT
-	// 따라서 깊이 버퍼 리소스는 typeless 형식으로 생성합니다.
-	depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
-
-    depthStencilDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
-    depthStencilDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
-    depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-    depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-
-    D3D12_CLEAR_VALUE optClear;
-    optClear.Format = mDepthStencilFormat;
-    optClear.DepthStencil.Depth = 1.0f;
-    optClear.DepthStencil.Stencil = 0;
-    ThrowIfFailed(md3dDevice->CreateCommittedResource(
-        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-		D3D12_HEAP_FLAG_NONE,
-        &depthStencilDesc,
-		D3D12_RESOURCE_STATE_COMMON,
-        &optClear,
-        IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
-
-    // Create descriptor to mip level 0 of entire resource using the format of the resource.
-	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
-	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
-	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-	dsvDesc.Format = mDepthStencilFormat;
-	dsvDesc.Texture2D.MipSlice = 0;
-    md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DepthStencilView());
-
     // Transition the resource from its initial state to be used as a depth buffer.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(),
 		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
@@ -223,16 +169,6 @@ void D3DApp::OnResize()
 
 	// Wait until resize is complete.
 	FlushCommandQueue();
-
-	// Update the viewport transform to cover the client area.
-	mScreenViewport.TopLeftX = 0;
-	mScreenViewport.TopLeftY = 0;
-	mScreenViewport.Width    = static_cast<float>(mClientWidth);
-	mScreenViewport.Height   = static_cast<float>(mClientHeight);
-	mScreenViewport.MinDepth = 0.0f;
-	mScreenViewport.MaxDepth = 1.0f;
-
-    mScissorRect = { 0, 0, mClientWidth, mClientHeight };
 }
  
 LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -435,11 +371,6 @@ bool D3DApp::InitDirect3D() {
 	ThrowIfFailed(md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&mFence)));
 
-	// 각 디스크립터 크기를 가져옵니다.
-	mRtvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	mDsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
 	// 백버퍼 포맷에 대해 4X MSAA 품질 지원 여부 확인
 	// Direct3D 11 지원 장치에서는 모든 렌더 타겟 포맷에 대해 4X MSAA 지원
 	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
@@ -464,8 +395,8 @@ bool D3DApp::InitDirect3D() {
 	CreateCommandObjects();
 	// 스왑체인 생성
 	CreateSwapChain();
-	// RTV/DSV 디스크립터 힙 생성
-	CreateRtvAndDsvDescriptorHeaps();
+
+	renderer_.InitializeDirect3D(md3dDevice.Get(), SwapChainBufferCount, 1);
 
 	return true;
 }
@@ -546,23 +477,22 @@ void D3DApp::FlushCommandQueue() {
 	}
 }
 
-
 ID3D12Resource* D3DApp::CurrentBackBuffer()const
 {
 	return mSwapChainBuffer[mCurrBackBuffer].Get();
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::CurrentBackBufferView()const
+D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::CurrentBackBufferView() const
 {
 	return CD3DX12_CPU_DESCRIPTOR_HANDLE(
-		mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
+		rtvHeap_->GetCPUDescriptorHandleForHeapStart(),
 		mCurrBackBuffer,
-		mRtvDescriptorSize);
+		rtvDescriptorSize_);
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::DepthStencilView()const
+D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::DepthStencilView() const
 {
-	return mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+	return dsvHeap_->GetCPUDescriptorHandleForHeapStart();
 }
 
 void D3DApp::CalculateFrameStats() {
@@ -594,7 +524,6 @@ void D3DApp::CalculateFrameStats() {
 		timeElapsed += 1.0f;
 	}
 }
-
 
 void D3DApp::LogAdapters()
 {

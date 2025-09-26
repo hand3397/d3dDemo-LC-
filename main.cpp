@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "d3dApp.h"
 #include "MathHelper.h"
 #include "UploadBuffer.h"
@@ -7,11 +8,13 @@
 #include "ModelLoader.h"
 #include "RenderItem.h"
 #include "Player.h"
-
+#include "Scene.h"
+#include "SceneRenderer.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 using namespace DirectX::PackedVector;
+
 
 const int gNumFrameResources = 3;
 
@@ -39,31 +42,17 @@ private:
 	void UpdateMaterialCBs(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 
-	void LoadModels();
-	void LoadTextures();
 	void BuildRootSignature();
 	void BuildDescriptorHeaps();
 	void BuildShadersAndInputLayout();
-	void BuildShapeGeometry();
+
 	void BuildPSOs();
 	void BuildFrameResources();
-	void BuildMaterials();
-	void BuildRenderItems();
-
-	RenderItem* BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
-		const XMFLOAT4X4& worldTransform = MathHelper::Identity4x4(), const XMFLOAT4X4& texTransform = MathHelper::Identity4x4(),
-		SkinnedModelInstance* skinnedModelInstance = nullptr, uint32_t skinnedCBIndex = -1);
-	RenderItem* BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
-		const XMMATRIX& worldTransform = XMMatrixIdentity(), const XMMATRIX& texTransform = XMMatrixIdentity(),
-		SkinnedModelInstance* skinnedModelInstance = nullptr, uint32_t skinnedCBIndex = -1);
-
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const vector<RenderItem*>& ritems);
 	
 	array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 
-	void LoadTexture(const string& name, const wstring& fileName);
 private:
-
 	vector<unique_ptr<FrameResource>> frameResources;
 	FrameResource* currFrameResource = nullptr;
 	int currFrameResourceIndex = 0;
@@ -74,31 +63,18 @@ private:
 
 	ComPtr<ID3D12DescriptorHeap> srvDescriptorHeap = nullptr;
 
-	unordered_map <string, pair<uint32_t, wstring>> texList;
-	unordered_map<string, unique_ptr<MeshGeometry>> meshes;
-	unordered_map<string, unique_ptr<Material>> materials;
-	unordered_map<string, unique_ptr<Texture>> textures; 
-	unordered_map<string, unique_ptr<SkinnedData>> skinnedData;
+	Scene scene;
+
 	unordered_map<string, ComPtr<ID3DBlob>> shaders;
 	unordered_map<string, ComPtr<ID3D12PipelineState>> PSOs;
 
 	vector<D3D12_INPUT_ELEMENT_DESC> inputLayout;
 	vector<D3D12_INPUT_ELEMENT_DESC> skinnedInputLayout;
 
-	// List of all the render items.
-	vector<unique_ptr<RenderItem>> allRenderItems;
-
-	// Render items divided by PSO.
-	vector<RenderItem*> renderItemLayer[(uint8_t)RenderLayer::Count];
-
 	PassConstants mainPassCB;
 
-	unique_ptr<SkinnedModelInstance> skinnedModelInst;
-
+	Camera* mainCamera_ = nullptr;
 	bool isWireframe = false;
-
-	Player* player_ = nullptr;
-	Camera* mainCamera = nullptr;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
@@ -130,9 +106,6 @@ Direct3DDemo::Direct3DDemo(HINSTANCE hInstance)
 
 Direct3DDemo::~Direct3DDemo()
 {
-	if (player_)
-		delete player_;
-
 	if (md3dDevice != nullptr)
 		FlushCommandQueue();
 }
@@ -153,18 +126,18 @@ bool Direct3DDemo::Initialize()
 	// 이 값은 하드웨어마다 다르므로 직접 쿼리해야 합니다.
 	cbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	
-	player_ = new Player("Player");
-	mainCamera = player_->GetCamera();
-	mainCamera->SetLens(0.25f * MathHelper::Pi, AspectRatio(), 0.1f, 1000.0f);
+	scene.InitScene(md3dDevice.Get(), mCommandList.Get());
+	mainCamera_ = scene.GetCamera();
+	mainCamera_->SetLens(0.25f * MathHelper::Pi, AspectRatio(), 0.1f, 1000.0f);
 
-	LoadModels();
-	LoadTextures();
+	//LoadModels();
+	//LoadTextures();
 	BuildRootSignature();
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
-	BuildShapeGeometry();
-	BuildMaterials();
-	BuildRenderItems();
+	//BuildShapeGeometry();
+	//BuildMaterials();
+	//BuildRenderItems();
 	BuildFrameResources();
 	BuildPSOs();
 
@@ -185,15 +158,15 @@ void Direct3DDemo::OnResize()
 
 	// 창의 크기가 바뀌면 종횡비를 다시 갱신한다.
 	// 투영 행렬을 다시 계산한다.
-	if (mainCamera)
-		mainCamera->SetLens(0.25f * MathHelper::Pi, AspectRatio(), 0.1f, 1000.0f);
+	if (mainCamera_)
+		mainCamera_->SetLens(0.25f * MathHelper::Pi, AspectRatio(), 0.1f, 1000.0f);
 }
 
 void Direct3DDemo::Update(const GameTimer& gt)
 {
 	const float dt = gt.DeltaTime();
 	keyInput_.Update();
-	player_->Update(dt);
+	scene.GetPlayer()->Update(dt);
 
 	// 순환적으로 자원 프레임 배열의 다음 원소에 접근한다.
 	currFrameResourceIndex = (currFrameResourceIndex + 1) % gNumFrameResources;
@@ -256,16 +229,16 @@ void Direct3DDemo::Draw(const GameTimer& gt)
 
 	// ---------------------------------------------------------
 	
-	DrawRenderItems(mCommandList.Get(), renderItemLayer[(uint8_t)RenderLayer::Opaque]);
+	DrawRenderItems(mCommandList.Get(), scene.GetRenderItems(RenderLayer::Opaque));
 
 	mCommandList->SetPipelineState(PSOs["alphaTested"].Get());
-	DrawRenderItems(mCommandList.Get(), renderItemLayer[(uint8_t)RenderLayer::AlphaTested]);
+	DrawRenderItems(mCommandList.Get(), scene.GetRenderItems(RenderLayer::AlphaTested));
 
 	mCommandList->SetPipelineState(PSOs["transparent"].Get());
-	DrawRenderItems(mCommandList.Get(), renderItemLayer[(uint8_t)RenderLayer::Transparent]);
+	DrawRenderItems(mCommandList.Get(), scene.GetRenderItems(RenderLayer::Transparent));
 
 	mCommandList->SetPipelineState(PSOs["skinnedOpaque"].Get());
-	DrawRenderItems(mCommandList.Get(), renderItemLayer[(uint8_t)RenderLayer::Skinned]);
+	DrawRenderItems(mCommandList.Get(), scene.GetRenderItems(RenderLayer::Skinned));
 
 	// ---------------------------------------------------------
 
@@ -306,7 +279,7 @@ void Direct3DDemo::KeyInput(const GameTimer& gt)
 	// KeyBoard
 	isWireframe = keyInput_.IsKeyDown('L');
 
-	player_->KeyInput(keyInput_, dt);
+	scene.GetPlayer()->KeyInput(keyInput_, dt);
 }
 
 void Direct3DDemo::AnimateMaterials(const GameTimer& gt) {
@@ -315,7 +288,8 @@ void Direct3DDemo::AnimateMaterials(const GameTimer& gt) {
 
 void Direct3DDemo::UpdateObjectCBs(const GameTimer& gt) {
 	auto currObjectCB = currFrameResource->ObjectCB.get();
-	for (auto& e : allRenderItems) {
+	auto& numRenderItems = scene.GetAllRenderItems();
+	for (auto& e : numRenderItems) {
 		// 상수들이 바뀌었을 떄에만 cbuffer 자료를 갱신한다.
 		// 이러한 갱신을 프레임 자원마다 수행해야 한다.
 		if (e->numFramesDirty_ > 0) {
@@ -338,10 +312,13 @@ void Direct3DDemo::UpdateSkinnedCBs(const GameTimer& gt)
 {
 	auto currSkinnedCB = currFrameResource->SkinnedCB.get();
 
-	skinnedModelInst->UpdateSkinnedAnimation();
+	auto& skinnedModelInsts = scene.GetSkinnedModelInsts();
+	for (auto& [name, skinnedModel] : skinnedModelInsts) 		{
+		skinnedModel->UpdateSkinnedAnimation();
+	}
 	
 	SkinnedConstants skinnedConstants;
-	copy(skinnedModelInst->finalTransforms_.begin(), skinnedModelInst->finalTransforms_.end(),
+	copy(skinnedModelInsts["Vanguard"]->finalTransforms_.begin(), skinnedModelInsts["Vanguard"]->finalTransforms_.end(),
 		&skinnedConstants.BoneTransforms[0]);
 	
 	//for (int i = 0; i < 96; i++)
@@ -353,6 +330,7 @@ void Direct3DDemo::UpdateSkinnedCBs(const GameTimer& gt)
 
 void Direct3DDemo::UpdateMaterialCBs(const GameTimer& gt) {
 	auto currMaterialCB = currFrameResource->MaterialCB.get();
+	auto& materials = scene.GetMaterials();
 	for (auto& e : materials) {
 		// Only update the cbuffer data if the constants have changed.  If the cbuffer
 		// data changes, it needs to be updated for each FrameResource.
@@ -375,8 +353,8 @@ void Direct3DDemo::UpdateMaterialCBs(const GameTimer& gt) {
 }
 
 void Direct3DDemo::UpdateMainPassCB(const GameTimer& gt) {
-	XMMATRIX view = mainCamera->GetView();
-	XMMATRIX proj = mainCamera->GetProj();
+	XMMATRIX view = scene.GetCamera()->GetView();
+	XMMATRIX proj = scene.GetCamera()->GetProj();
 
 	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
@@ -389,11 +367,11 @@ void Direct3DDemo::UpdateMainPassCB(const GameTimer& gt) {
 	XMStoreFloat4x4(&mainPassCB.InvProj, XMMatrixTranspose(invProj));
 	XMStoreFloat4x4(&mainPassCB.ViewProj, XMMatrixTranspose(viewProj));
 	XMStoreFloat4x4(&mainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
-	mainPassCB.EyePosW = mainCamera->GetPosition3f();
+	mainPassCB.EyePosW = scene.GetCamera()->GetPosition3f();
 	mainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
 	mainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
-	mainPassCB.NearZ = mainCamera->GetNearZ();
-	mainPassCB.FarZ = mainCamera->GetFarZ();
+	mainPassCB.NearZ = scene.GetCamera()->GetNearZ();
+	mainPassCB.FarZ = scene.GetCamera()->GetFarZ();
 	mainPassCB.TotalTime = gt.TotalTime();
 	mainPassCB.DeltaTime = gt.DeltaTime();
 	mainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
@@ -406,56 +384,6 @@ void Direct3DDemo::UpdateMainPassCB(const GameTimer& gt) {
 
 	auto currPassCB = currFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mainPassCB);
-}
-
-void Direct3DDemo::LoadModels()
-{
-	ModelLoader modelLoader;
-	modelLoader.ReadModelFile("Models/Vanguard/Vanguard.fbx", 1.0f);
-	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/Idle.fbx", "Idle");
-	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/RunForward.fbx", "RunF");
-	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/WalkForward.fbx", "WalkF");
-	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/WalkBack.fbx", "WalkB");
-	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/StrafeLeft1.fbx", "WalkL1");
-	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/StrafeLeft2.fbx", "WalkL2");
-	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/StrafeRight1.fbx", "WalkR1");
-	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/StrafeRight2.fbx", "WalkR2");
-	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/Jump.fbx", "Jump");
-	modelLoader.ReadAnimationFile("Models/Vanguard/Animations/Falling.fbx", "Falling");
-
-	skinnedData["skinned"] = make_unique<SkinnedData>(move(modelLoader.skinnedData_));
-	skinnedModelInst = make_unique<SkinnedModelInstance>();
-	skinnedModelInst.get()->skinnedInfo_ = skinnedData["skinned"].get();
-	skinnedModelInst.get()->finalTransforms_.resize(skinnedModelInst.get()->skinnedInfo_->BoneCount());
-
-	skinnedData["skinned"]->AddBlendingAnimation("WalkFL", "WalkF", "WalkL1", 0.5f);
-	skinnedData["skinned"]->AddBlendingAnimation("WalkFR", "WalkF", "WalkR1", 0.5f);
-
-	const UINT vbByteSize = (UINT)modelLoader.skinnedMesh_.vertices.size() * sizeof(SkinnedVertex);
-	const UINT ibByteSize = (UINT)modelLoader.skinnedMesh_.indices.size() * sizeof(uint32_t);
-
-	auto geo = make_unique<MeshGeometry>();
-	geo->BuildMeshGeo("skinnedGeo", modelLoader.skinnedMesh_.vertices, modelLoader.skinnedMesh_.indices,
-		md3dDevice.Get(), mCommandList.Get());
-	geo->AddSubmesh("0", modelLoader.subMeshes_[0]);
-	geo->AddSubmesh("1", modelLoader.subMeshes_[1]);
-	meshes[geo->name_] = move(geo);
-}
-
-void Direct3DDemo::LoadTextures() {
-	vector<pair<string, wstring>> texNames = {
-		{"bricksTex",	L"Textures/d3d12/bricks.dds"},
-		{"stoneTex",	L"Textures/d3d12/stone.dds"},
-		{"tileTex",		L"Textures/d3d12/tile.dds"},
-		{"iceTex",		L"Textures/d3d12/ice.dds"},
-		{"fenceTex",	L"Textures/d3d12/WireFence.dds"},
-		{"soldierTex",	L"Textures/soldier.dds"},
-	};
-	for (auto& [name, filepath] : texNames)
-		texList.insert({ name, {texList.size(), filepath} });
-
-	for (auto& [name, v] : texList)
-		LoadTexture(name, v.second);
 }
 
 void Direct3DDemo::BuildRootSignature() {
@@ -507,68 +435,38 @@ void Direct3DDemo::BuildRootSignature() {
 }
 
 void Direct3DDemo::BuildDescriptorHeaps() {
-	//
 	// Create the SRV heap.
-	//
+	auto& textures = scene.GetTextures();
+
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = textures.size();
+	srvHeapDesc.NumDescriptors = static_cast<UINT>(textures.size());
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvDescriptorHeap)));
 
-	//
-	// Fill out the heap with actual descriptors.
-	//
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	auto bricksTex = textures["bricksTex"]->Resource;
-	auto stoneTex = textures["stoneTex"]->Resource;
-	auto tileTex = textures["tileTex"]->Resource;
-	auto iceTex = textures["iceTex"]->Resource;
-	auto fenceTex = textures["fenceTex"]->Resource;
-	auto soldierTex = textures["soldierTex"]->Resource;
+	// Loop over all textures and create SRVs
+	UINT texIndex = 0;
+	for (auto& kv : textures) {
+		auto& texName = kv.first;
+		auto& tex = kv.second;
 
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = bricksTex->GetDesc().Format;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.MipLevels = bricksTex->GetDesc().MipLevels;
-	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-	md3dDevice->CreateShaderResourceView(bricksTex.Get(), &srvDesc, hDescriptor);
+		auto resource = tex->Resource;
 
-	// next descriptor
-	hDescriptor.Offset(1, cbvSrvDescriptorSize);
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Format = resource->GetDesc().Format;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MostDetailedMip = 0;
+		srvDesc.Texture2D.MipLevels = resource->GetDesc().MipLevels;
+		srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 
-	srvDesc.Format = stoneTex->GetDesc().Format;
-	srvDesc.Texture2D.MipLevels = stoneTex->GetDesc().MipLevels;
-	md3dDevice->CreateShaderResourceView(stoneTex.Get(), &srvDesc, hDescriptor);
+		md3dDevice->CreateShaderResourceView(resource.Get(), &srvDesc, hDescriptor);
 
-	// next descriptor
-	hDescriptor.Offset(1, cbvSrvDescriptorSize);
-
-	srvDesc.Format = tileTex->GetDesc().Format;
-	srvDesc.Texture2D.MipLevels = tileTex->GetDesc().MipLevels;
-	md3dDevice->CreateShaderResourceView(tileTex.Get(), &srvDesc, hDescriptor);
-
-	// next descriptor
-	hDescriptor.Offset(1, cbvSrvDescriptorSize);
-
-	srvDesc.Format = iceTex->GetDesc().Format;
-	srvDesc.Texture2D.MipLevels = iceTex->GetDesc().MipLevels;
-	md3dDevice->CreateShaderResourceView(iceTex.Get(), &srvDesc, hDescriptor);
-
-	// next descriptor
-	hDescriptor.Offset(1, cbvSrvDescriptorSize);
-
-	srvDesc.Format = fenceTex->GetDesc().Format;
-	md3dDevice->CreateShaderResourceView(fenceTex.Get(), &srvDesc, hDescriptor);
-
-	// next descriptor
-	hDescriptor.Offset(1, cbvSrvDescriptorSize);
-
-	srvDesc.Format = soldierTex->GetDesc().Format;
-	md3dDevice->CreateShaderResourceView(soldierTex.Get(), &srvDesc, hDescriptor);
+		// 다음 descriptor 위치로 이동
+		hDescriptor.Offset(1, cbvSrvDescriptorSize);
+	}
 }
 
 void Direct3DDemo::BuildShadersAndInputLayout() {
@@ -611,114 +509,6 @@ void Direct3DDemo::BuildShadersAndInputLayout() {
 		{ "WEIGHTS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(SkinnedVertex, BoneWeights), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "BONEINDICES", 0, DXGI_FORMAT_R32G32B32A32_UINT, 0, (UINT)offsetof(SkinnedVertex, BoneIndices), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
-}
-
-void Direct3DDemo::BuildShapeGeometry() {
-	GeometryGenerator geoGen;
-	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
-	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
-	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
-	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
-
-	//
-	// We are concatenating all the geometry into one big vertex/index buffer.  So
-	// define the regions in the buffer each submesh covers.
-	//
-
-	// Cache the vertex offsets to each object in the concatenated vertex buffer.
-	UINT boxVertexOffset = 0;
-	UINT gridVertexOffset = (UINT)box.Vertices.size();
-	UINT sphereVertexOffset = gridVertexOffset + (UINT)grid.Vertices.size();
-	UINT cylinderVertexOffset = sphereVertexOffset + (UINT)sphere.Vertices.size();
-
-	// Cache the starting index for each object in the concatenated index buffer.
-	UINT boxIndexOffset = 0;
-	UINT gridIndexOffset = (UINT)box.Indices32.size();
-	UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
-	UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
-
-	// Define the SubmeshGeometry that cover different 
-	// regions of the vertex/index buffers.
-
-	Submesh boxSubmesh;
-	boxSubmesh.IndexCount = (UINT)box.Indices32.size();
-	boxSubmesh.StartIndexLocation = boxIndexOffset;
-	boxSubmesh.BaseVertexLocation = boxVertexOffset;
-	boxSubmesh.Bounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	boxSubmesh.Bounds.Extents = XMFLOAT3(0.5f, 0.5f, 0.5f);
-
-	geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
-	Submesh gridSubmesh;
-	gridSubmesh.IndexCount = (UINT)grid.Indices32.size();
-	gridSubmesh.StartIndexLocation = gridIndexOffset;
-	gridSubmesh.BaseVertexLocation = gridVertexOffset;
-	gridSubmesh.Bounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	gridSubmesh.Bounds.Extents = XMFLOAT3(10.0f, 0.01f, 30.0f);
-
-	Submesh sphereSubmesh;
-	sphereSubmesh.IndexCount = (UINT)sphere.Indices32.size();
-	sphereSubmesh.StartIndexLocation = sphereIndexOffset;
-	sphereSubmesh.BaseVertexLocation = sphereVertexOffset;
-	sphereSubmesh.Bounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	sphereSubmesh.Bounds.Extents = XMFLOAT3(0.5f, 0.5f, 0.5f);
-
-	Submesh cylinderSubmesh;
-	cylinderSubmesh.IndexCount = (UINT)cylinder.Indices32.size();
-	cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
-	cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
-	cylinderSubmesh.Bounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	cylinderSubmesh.Bounds.Extents = XMFLOAT3(0.5f, 3.0f, 0.5f);
-	//
-	// Extract the vertex elements we are interested in and pack the
-	// vertices of all the meshes into one vertex buffer.
-	//
-
-	auto totalVertexCount =
-		box.Vertices.size() +
-		grid.Vertices.size() +
-		sphere.Vertices.size() +
-		cylinder.Vertices.size();
-
-	vector<Vertex> vertices(totalVertexCount);
-
-	UINT k = 0;
-	for (size_t i = 0; i < box.Vertices.size(); ++i, ++k) {
-		vertices[k].Pos = box.Vertices[i].Position;
-		vertices[k].Normal = box.Vertices[i].Normal;
-		vertices[k].TexC = box.Vertices[i].TexC;
-	}
-
-	for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k) {
-		vertices[k].Pos = grid.Vertices[i].Position;
-		vertices[k].Normal = grid.Vertices[i].Normal;
-		vertices[k].TexC = grid.Vertices[i].TexC;
-	}
-
-	for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k) {
-		vertices[k].Pos = sphere.Vertices[i].Position;
-		vertices[k].Normal = sphere.Vertices[i].Normal;
-		vertices[k].TexC = sphere.Vertices[i].TexC;
-	}
-
-	for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k) {
-		vertices[k].Pos = cylinder.Vertices[i].Position;
-		vertices[k].Normal = cylinder.Vertices[i].Normal;
-		vertices[k].TexC = cylinder.Vertices[i].TexC;
-	}
-
-	vector<uint32_t> indices;
-	indices.insert(indices.end(), begin(box.Indices32), end(box.Indices32));
-	indices.insert(indices.end(), begin(grid.Indices32), end(grid.Indices32));
-	indices.insert(indices.end(), begin(sphere.Indices32), end(sphere.Indices32));
-	indices.insert(indices.end(), begin(cylinder.Indices32), end(cylinder.Indices32));
-
-	auto geo = make_unique<MeshGeometry>();
-	geo->BuildMeshGeo("shapeGeo", vertices, indices, md3dDevice.Get(), mCommandList.Get());
-	geo->AddSubmesh("box", boxSubmesh);
-	geo->AddSubmesh("grid", gridSubmesh);
-	geo->AddSubmesh("sphere", sphereSubmesh);
-	geo->AddSubmesh("cylinder", cylinderSubmesh);
-	meshes[geo->name_] = move(geo);
 }
 
 void Direct3DDemo::BuildPSOs() {
@@ -811,89 +601,12 @@ void Direct3DDemo::BuildPSOs() {
 }
 
 void Direct3DDemo::BuildFrameResources() {
+	uint32_t numRenderItems = scene.GetAllRenderItems().size();
+	uint32_t numSkinnedObjects = scene.GetSkinnedModelInsts().size();
+	uint32_t numMaterials = scene.GetMaterials().size();
 	for (int i = 0; i < gNumFrameResources; ++i) {
 		frameResources.push_back(make_unique<FrameResource>(md3dDevice.Get(),
-			1, (UINT)allRenderItems.size(), 1, (UINT)materials.size()));
-	}
-}
-
-void Direct3DDemo::BuildMaterials()
-{
-	materials.insert({ "bricks0",	make_unique<Material>("bricks0",	materials.size(), texList["bricksTex"].first, -1,
-		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),	XMFLOAT3(0.02f, 0.02f, 0.02f),	0.1f) });
-
-	materials.insert({ "stone0",	make_unique<Material>("stone0",		materials.size(), texList["stoneTex"].first, -1,
-		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),	XMFLOAT3(0.05f, 0.05f, 0.05f),	0.3f) });
-
-	materials.insert({ "tile0",		make_unique<Material>("tile0",		materials.size(), texList["tileTex"].first, -1,
-		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),	XMFLOAT3(0.02f, 0.02f, 0.02f),	0.3f) });
-	
-	materials.insert({ "ice0",		make_unique<Material>("ice0",		materials.size(), texList["iceTex"].first, -1,
-		XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f),	XMFLOAT3(0.1f, 0.1f, 0.1f),		0.0f) });
-	
-	materials.insert({ "wirefence", make_unique<Material>("wirefence",	materials.size(), texList["fenceTex"].first, -1,
-		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),	XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f) });
-
-	materials.insert({ "soldier",	make_unique<Material>("soldier",	materials.size(), texList["soldierTex"].first, -1,
-		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),	XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f) });
-}
-
-void Direct3DDemo::BuildRenderItems() {
-	UINT objCBIndex = 0;
-	
-	BuildRenderItem((uint8_t)RenderLayer::AlphaTested, 
-		meshes["shapeGeo"].get(), meshes["shapeGeo"].get()->subMeshes_["box"], materials["wirefence"].get(),
-		XMMatrixScaling(3.0f, 3.0f, 3.0f) * XMMatrixTranslation(0.0f, 3.0f, 0.0f));
-
-	BuildRenderItem((uint8_t)RenderLayer::Transparent,
-		meshes["shapeGeo"].get(), meshes["shapeGeo"].get()->subMeshes_["box"], materials["ice0"].get(),
-		XMMatrixScaling(1.0f, 1.0f, 1.0f) * XMMatrixTranslation(0.0f, 4.0f, 0.0f));
-
-	BuildRenderItem((uint8_t)RenderLayer::Opaque,
-		meshes["shapeGeo"].get(), meshes["shapeGeo"].get()->subMeshes_["grid"], materials["tile0"].get(),
-		XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f));
-	
-	auto demoBox = BuildRenderItem((uint8_t)RenderLayer::Opaque,
-		meshes["shapeGeo"].get(), meshes["shapeGeo"].get()->subMeshes_["box"], materials["soldier"].get(),
-		XMMatrixIdentity());
-
-	auto palyerRenderItem1 = BuildRenderItem((uint8_t)RenderLayer::Skinned,
-		meshes["skinnedGeo"].get(), meshes["skinnedGeo"].get()->subMeshes_["0"], materials["soldier"].get(),
-		XMMatrixIdentity(), XMMatrixIdentity(),
-		skinnedModelInst.get(), 0);
-
-	auto palyerRenderItem2 = BuildRenderItem((uint8_t)RenderLayer::Skinned,
-		meshes["skinnedGeo"].get(), meshes["skinnedGeo"].get()->subMeshes_["1"], materials["soldier"].get(),
-		XMMatrixIdentity(), XMMatrixIdentity(),
-		skinnedModelInst.get(), 0);
-	
-	player_->AddRenderItem(palyerRenderItem1);
-	player_->AddRenderItem(palyerRenderItem2);
-
-	//---------------------------------------
-	
-	for (int i = 0; i < 5; ++i) {
-		XMMATRIX leftCylWorld = XMMatrixTranslation(-5.0f, 1.5f, -10.0f + i * 5.0f);
-		XMMATRIX rightCylWorld = XMMatrixTranslation(+5.0f, 1.5f, -10.0f + i * 5.0f);
-
-		XMMATRIX leftSphereWorld = XMMatrixTranslation(-5.0f, 3.5f, -10.0f + i * 5.0f);
-		XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f, 3.5f, -10.0f + i * 5.0f);
-
-		BuildRenderItem((uint8_t)RenderLayer::Opaque,
-			meshes["shapeGeo"].get(), meshes["shapeGeo"].get()->subMeshes_["cylinder"], materials["bricks0"].get(),
-			leftCylWorld);
-
-		BuildRenderItem((uint8_t)RenderLayer::Opaque,
-			meshes["shapeGeo"].get(), meshes["shapeGeo"].get()->subMeshes_["cylinder"], materials["bricks0"].get(),
-			rightCylWorld);
-
-		BuildRenderItem((uint8_t)RenderLayer::Opaque,
-			meshes["shapeGeo"].get(), meshes["shapeGeo"].get()->subMeshes_["sphere"], materials["stone0"].get(),
-			leftSphereWorld);
-
-		BuildRenderItem((uint8_t)RenderLayer::Opaque,
-			meshes["shapeGeo"].get(), meshes["shapeGeo"].get()->subMeshes_["sphere"], materials["stone0"].get(),
-			rightSphereWorld);
+			1, numRenderItems, numSkinnedObjects, numMaterials));
 	}
 }
 
@@ -991,64 +704,4 @@ array<const CD3DX12_STATIC_SAMPLER_DESC, 6> Direct3DDemo::GetStaticSamplers() {
 		pointWrap, pointClamp,
 		linearWrap, linearClamp,
 		anisotropicWrap, anisotropicClamp };
-}
-
-void Direct3DDemo::LoadTexture(const string& name, const wstring& fileName)
-{
-	auto bricksTex = make_unique<Texture>();
-	bricksTex->Name = name;
-	bricksTex->Filename = fileName;
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
-		mCommandList.Get(), bricksTex->Filename.c_str(),
-		bricksTex->Resource, bricksTex->UploadHeap));
-
-	textures[bricksTex->Name] = move(bricksTex);
-}
-
-RenderItem* Direct3DDemo::BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
-	const XMFLOAT4X4& worldTransform, const XMFLOAT4X4& texTransform,
-	SkinnedModelInstance* skinnedModelInstance, uint32_t skinnedCBIndex)
-{
-	auto renderItem = make_unique<RenderItem>();
-	renderItem->world_ = worldTransform;
-	renderItem->texTransform_ = texTransform;
-	renderItem->objCBIndex_ = allRenderItems.size();
-	renderItem->material_ = material;
-	renderItem->mesh_ = mesh;
-	//renderItem->primitiveType_ = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	renderItem->indexCount_ = submesh.IndexCount;
-	renderItem->startIndexLocation_ = submesh.StartIndexLocation;
-	renderItem->baseVertexLocation_ = submesh.BaseVertexLocation;
-	renderItem->skinnedModelInst_ = skinnedModelInstance;
-	renderItem->skinnedCBIndex_ = skinnedCBIndex;
-
-	RenderItem* rItem = renderItem.get();
-
-	renderItemLayer[renderLayer].push_back(rItem);
-	allRenderItems.push_back(move(renderItem));
-	return rItem;
-}
-
-RenderItem* Direct3DDemo::BuildRenderItem(uint8_t renderLayer, MeshGeometry* mesh, const Submesh& submesh, Material* material,
-	const XMMATRIX& worldTransform, const XMMATRIX& texTransform,
-	SkinnedModelInstance* skinnedModelInstance, uint32_t skinnedCBIndex)
-{
-	auto renderItem = make_unique<RenderItem>();
-	XMStoreFloat4x4(&renderItem->world_, worldTransform);
-	XMStoreFloat4x4(&renderItem->texTransform_, texTransform);
-	renderItem->objCBIndex_ = allRenderItems.size();
-	renderItem->material_ = material;
-	renderItem->mesh_ = mesh;
-	//renderItem->primitiveType_ = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	renderItem->indexCount_ = submesh.IndexCount;
-	renderItem->startIndexLocation_ = submesh.StartIndexLocation;
-	renderItem->baseVertexLocation_ = submesh.BaseVertexLocation;
-	renderItem->skinnedModelInst_ = skinnedModelInstance;
-	renderItem->skinnedCBIndex_ = skinnedCBIndex;
-
-	RenderItem* rItem = renderItem.get();
-
-	renderItemLayer[renderLayer].push_back(rItem);
-	allRenderItems.push_back(move(renderItem));
-	return rItem;
 }
