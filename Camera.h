@@ -1,5 +1,5 @@
 #pragma once
-#include "stdafx.h"
+#include "d3dUtil.h"
 
 enum class CameraMode
 {

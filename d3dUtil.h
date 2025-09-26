@@ -5,7 +5,34 @@
 //***************************************************************************************
 
 #pragma once
-#include "stdafx.h"
+
+#include <windows.h>
+#include <wrl.h>
+#include <dxgi1_4.h>
+#include <d3d12.h>
+#include <D3Dcompiler.h>
+#include <DirectXMath.h>
+#include <DirectXPackedVector.h>
+#include <DirectXColors.h>
+#include <DirectXCollision.h>
+#include <string>
+#include <memory>
+#include <algorithm>
+#include <vector>
+#include <array>
+#include <unordered_map>
+#include <cstdint>
+#include <fstream>
+#include <sstream>
+#include <cassert>
+#include "d3dx12.h"
+#include "DDSTextureLoader.h"
+#include "MathHelper.h"
+#include <set>
+#include <queue>
+
+using namespace std;
+using namespace DirectX;
 
 extern const int gNumFrameResources;
 
@@ -69,7 +96,10 @@ inline std::wstring AnsiToWString(const std::string& str)
 class d3dUtil
 {
 public:
-    //static std::string ToString(HRESULT hr);
+
+    static bool IsKeyDown(int vkeyCode);
+
+    static std::string ToString(HRESULT hr);
 
     static UINT CalcConstantBufferByteSize(UINT byteSize)
     {
@@ -143,19 +173,19 @@ struct MaterialConstants {
 // 실제 상용 3D 엔진에서는 보통 Material을 클래스 계층 구조로 관리한다.
 struct Material {
     Material() = default;
-    Material(const std::string& name, int matCBIndex_,
+    Material(const string& name, int matCBIndex_,
         int diffuseSrvHeapIndex_ = -1, int normalSrvHeapIndex_ = -1,
-        const DirectX::XMFLOAT4& diffuseAlbedo = DirectX::XMFLOAT4(1, 1, 1, 1),
-        const DirectX::XMFLOAT3& fresnelR0 = DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f),
+        const XMFLOAT4& diffuseAlbedo = XMFLOAT4(1, 1, 1, 1),
+        const XMFLOAT3& fresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f),
         float roughness = 0.25f,
-        const DirectX::XMFLOAT4X4& matTransform = MathHelper::Identity4x4())
+        const XMFLOAT4X4& matTransform = MathHelper::Identity4x4())
         : name_(name), matCBIndex_(matCBIndex_),
         diffuseSrvHeapIndex_(diffuseSrvHeapIndex_),
         normalSrvHeapIndex_(normalSrvHeapIndex_),
         diffuseAlbedo_(diffuseAlbedo), fresnelR0_(fresnelR0),
         roughness_(roughness), matTransform_(matTransform) {}
 
-    std::string name_;
+    string name_;
 
     // 상수 버퍼(Constant Buffer)에서 이 Material이 참조하는 인덱스
     int matCBIndex_ = -1;
@@ -172,11 +202,11 @@ struct Material {
     int numFramesDirty_ = gNumFrameResources;
 
     // 셰이딩에 사용되는 Material 상수 버퍼 데이터
-    DirectX::XMFLOAT4 diffuseAlbedo_ = { 1.0f, 1.0f, 1.0f, 1.0f };
-    DirectX::XMFLOAT3 fresnelR0_ = { 0.01f, 0.01f, 0.01f };
+    XMFLOAT4 diffuseAlbedo_ = { 1.0f, 1.0f, 1.0f, 1.0f };
+    XMFLOAT3 fresnelR0_ = { 0.01f, 0.01f, 0.01f };
     float roughness_ = 0.25f;
 
-    DirectX::XMFLOAT4X4 matTransform_ = MathHelper::Identity4x4();
+    XMFLOAT4X4 matTransform_ = MathHelper::Identity4x4();
 };
 
 struct Texture {
@@ -185,8 +215,6 @@ struct Texture {
 
     // 파일 이름
     std::wstring Filename;
-
-    uint32_t SrvHeapIndex = 0;
 
     // GPU 리소스 및 업로드 힙
     Microsoft::WRL::ComPtr<ID3D12Resource> Resource = nullptr;

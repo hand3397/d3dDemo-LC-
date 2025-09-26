@@ -1,11 +1,8 @@
 
-#include "stdafx.h"
 #include "d3dUtil.h"
 #include <comdef.h>
 #include <fstream>
 
-using namespace std;
-using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
 DxException::DxException(HRESULT hr, const std::wstring& functionName, const std::wstring& filename, int lineNumber) :
@@ -14,6 +11,11 @@ DxException::DxException(HRESULT hr, const std::wstring& functionName, const std
     Filename(filename),
     LineNumber(lineNumber)
 {
+}
+
+bool d3dUtil::IsKeyDown(int vkeyCode)
+{
+    return (GetAsyncKeyState(vkeyCode) & 0x8000) != 0;
 }
 
 ComPtr<ID3DBlob> d3dUtil::LoadBinary(const std::wstring& filename)
