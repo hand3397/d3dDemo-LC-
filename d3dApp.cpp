@@ -1,7 +1,3 @@
-//***************************************************************************************
-// d3dApp.cpp by Frank Luna (C) 2015 All Rights Reserved.
-//***************************************************************************************
-
 #include "d3dApp.h"
 #include <WindowsX.h>
 
@@ -9,7 +5,7 @@ using Microsoft::WRL::ComPtr;
 using namespace std;
 using namespace DirectX;
 
-LRESULT CALLBACK 
+LRESULT CALLBACK
 MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	// hwnd를 전달합니다. WM_CREATE 등 메시지는 CreateWindow가 반환되기 전,
@@ -20,19 +16,19 @@ MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 D3DApp* D3DApp::mApp = nullptr;
 D3DApp* D3DApp::GetApp()
 {
-    return mApp;
+	return mApp;
 }
 
 D3DApp::D3DApp(HINSTANCE hInstance) : mhAppInst(hInstance)
 {
 	// 한 번에 하나의 D3DApp만 생성될 수 있습니다.
-    assert(mApp == nullptr);
-    mApp = this;
+	assert(mApp == nullptr);
+	mApp = this;
 }
 
 D3DApp::~D3DApp()
 {
-	if(md3dDevice != nullptr)
+	if (md3dDevice != nullptr)
 		FlushCommandQueue();
 }
 
@@ -53,125 +49,183 @@ float D3DApp::AspectRatio()const
 
 bool D3DApp::Get4xMsaaState()const
 {
-    return m4xMsaaState;
+	return m4xMsaaState;
 }
 
 void D3DApp::Set4xMsaaState(bool value)
 {
-    if(m4xMsaaState != value)
-    {
-        m4xMsaaState = value;
+	if (m4xMsaaState != value) {
+		m4xMsaaState = value;
 
 		// 스왑체인과 버퍼를 새로운 멀티샘플 설정으로 다시 생성합니다.
 		CreateSwapChain();
-        OnResize();
-    }
+		OnResize();
+	}
 }
 
 int D3DApp::Run()
 {
-	MSG msg = {0};
- 
+	MSG msg = { 0 };
+
 	mTimer.Reset();
 
-	while(msg.message != WM_QUIT)
-	{
+	while (msg.message != WM_QUIT) {
 		// 윈도우 메시지가 있으면 처리합니다.
-		if(PeekMessage( &msg, 0, 0, 0, PM_REMOVE ))
-		{
-            TranslateMessage( &msg );
-            DispatchMessage( &msg );
+		if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
 		}
 		// 메시지가 없으면 애니메이션/게임 로직을 처리합니다.
-		else
-        {	
+		else {
 			mTimer.Tick();
 
-			if( !mAppPaused )
-			{
+			if (!mAppPaused) {
 				CalculateFrameStats();
 				KeyInput(mTimer);
-				Update(mTimer);	
-                Draw(mTimer);
+				Update(mTimer);
+				Draw(mTimer);
 			}
-			else
-			{
+			else {
 				Sleep(100);
 			}
-        }
-    }
+		}
+	}
 
 	return (int)msg.wParam;
 }
 
 bool D3DApp::Initialize()
 {
-	if(!InitMainWindow())
+	if (!InitMainWindow())
 		return false;
 
-	if(!InitDirect3D())
+	if (!InitDirect3D())
 		return false;
 
 	// 초기 리사이즈 코드 실행
-    OnResize();
+	OnResize();
 
 	return true;
 }
 
 void D3DApp::CreateRtvAndDsvDescriptorHeaps()
 {
-	// 각 디스크립터 크기를 가져옵니다.
-	rtvDescriptorSize_ = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	dsvDescriptorSize_ = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-	cbvSrvUavDescriptorSize_ = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
+	rtvHeapDesc.NumDescriptors = SwapChainBufferCount;
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	rtvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+		&rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
+
+
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
+	dsvHeapDesc.NumDescriptors = 1;
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	dsvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+		&dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
 }
 
 void D3DApp::OnResize()
 {
 	assert(md3dDevice);
 	assert(mSwapChain);
-    assert(mDirectCmdListAlloc);
+	assert(mDirectCmdListAlloc);
 
 	// Flush before changing any resources.
 	FlushCommandQueue();
 
-    ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
 	// Release the previous resources we will be recreating.
 	for (int i = 0; i < SwapChainBufferCount; ++i)
 		mSwapChainBuffer[i].Reset();
-	
+	mDepthStencilBuffer.Reset();
+
 	// Resize the swap chain.
-    ThrowIfFailed(mSwapChain->ResizeBuffers(
-		SwapChainBufferCount, 
-		mClientWidth, mClientHeight, 
-		mBackBufferFormat, 
+	ThrowIfFailed(mSwapChain->ResizeBuffers(
+		SwapChainBufferCount,
+		mClientWidth, mClientHeight,
+		mBackBufferFormat,
 		DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
 
 	mCurrBackBuffer = 0;
- 
+
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
-	for (UINT i = 0; i < SwapChainBufferCount; i++)
-	{
+	for (UINT i = 0; i < SwapChainBufferCount; i++) {
 		ThrowIfFailed(mSwapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapChainBuffer[i])));
 		md3dDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(), nullptr, rtvHeapHandle);
 		rtvHeapHandle.Offset(1, mRtvDescriptorSize);
 	}
 
-    // Transition the resource from its initial state to be used as a depth buffer.
+	// Create the depth/stencil buffer and view.
+	D3D12_RESOURCE_DESC depthStencilDesc;
+	depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	depthStencilDesc.Alignment = 0;
+	depthStencilDesc.Width = mClientWidth;
+	depthStencilDesc.Height = mClientHeight;
+	depthStencilDesc.DepthOrArraySize = 1;
+	depthStencilDesc.MipLevels = 1;
+
+	// SSAO 챕터에서는 깊이 버퍼를 읽기 위해 SRV가 필요합니다.
+	// 따라서 같은 리소스에 두 개의 뷰를 생성해야 합니다:
+	//   1. SRV 형식: DXGI_FORMAT_R24_UNORM_X8_TYPELESS
+	//   2. DSV 형식: DXGI_FORMAT_D24_UNORM_S8_UINT
+	// 따라서 깊이 버퍼 리소스는 typeless 형식으로 생성합니다.
+	depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+
+	depthStencilDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+	depthStencilDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+	D3D12_CLEAR_VALUE optClear;
+	optClear.Format = mDepthStencilFormat;
+	optClear.DepthStencil.Depth = 1.0f;
+	optClear.DepthStencil.Stencil = 0;
+	ThrowIfFailed(md3dDevice->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE,
+		&depthStencilDesc,
+		D3D12_RESOURCE_STATE_COMMON,
+		&optClear,
+		IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
+
+	// Create descriptor to mip level 0 of entire resource using the format of the resource.
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.Format = mDepthStencilFormat;
+	dsvDesc.Texture2D.MipSlice = 0;
+	md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DepthStencilView());
+
+	// Transition the resource from its initial state to be used as a depth buffer.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(),
 		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
-	
-    // Execute the resize commands.
-    ThrowIfFailed(mCommandList->Close());
-    ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
-    mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	// Execute the resize commands.
+	ThrowIfFailed(mCommandList->Close());
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
 	// Wait until resize is complete.
 	FlushCommandQueue();
+
+	// Update the viewport transform to cover the client area.
+	mScreenViewport.TopLeftX = 0;
+	mScreenViewport.TopLeftY = 0;
+	mScreenViewport.Width = static_cast<float>(mClientWidth);
+	mScreenViewport.Height = static_cast<float>(mClientHeight);
+	mScreenViewport.MinDepth = 0.0f;
+	mScreenViewport.MaxDepth = 1.0f;
+
+	mScissorRect = { 0, 0, mClientWidth, mClientHeight };
 }
- 
-LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+
+LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
 	switch (msg) {
 		// WM_ACTIVATE는 창이 활성화되거나 비활성화될 때 전송됩니다.
 		// 창이 비활성화되면 게임을 일시정지하고,
@@ -282,15 +336,13 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		}
 		if (wParam == VK_SHIFT)
 			(lParam & (1 << 24)) ?
-				keyInput_.OnKeyUp(VK_RSHIFT)
-				: keyInput_.OnKeyUp(VK_LSHIFT);
+			keyInput_.OnKeyDown(VK_RSHIFT) : keyInput_.OnKeyDown(VK_LSHIFT);
 		keyInput_.OnKeyUp(wParam);
 		return 0;
 	case WM_KEYDOWN:
 		if (wParam == VK_SHIFT)
-			(lParam & (1 << 24)) ? 
-				keyInput_.OnKeyDown(VK_RSHIFT) 
-				: keyInput_.OnKeyDown(VK_LSHIFT);
+			(lParam & (1 << 24)) ?
+			keyInput_.OnKeyDown(VK_RSHIFT) : keyInput_.OnKeyDown(VK_LSHIFT);
 		keyInput_.OnKeyDown(wParam);
 		return 0;
 	}
@@ -301,33 +353,31 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 bool D3DApp::InitMainWindow()
 {
 	WNDCLASS wc;
-	wc.style         = CS_HREDRAW | CS_VREDRAW;
-	wc.lpfnWndProc   = MainWndProc; 
-	wc.cbClsExtra    = 0;
-	wc.cbWndExtra    = 0;
-	wc.hInstance     = mhAppInst;
-	wc.hIcon         = LoadIcon(0, IDI_APPLICATION);
-	wc.hCursor       = LoadCursor(0, IDC_ARROW);
+	wc.style = CS_HREDRAW | CS_VREDRAW;
+	wc.lpfnWndProc = MainWndProc;
+	wc.cbClsExtra = 0;
+	wc.cbWndExtra = 0;
+	wc.hInstance = mhAppInst;
+	wc.hIcon = LoadIcon(0, IDI_APPLICATION);
+	wc.hCursor = LoadCursor(0, IDC_ARROW);
 	wc.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);
-	wc.lpszMenuName  = 0;
+	wc.lpszMenuName = 0;
 	wc.lpszClassName = L"MainWnd";
 
-	if( !RegisterClass(&wc) )
-	{
+	if (!RegisterClass(&wc)) {
 		MessageBox(0, L"RegisterClass Failed.", 0, 0);
 		return false;
 	}
 
 	// Compute window rectangle dimensions based on requested client area dimensions.
 	RECT R = { 0, 0, mClientWidth, mClientHeight };
-    AdjustWindowRect(&R, WS_OVERLAPPEDWINDOW, false);
-	int width  = R.right - R.left;
+	AdjustWindowRect(&R, WS_OVERLAPPEDWINDOW, false);
+	int width = R.right - R.left;
 	int height = R.bottom - R.top;
 
-	mhMainWnd = CreateWindow(L"MainWnd", mMainWndCaption.c_str(), 
-		WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, mhAppInst, 0); 
-	if( !mhMainWnd )
-	{
+	mhMainWnd = CreateWindow(L"MainWnd", mMainWndCaption.c_str(),
+		WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, mhAppInst, 0);
+	if (!mhMainWnd) {
 		MessageBox(0, L"CreateWindow Failed.", 0, 0);
 		return false;
 	}
@@ -338,7 +388,8 @@ bool D3DApp::InitMainWindow()
 	return true;
 }
 
-bool D3DApp::InitDirect3D() {
+bool D3DApp::InitDirect3D()
+{
 #if defined(DEBUG) || defined(_DEBUG) 
 	// D3D12 디버그 레이어를 활성화합니다.
 	{
@@ -348,57 +399,62 @@ bool D3DApp::InitDirect3D() {
 	}
 #endif
 
-	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory)));
+ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory)));
 
-	// 하드웨어 디바이스를 생성 시도합니다.
-	HRESULT hardwareResult = D3D12CreateDevice(
-		nullptr,             // 기본 어댑터
+// 하드웨어 디바이스를 생성 시도합니다.
+HRESULT hardwareResult = D3D12CreateDevice(
+	nullptr,             // 기본 어댑터
+	D3D_FEATURE_LEVEL_11_0,
+	IID_PPV_ARGS(&md3dDevice));
+
+// 실패하면 WARP 장치로 폴백합니다.
+if (FAILED(hardwareResult)) {
+	ComPtr<IDXGIAdapter> pWarpAdapter;
+	ThrowIfFailed(mdxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));
+
+	ThrowIfFailed(D3D12CreateDevice(
+		pWarpAdapter.Get(),
 		D3D_FEATURE_LEVEL_11_0,
-		IID_PPV_ARGS(&md3dDevice));
+		IID_PPV_ARGS(&md3dDevice)));
+}
 
-	// 실패하면 WARP 장치로 폴백합니다.
-	if (FAILED(hardwareResult)) {
-		ComPtr<IDXGIAdapter> pWarpAdapter;
-		ThrowIfFailed(mdxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));
+// GPU 명령 동기화를 위한 펜스를 생성합니다.
+ThrowIfFailed(md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
+	IID_PPV_ARGS(&mFence)));
 
-		ThrowIfFailed(D3D12CreateDevice(
-			pWarpAdapter.Get(),
-			D3D_FEATURE_LEVEL_11_0,
-			IID_PPV_ARGS(&md3dDevice)));
-	}
+// 각 디스크립터 크기를 가져옵니다.
+mRtvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+mDsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	// GPU 명령 동기화를 위한 펜스를 생성합니다.
-	ThrowIfFailed(md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
-		IID_PPV_ARGS(&mFence)));
+// 백버퍼 포맷에 대해 4X MSAA 품질 지원 여부 확인
+// Direct3D 11 지원 장치에서는 모든 렌더 타겟 포맷에 대해 4X MSAA 지원
+D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
+msQualityLevels.Format = mBackBufferFormat;
+msQualityLevels.SampleCount = 4;
+msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+msQualityLevels.NumQualityLevels = 0;
+ThrowIfFailed(md3dDevice->CheckFeatureSupport(
+	D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
+	&msQualityLevels,
+	sizeof(msQualityLevels)));
 
-	// 백버퍼 포맷에 대해 4X MSAA 품질 지원 여부 확인
-	// Direct3D 11 지원 장치에서는 모든 렌더 타겟 포맷에 대해 4X MSAA 지원
-	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
-	msQualityLevels.Format = mBackBufferFormat;
-	msQualityLevels.SampleCount = 4;
-	msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
-	msQualityLevels.NumQualityLevels = 0;
-	ThrowIfFailed(md3dDevice->CheckFeatureSupport(
-		D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
-		&msQualityLevels,
-		sizeof(msQualityLevels)));
-
-	m4xMsaaQuality = msQualityLevels.NumQualityLevels;
-	assert(m4xMsaaQuality > 0 && "예상치 못한 MSAA 품질 수준입니다.");
+m4xMsaaQuality = msQualityLevels.NumQualityLevels;
+assert(m4xMsaaQuality > 0 && "예상치 못한 MSAA 품질 수준입니다.");
 
 #ifdef _DEBUG
-	// 어댑터 정보 로그 출력
-	LogAdapters();
+// 어댑터 정보 로그 출력
+LogAdapters();
 #endif
 
-	// 명령 큐, 명령 리스트 등 생성
-	CreateCommandObjects();
-	// 스왑체인 생성
-	CreateSwapChain();
+// 명령 큐, 명령 리스트 등 생성
+CreateCommandObjects();
+// 스왑체인 생성
+CreateSwapChain();
+// RTV/DSV 디스크립터 힙 생성
+CreateRtvAndDsvDescriptorHeaps();
 
-	renderer_.InitializeDirect3D(md3dDevice.Get(), SwapChainBufferCount, 1);
-
-	return true;
+return true;
 }
 
 
@@ -428,34 +484,35 @@ void D3DApp::CreateCommandObjects()
 
 void D3DApp::CreateSwapChain()
 {
-    // Release the previous swapchain we will be recreating.
-    mSwapChain.Reset();
+	// Release the previous swapchain we will be recreating.
+	mSwapChain.Reset();
 
-    DXGI_SWAP_CHAIN_DESC sd;
-    sd.BufferDesc.Width = mClientWidth;
-    sd.BufferDesc.Height = mClientHeight;
-    sd.BufferDesc.RefreshRate.Numerator = 60;
-    sd.BufferDesc.RefreshRate.Denominator = 1;
-    sd.BufferDesc.Format = mBackBufferFormat;
-    sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-    sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-    sd.SampleDesc.Count = m4xMsaaState ? 4 : 1;
-    sd.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
-    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    sd.BufferCount = SwapChainBufferCount;
-    sd.OutputWindow = mhMainWnd;
-    sd.Windowed = true;
+	DXGI_SWAP_CHAIN_DESC sd;
+	sd.BufferDesc.Width = mClientWidth;
+	sd.BufferDesc.Height = mClientHeight;
+	sd.BufferDesc.RefreshRate.Numerator = 60;
+	sd.BufferDesc.RefreshRate.Denominator = 1;
+	sd.BufferDesc.Format = mBackBufferFormat;
+	sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+	sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+	sd.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+	sd.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	sd.BufferCount = SwapChainBufferCount;
+	sd.OutputWindow = mhMainWnd;
+	sd.Windowed = true;
 	sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-    sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+	sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
 	// Note: Swap chain uses queue to perform flush.
-    ThrowIfFailed(mdxgiFactory->CreateSwapChain(
+	ThrowIfFailed(mdxgiFactory->CreateSwapChain(
 		mCommandQueue.Get(),
-		&sd, 
+		&sd,
 		mSwapChain.GetAddressOf()));
 }
 
-void D3DApp::FlushCommandQueue() {
+void D3DApp::FlushCommandQueue()
+{
 	// 펜스(fence) 값을 증가시켜 현재 펜스 지점까지의 명령들을 표시합니다.
 	mCurrentFence++;
 
@@ -477,25 +534,27 @@ void D3DApp::FlushCommandQueue() {
 	}
 }
 
+
 ID3D12Resource* D3DApp::CurrentBackBuffer()const
 {
 	return mSwapChainBuffer[mCurrBackBuffer].Get();
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::CurrentBackBufferView() const
+D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::CurrentBackBufferView()const
 {
 	return CD3DX12_CPU_DESCRIPTOR_HANDLE(
-		rtvHeap_->GetCPUDescriptorHandleForHeapStart(),
+		mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
 		mCurrBackBuffer,
-		rtvDescriptorSize_);
+		mRtvDescriptorSize);
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::DepthStencilView() const
+D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::DepthStencilView()const
 {
-	return dsvHeap_->GetCPUDescriptorHandleForHeapStart();
+	return mDsvHeap->GetCPUDescriptorHandleForHeapStart();
 }
 
-void D3DApp::CalculateFrameStats() {
+void D3DApp::CalculateFrameStats()
+{
 	// 이 코드는 초당 평균 프레임 수(FPS)와
 	// 한 프레임을 렌더링하는 평균 시간(ms)을 계산합니다.
 	// 계산된 통계는 윈도우 타이틀 바에 표시됩니다.
@@ -525,57 +584,56 @@ void D3DApp::CalculateFrameStats() {
 	}
 }
 
+
 void D3DApp::LogAdapters()
 {
-    UINT i = 0;
-    IDXGIAdapter* adapter = nullptr;
-    std::vector<IDXGIAdapter*> adapterList;
-    while(mdxgiFactory->EnumAdapters(i, &adapter) != DXGI_ERROR_NOT_FOUND)
-    {
-        DXGI_ADAPTER_DESC desc;
-        adapter->GetDesc(&desc);
+	UINT i = 0;
+	IDXGIAdapter* adapter = nullptr;
+	std::vector<IDXGIAdapter*> adapterList;
+	while (mdxgiFactory->EnumAdapters(i, &adapter) != DXGI_ERROR_NOT_FOUND) {
+		DXGI_ADAPTER_DESC desc;
+		adapter->GetDesc(&desc);
 
-        std::wstring text = L"***Adapter: ";
-        text += desc.Description;
-        text += L"\n";
+		std::wstring text = L"***Adapter: ";
+		text += desc.Description;
+		text += L"\n";
 
-        OutputDebugString(text.c_str());
+		OutputDebugString(text.c_str());
 
-        adapterList.push_back(adapter);
-        
-        ++i;
-    }
+		adapterList.push_back(adapter);
 
-    for(size_t i = 0; i < adapterList.size(); ++i)
-    {
-        LogAdapterOutputs(adapterList[i]);
-        ReleaseCom(adapterList[i]);
-    }
+		++i;
+	}
+
+	for (size_t i = 0; i < adapterList.size(); ++i) {
+		LogAdapterOutputs(adapterList[i]);
+		ReleaseCom(adapterList[i]);
+	}
 }
 
 void D3DApp::LogAdapterOutputs(IDXGIAdapter* adapter)
 {
-    UINT i = 0;
-    IDXGIOutput* output = nullptr;
-    while(adapter->EnumOutputs(i, &output) != DXGI_ERROR_NOT_FOUND)
-    {
-        DXGI_OUTPUT_DESC desc;
-        output->GetDesc(&desc);
-        
-        std::wstring text = L"***Output: ";
-        text += desc.DeviceName;
-        text += L"\n";
-        OutputDebugString(text.c_str());
+	UINT i = 0;
+	IDXGIOutput* output = nullptr;
+	while (adapter->EnumOutputs(i, &output) != DXGI_ERROR_NOT_FOUND) {
+		DXGI_OUTPUT_DESC desc;
+		output->GetDesc(&desc);
 
-        LogOutputDisplayModes(output, mBackBufferFormat);
+		std::wstring text = L"***Output: ";
+		text += desc.DeviceName;
+		text += L"\n";
+		OutputDebugString(text.c_str());
 
-        ReleaseCom(output);
+		LogOutputDisplayModes(output, mBackBufferFormat);
 
-        ++i;
-    }
+		ReleaseCom(output);
+
+		++i;
+	}
 }
 
-void D3DApp::LogOutputDisplayModes(IDXGIOutput* output, DXGI_FORMAT format) {
+void D3DApp::LogOutputDisplayModes(IDXGIOutput* output, DXGI_FORMAT format)
+{
 	UINT count = 0;
 	UINT flags = 0;
 

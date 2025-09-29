@@ -216,6 +216,8 @@ struct Texture {
     // 파일 이름
     std::wstring Filename;
 
+    UINT SrvHeapIndex = 0;
+
     // GPU 리소스 및 업로드 힙
     Microsoft::WRL::ComPtr<ID3D12Resource> Resource = nullptr;
     Microsoft::WRL::ComPtr<ID3D12Resource> UploadHeap = nullptr;

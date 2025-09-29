@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "d3dApp.h"
 #include "MathHelper.h"
 #include "UploadBuffer.h"
@@ -9,7 +8,6 @@
 #include "RenderItem.h"
 #include "Player.h"
 #include "Scene.h"
-#include "SceneRenderer.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -60,7 +58,6 @@ private:
 	UINT cbvSrvDescriptorSize = 0;
 
 	ComPtr<ID3D12RootSignature> rootSignature = nullptr;
-
 	ComPtr<ID3D12DescriptorHeap> srvDescriptorHeap = nullptr;
 
 	Scene scene;

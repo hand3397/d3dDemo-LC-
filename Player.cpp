@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "Player.h"
 
 Player::Player(const string& name) : MovingObject(name), fsm_(this)

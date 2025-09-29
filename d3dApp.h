@@ -1,7 +1,3 @@
-//***************************************************************************************
-// d3dApp.h by Frank Luna (C) 2015 All Rights Reserved.
-//***************************************************************************************
-
 #pragma once
 
 #if defined(DEBUG) || defined(_DEBUG)
@@ -30,40 +26,40 @@ protected:
 public:
 
     static D3DApp* GetApp();
-    
-	HINSTANCE AppInst()const;
-	HWND      MainWnd()const;
-	float     AspectRatio()const;
+
+    HINSTANCE AppInst()const;
+    HWND      MainWnd()const;
+    float     AspectRatio()const;
 
     bool Get4xMsaaState()const;
     void Set4xMsaaState(bool value);
 
-	int Run();
- 
+    int Run();
+
     virtual bool Initialize();
     virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 protected:
     virtual void CreateRtvAndDsvDescriptorHeaps();
-	virtual void OnResize(); 
-	virtual void Update(const GameTimer& gt)=0;
-    virtual void Draw(const GameTimer& gt)=0;
+    virtual void OnResize();
+    virtual void Update(const GameTimer& gt) = 0;
+    virtual void Draw(const GameTimer& gt) = 0;
 
-	virtual void KeyInput(const GameTimer& gt){ }
+    virtual void KeyInput(const GameTimer& gt) {}
 protected:
 
-	bool InitMainWindow();
-	bool InitDirect3D();
-	void CreateCommandObjects();
+    bool InitMainWindow();
+    bool InitDirect3D();
+    void CreateCommandObjects();
     void CreateSwapChain();
 
-	void FlushCommandQueue();
+    void FlushCommandQueue();
 
-	ID3D12Resource* CurrentBackBuffer()const;
-	D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView()const;
-	D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView()const;
+    ID3D12Resource* CurrentBackBuffer()const;
+    D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView()const;
+    D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView()const;
 
-	void CalculateFrameStats();
+    void CalculateFrameStats();
 
     void LogAdapters();
     void LogAdapterOutputs(IDXGIAdapter* adapter);
@@ -87,7 +83,7 @@ protected:
 
     // Δt (델타 타임)과 게임 시간을 추적하는 데 사용된다.
     GameTimer mTimer;
-	
+
     KeyInputManager keyInput_;
 
     Microsoft::WRL::ComPtr<IDXGIFactory4> mdxgiFactory;
@@ -96,28 +92,31 @@ protected:
 
     Microsoft::WRL::ComPtr<ID3D12Fence> mFence;
     UINT64 mCurrentFence = 0;
-	
+
     Microsoft::WRL::ComPtr<ID3D12CommandQueue> mCommandQueue;
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> mDirectCmdListAlloc;
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mCommandList;
 
-	static const int SwapChainBufferCount = 2;
-	int mCurrBackBuffer = 0;
+    static const int SwapChainBufferCount = 2;
+    int mCurrBackBuffer = 0;
     Microsoft::WRL::ComPtr<ID3D12Resource> mSwapChainBuffer[SwapChainBufferCount];
+    Microsoft::WRL::ComPtr<ID3D12Resource> mDepthStencilBuffer;
 
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvHeap_;
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> dsvHeap_;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mRtvHeap;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mDsvHeap;
+
+    D3D12_VIEWPORT mScreenViewport;
+    D3D12_RECT mScissorRect;
+
+    UINT mRtvDescriptorSize = 0;
+    UINT mDsvDescriptorSize = 0;
+    UINT mCbvSrvUavDescriptorSize = 0;
 
     // 파생 클래스가 생성자에서 초기 시작 값을 커스터마이즈하기 위해 이 값들을 설정해야 한다.
-	std::wstring mMainWndCaption = L"d3d App";
-	D3D_DRIVER_TYPE md3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
+    std::wstring mMainWndCaption = L"d3d App";
+    D3D_DRIVER_TYPE md3dDriverType = D3D_DRIVER_TYPE_HARDWARE;
     DXGI_FORMAT mBackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-
-    UINT rtvDescriptorSize_ = 0;
-    UINT dsvDescriptorSize_ = 0;
-    UINT cbvSrvUavDescriptorSize_ = 0;
-	
+    DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
     int mClientWidth = 800;
-	int mClientHeight = 600;
+    int mClientHeight = 600;
 };
-
