@@ -1,0 +1,958 @@
+#include "Renderer.h"
+
+Renderer::Renderer()
+{
+}
+
+Renderer::~Renderer()
+{
+	if (d3dDevice_ != nullptr)
+		FlushCommandQueue();
+}
+
+ID3D12Device* Renderer::GetDevice()
+{
+	if (d3dDevice_)
+		return d3dDevice_.Get();
+	return nullptr;
+}
+
+ID3D12GraphicsCommandList* Renderer::GetCommandList()
+{
+	if (commandList_)
+		return commandList_.Get();
+	return nullptr;
+}
+
+void Renderer::CommandListReset()
+{
+	// 초기화 명령들을 준비하기 위해 명령 목록을 재 설정한다.
+	ThrowIfFailed(commandList_->Reset(directCmdListAlloc_.Get(), nullptr));
+}
+
+void Renderer::CommandListClose()
+{
+	// 초기화 명령을 실행한다.
+	ThrowIfFailed(commandList_->Close());
+	ID3D12CommandList* cmdLists[] = { commandList_.Get() };
+	commandQueue_->ExecuteCommandLists(_countof(cmdLists), cmdLists);
+
+	// 초기화가 완료될 때까지 기다린다.
+	FlushCommandQueue();
+}
+
+bool Renderer::InitDirect3D(HWND hwnd, int clientWidth, int clientHeight)
+{
+	clientHeight_ = clientHeight;
+	clientWidth_ = clientWidth;
+
+	if (!InitDirect3D(hwnd))
+		return false;
+
+	// 이 힙 타입에서 하나의 디스크립터가 차지하는 크기를 가져옵니다. 
+	// 이 값은 하드웨어마다 다르므로 직접 쿼리해야 합니다.
+	cbvSrvDescriptorSize_ = d3dDevice_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+	OnResize(clientWidth, clientHeight);
+	
+	return true;
+}
+
+void Renderer::InitScene(Scene* scene)
+{
+	mainCamera_ = scene->GetCamera();
+
+	BuildRootSignature();
+	BuildDescriptorHeaps(scene);
+	BuildShadersAndInputLayout();
+	BuildFrameResources(scene);
+	BuildPSOs();
+}
+
+void Renderer::OnResize(int clientWidth, int clientHeight)
+{
+	clientWidth_ = clientWidth;
+	clientHeight_ = clientHeight;
+
+	screenViewport_.TopLeftX = 0;
+	screenViewport_.TopLeftY = 0;
+	screenViewport_.Width = static_cast<float>(clientWidth);
+	screenViewport_.Height = static_cast<float>(clientHeight);
+	screenViewport_.MinDepth = 0.0f;
+	screenViewport_.MaxDepth = 1.0f;
+
+	scissorRect_ = { 0, 0, clientWidth, clientHeight };
+
+	assert(d3dDevice_);
+	assert(swapChain_);
+	assert(directCmdListAlloc_);
+
+	// Flush before changing any resources.
+	FlushCommandQueue();
+
+	ThrowIfFailed(commandList_->Reset(directCmdListAlloc_.Get(), nullptr));
+
+	// Release the previous resources we will be recreating.
+	for (int i = 0; i < numSwapChainBuffers_; ++i)
+		swapChainBuffer_[i].Reset();
+	depthStencilBuffer_.Reset();
+
+	// Resize the swap chain.
+	ThrowIfFailed(swapChain_->ResizeBuffers(
+		numSwapChainBuffers_,
+		clientWidth_, clientHeight_,
+		backBufferFormat_,
+		DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
+
+	currBackBuffer_ = 0;
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(rtvHeap_->GetCPUDescriptorHandleForHeapStart());
+	for (UINT i = 0; i < numSwapChainBuffers_; i++) {
+		ThrowIfFailed(swapChain_->GetBuffer(i, IID_PPV_ARGS(&swapChainBuffer_[i])));
+		d3dDevice_->CreateRenderTargetView(swapChainBuffer_[i].Get(), nullptr, rtvHeapHandle);
+		rtvHeapHandle.Offset(1, rtvDescriptorSize_);
+	}
+
+	// Create the depth/stencil buffer and view.
+	D3D12_RESOURCE_DESC depthStencilDesc;
+	depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	depthStencilDesc.Alignment = 0;
+	depthStencilDesc.Width = clientWidth_;
+	depthStencilDesc.Height = clientHeight_;
+	depthStencilDesc.DepthOrArraySize = 1;
+	depthStencilDesc.MipLevels = 1;
+
+	// SSAO 챕터에서는 깊이 버퍼를 읽기 위해 SRV가 필요합니다.
+	// 따라서 같은 리소스에 두 개의 뷰를 생성해야 합니다:
+	//   1. SRV 형식: DXGI_FORMAT_R24_UNORM_X8_TYPELESS
+	//   2. DSV 형식: DXGI_FORMAT_D24_UNORM_S8_UINT
+	// 따라서 깊이 버퍼 리소스는 typeless 형식으로 생성합니다.
+	depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+
+	depthStencilDesc.SampleDesc.Count = msaaState_ ? 4 : 1;
+	depthStencilDesc.SampleDesc.Quality = msaaState_ ? (msaaQuality_ - 1) : 0;
+	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+	D3D12_CLEAR_VALUE optClear;
+	optClear.Format = depthStencilFormat_;
+	optClear.DepthStencil.Depth = 1.0f;
+	optClear.DepthStencil.Stencil = 0;
+	ThrowIfFailed(d3dDevice_->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE,
+		&depthStencilDesc,
+		D3D12_RESOURCE_STATE_COMMON,
+		&optClear,
+		IID_PPV_ARGS(depthStencilBuffer_.GetAddressOf())));
+
+	// Create descriptor to mip level 0 of entire resource using the format of the resource.
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.Format = depthStencilFormat_;
+	dsvDesc.Texture2D.MipSlice = 0;
+	d3dDevice_->CreateDepthStencilView(depthStencilBuffer_.Get(), &dsvDesc, DepthStencilView());
+
+	// Transition the resource from its initial state to be used as a depth buffer.
+	commandList_->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(depthStencilBuffer_.Get(),
+		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+
+	// Execute the resize commands.
+	ThrowIfFailed(commandList_->Close());
+	ID3D12CommandList* cmdsLists[] = { commandList_.Get() };
+	commandQueue_->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	// Wait until resize is complete.
+	FlushCommandQueue();
+}
+
+void Renderer::Update(const GameTimer& gt, Scene* scene)
+{
+	// 순환적으로 자원 프레임 배열의 다음 원소에 접근한다.
+	currFrameResourceIndex_ = (currFrameResourceIndex_ + 1) % gNumFrameResources;
+	currFrameResource_ = frameResources_[currFrameResourceIndex_].get();
+
+	// GPU가 현재 프레임 자원의 명령들을 다 처리했는지 확인한다.
+	// 아직 다 처리하지 않았으면 GPU가 이 울타리 지점까지의 명령들을 처리할 때까지 기다린다.
+	if (currFrameResource_->Fence != 0 
+		&& fence_->GetCompletedValue() < currFrameResource_->Fence) {
+		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
+		ThrowIfFailed(fence_->SetEventOnCompletion(currFrameResource_->Fence, eventHandle));
+		WaitForSingleObject(eventHandle, INFINITE);
+		CloseHandle(eventHandle);
+	}
+
+	UpdateObjectCBs(gt, scene);
+	UpdateSkinnedCBs(gt, scene);
+	UpdateMaterialCBs(gt, scene);
+	UpdateMainPassCB(gt, scene);
+}
+
+void Renderer::Draw(const Scene* scene)
+{
+	auto cmdListAlloc = currFrameResource_->CmdListAlloc;
+
+	// 명령 기록에 관련된 메모리의 재활용을 위해 명령할당자를 재설정한다.
+	// 재설정은 GPU가 관련명령 목록을 모두 처리한 뒤 일어난다.
+	ThrowIfFailed(cmdListAlloc->Reset());
+
+	// 명령 목록을 ExcuteCommandList를 통해서 명령 대기열에 추가했다면 명령 목록을 재설정할 수 있다.
+	// 명령 목록을 재설정하면 메모리가 재설정된다.
+	ThrowIfFailed(commandList_->Reset(cmdListAlloc.Get(), PSOs_["opaque"].Get()));
+
+	commandList_->RSSetViewports(1, &screenViewport_);
+	commandList_->RSSetScissorRects(1, &scissorRect_);
+
+	// Indicate a state transition on the resource usage.
+	commandList_->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+	// 후면 버퍼와 깊이 버퍼 지우기
+	commandList_->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+	commandList_->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+	// Specify the buffers we are going to render to.
+	commandList_->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+
+	commandList_->SetGraphicsRootSignature(rootSignature_.Get());
+
+	ID3D12DescriptorHeap* descriptorHeaps[] = { srvDescriptorHeap_.Get() };
+	commandList_->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+	auto passCB = currFrameResource_->PassCB->Resource();
+	commandList_->SetGraphicsRootConstantBufferView(3, passCB->GetGPUVirtualAddress());
+
+	// ---------------------------------------------------------
+
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::Opaque));
+
+	commandList_->SetPipelineState(PSOs_["alphaTested"].Get());
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::AlphaTested));
+
+	commandList_->SetPipelineState(PSOs_["transparent"].Get());
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::Transparent));
+
+	commandList_->SetPipelineState(PSOs_["skinnedOpaque"].Get());
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::Skinned));
+
+	// ---------------------------------------------------------
+
+	// Indicate a state transition on the resource usage.
+	commandList_->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+
+	// Done recording commands.
+	ThrowIfFailed(commandList_->Close());
+
+	// Add the command list to the queue for execution.
+	ID3D12CommandList* cmdsLists[] = { commandList_.Get() };
+	commandQueue_->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	// swap the back and front buffers
+	ThrowIfFailed(swapChain_->Present(0, 0));
+	currBackBuffer_ = (currBackBuffer_ + 1) % numSwapChainBuffers_;
+
+	currFrameResource_->Fence = ++currentFence_;
+
+	// 새 울타리 지점을 설정하는 명령을 명령 대기열에 추가한다.
+	// 지금 우리는 GPU의 시간선 상에 있으므로, 
+	// 새 울타리 지점은 GPU가 이 Signal() 명령까지의
+	// 모든 명령을 처리하기 전까지는 설정되지 않는다.
+	commandQueue_->Signal(fence_.Get(), currentFence_);
+}
+
+void Renderer::BuildRootSignature()
+{
+	// Shader programs typically require resources as input (constant buffers,
+	// textures, samplers).  The root signature defines the resources the shader
+	// programs expect.  If we think of the shader programs as a function, and
+	// the input resources as function parameters, then the root signature can be
+	// thought of as defining the function signature.  
+
+	CD3DX12_DESCRIPTOR_RANGE texTable;
+	texTable.Init(
+		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+		1,  // number of descriptors
+		0); // register t0
+
+	// Root parameter can be a table, root descriptor or root constants.
+	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
+
+	// Create root CBVs.
+	slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[1].InitAsConstantBufferView(0); // register b0
+	slotRootParameter[2].InitAsConstantBufferView(1); // register b1
+	slotRootParameter[3].InitAsConstantBufferView(2); // register b2
+	slotRootParameter[4].InitAsConstantBufferView(3); // register b3
+
+	auto staticSamplers = GetStaticSamplers();
+
+	// A root signature is an array of root parameters.
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,
+		(UINT)staticSamplers.size(), staticSamplers.data(),
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+	// create a root signature with a single slot which points to a descriptor range consisting of a single constant buffer
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+	if (errorBlob != nullptr) {
+		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	}
+	ThrowIfFailed(hr);
+
+	ThrowIfFailed(d3dDevice_->CreateRootSignature(
+		0,
+		serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(&rootSignature_)));
+}
+
+void Renderer::BuildDescriptorHeaps(Scene* scene)
+{
+	// Create the SRV heap.
+	auto& textures = scene->GetTextures();
+
+	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+	srvHeapDesc.NumDescriptors = static_cast<UINT>(textures.size());
+	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	ThrowIfFailed(d3dDevice_->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvDescriptorHeap_)));
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(srvDescriptorHeap_->GetCPUDescriptorHandleForHeapStart());
+
+	// Loop over all textures and create SRVs
+	UINT texIndex = 0;
+	for (auto& kv : textures) {
+		auto& texName = kv.first;
+		auto& tex = kv.second;
+
+		auto resource = tex->Resource;
+
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Format = resource->GetDesc().Format;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MostDetailedMip = 0;
+		srvDesc.Texture2D.MipLevels = resource->GetDesc().MipLevels;
+		srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+		d3dDevice_->CreateShaderResourceView(resource.Get(), &srvDesc, hDescriptor);
+
+		// 다음 descriptor 위치로 이동
+		hDescriptor.Offset(1, cbvSrvDescriptorSize_);
+	}
+}
+
+void Renderer::BuildShadersAndInputLayout()
+{
+	const D3D_SHADER_MACRO defines[] =
+	{
+		//"FOG", "1",
+		{ NULL, NULL }
+	};
+
+	const D3D_SHADER_MACRO alphaTestDefines[] =
+	{
+		//"FOG", "1",
+		{ "ALPHA_TEST", "1" },
+		{ NULL, NULL }
+	};
+
+	const D3D_SHADER_MACRO skinnedDefines[] =
+	{
+		{ "SKINNED", "1" },
+		{ NULL, NULL }
+	};
+
+	shaders_["standardVS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", nullptr, "VS", "vs_5_1");
+	shaders_["skinnedVS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", skinnedDefines, "VS", "vs_5_1");
+	shaders_["opaquePS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", defines, "PS", "ps_5_1");
+	shaders_["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", alphaTestDefines, "PS", "ps_5_1");
+
+	inputLayout_ =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
+
+	skinnedInputLayout_ =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(SkinnedVertex, Pos), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(SkinnedVertex, Normal), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, (UINT)offsetof(SkinnedVertex, TexC), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "WEIGHTS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(SkinnedVertex, BoneWeights), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "BONEINDICES", 0, DXGI_FORMAT_R32G32B32A32_UINT, 0, (UINT)offsetof(SkinnedVertex, BoneIndices), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+	};
+}
+
+void Renderer::BuildFrameResources(Scene* scene)
+{
+	uint32_t numRenderItems = scene->GetAllRenderItems().size();
+	uint32_t numSkinnedObjects = scene->GetSkinnedModelInsts().size();
+	uint32_t numMaterials = scene->GetMaterials().size();
+	for (int i = 0; i < gNumFrameResources; ++i) {
+		frameResources_.push_back(make_unique<FrameResource>(d3dDevice_.Get(),
+			1, numRenderItems, numSkinnedObjects, numMaterials));
+	}
+}
+
+void Renderer::BuildPSOs()
+{
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
+
+	//
+	// PSO for opaque objects.
+	//
+	ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+	opaquePsoDesc.InputLayout = { inputLayout_.data(), (UINT)inputLayout_.size() };
+	opaquePsoDesc.pRootSignature = rootSignature_.Get();
+	opaquePsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(shaders_["standardVS"]->GetBufferPointer()),
+		shaders_["standardVS"]->GetBufferSize()
+	};
+	opaquePsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(shaders_["opaquePS"]->GetBufferPointer()),
+		shaders_["opaquePS"]->GetBufferSize()
+	};
+	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.SampleMask = UINT_MAX;
+	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	opaquePsoDesc.NumRenderTargets = 1;
+	opaquePsoDesc.RTVFormats[0] = backBufferFormat_;
+	opaquePsoDesc.SampleDesc.Count = msaaState_ ? 4 : 1;
+	opaquePsoDesc.SampleDesc.Quality = msaaState_ ? (msaaQuality_ - 1) : 0;
+	opaquePsoDesc.DSVFormat = depthStencilFormat_;
+	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&PSOs_["opaque"])));
+
+
+	//
+	// PSO for opaque wireframe objects.
+	//
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueWireframePsoDesc = opaquePsoDesc;
+	opaqueWireframePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&PSOs_["opaque_wireframe"])));
+
+	//
+	// PSO for transparent objects
+	//
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC transparentPsoDesc = opaquePsoDesc;
+
+	D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
+	transparencyBlendDesc.BlendEnable = true;
+	transparencyBlendDesc.LogicOpEnable = false;
+	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+	transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+	transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+	transparentPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
+	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&transparentPsoDesc, IID_PPV_ARGS(&PSOs_["transparent"])));
+
+	//
+	// PSO for alpha tested objects
+	//
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestedPsoDesc = opaquePsoDesc;
+	alphaTestedPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(shaders_["alphaTestedPS"]->GetBufferPointer()),
+		shaders_["alphaTestedPS"]->GetBufferSize()
+	};
+	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&PSOs_["alphaTested"])));
+
+	//
+	// PSO for skinned objects
+	//
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedOpaquePsoDesc = opaquePsoDesc;
+	skinnedOpaquePsoDesc.InputLayout = { skinnedInputLayout_.data(), (UINT)skinnedInputLayout_.size() };
+	skinnedOpaquePsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(shaders_["skinnedVS"]->GetBufferPointer()),
+		shaders_["skinnedVS"]->GetBufferSize()
+	};
+	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&skinnedOpaquePsoDesc, IID_PPV_ARGS(&PSOs_["skinnedOpaque"])));
+}
+
+array<const CD3DX12_STATIC_SAMPLER_DESC, 6> Renderer::GetStaticSamplers()
+{
+	// Applications usually only need a handful of samplers.  So just define them all up front
+	// and keep them available as part of the root signature.  
+
+	const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
+		0, // shaderRegister
+		D3D12_FILTER_MIN_MAG_MIP_POINT, // filter
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP); // addressW
+
+	const CD3DX12_STATIC_SAMPLER_DESC pointClamp(
+		1, // shaderRegister
+		D3D12_FILTER_MIN_MAG_MIP_POINT, // filter
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressU
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressV
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP); // addressW
+
+	const CD3DX12_STATIC_SAMPLER_DESC linearWrap(
+		2, // shaderRegister
+		D3D12_FILTER_MIN_MAG_MIP_LINEAR, // filter
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP); // addressW
+
+	const CD3DX12_STATIC_SAMPLER_DESC linearClamp(
+		3, // shaderRegister
+		D3D12_FILTER_MIN_MAG_MIP_LINEAR, // filter
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressU
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressV
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP); // addressW
+
+	const CD3DX12_STATIC_SAMPLER_DESC anisotropicWrap(
+		4, // shaderRegister
+		D3D12_FILTER_ANISOTROPIC, // filter
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressW
+		0.0f,                             // mipLODBias
+		8);                               // maxAnisotropy
+
+	const CD3DX12_STATIC_SAMPLER_DESC anisotropicClamp(
+		5, // shaderRegister
+		D3D12_FILTER_ANISOTROPIC, // filter
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressU
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressV
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,  // addressW
+		0.0f,                              // mipLODBias
+		8);                                // maxAnisotropy
+
+	return {
+		pointWrap, pointClamp,
+		linearWrap, linearClamp,
+		anisotropicWrap, anisotropicClamp };
+}
+
+bool Renderer::InitDirect3D(HWND hwnd)
+{
+#if defined(DEBUG) || defined(_DEBUG) 
+	// D3D12 디버그 레이어를 활성화합니다.
+	{
+		ComPtr<ID3D12Debug> debugController;
+		ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)));
+		debugController->EnableDebugLayer();
+	}
+#endif
+
+	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory_)));
+
+	// 하드웨어 디바이스를 생성 시도합니다.
+	HRESULT hardwareResult = D3D12CreateDevice(
+		nullptr,             // 기본 어댑터
+		D3D_FEATURE_LEVEL_11_0,
+		IID_PPV_ARGS(&d3dDevice_));
+
+// 실패하면 WARP 장치로 폴백합니다.
+	if (FAILED(hardwareResult)) {
+		ComPtr<IDXGIAdapter> pWarpAdapter;
+		ThrowIfFailed(dxgiFactory_->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));
+
+		ThrowIfFailed(D3D12CreateDevice(
+			pWarpAdapter.Get(),
+			D3D_FEATURE_LEVEL_11_0,
+			IID_PPV_ARGS(&d3dDevice_)));
+	}
+
+	// GPU 명령 동기화를 위한 펜스를 생성합니다.
+	ThrowIfFailed(d3dDevice_->CreateFence(0, D3D12_FENCE_FLAG_NONE,
+		IID_PPV_ARGS(&fence_)));
+
+	// 각 디스크립터 크기를 가져옵니다.
+	rtvDescriptorSize_ = d3dDevice_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	dsvDescriptorSize_ = d3dDevice_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+	cbvSrvUavDescriptorSize_ = d3dDevice_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+	// 백버퍼 포맷에 대해 4X MSAA 품질 지원 여부 확인
+	// Direct3D 11 지원 장치에서는 모든 렌더 타겟 포맷에 대해 4X MSAA 지원
+	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
+	msQualityLevels.Format = backBufferFormat_;
+	msQualityLevels.SampleCount = 4;
+	msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+	msQualityLevels.NumQualityLevels = 0;
+	ThrowIfFailed(d3dDevice_->CheckFeatureSupport(
+		D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
+		&msQualityLevels,
+		sizeof(msQualityLevels)));
+
+	msaaQuality_ = msQualityLevels.NumQualityLevels;
+	assert(msaaQuality_ > 0 && "예상치 못한 MSAA 품질 수준입니다.");
+
+#ifdef _DEBUG
+// 어댑터 정보 로그 출력
+LogAdapters();
+#endif
+
+	// 명령 큐, 명령 리스트 등 생성
+	CreateCommandObjects();
+	// 스왑체인 생성
+	CreateSwapChain(hwnd);
+	// RTV/DSV 디스크립터 힙 생성
+	CreateRtvAndDsvDescriptorHeaps();
+
+return true;
+}
+
+void Renderer::CreateCommandObjects()
+{
+	D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+	ThrowIfFailed(d3dDevice_->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&commandQueue_)));
+
+	ThrowIfFailed(d3dDevice_->CreateCommandAllocator(
+		D3D12_COMMAND_LIST_TYPE_DIRECT,
+		IID_PPV_ARGS(directCmdListAlloc_.GetAddressOf())));
+
+	ThrowIfFailed(d3dDevice_->CreateCommandList(
+		0,
+		D3D12_COMMAND_LIST_TYPE_DIRECT,
+		directCmdListAlloc_.Get(), // Associated command allocator
+		nullptr,                   // Initial PipelineStateObject
+		IID_PPV_ARGS(commandList_.GetAddressOf())));
+
+	// Start off in a closed state.  This is because the first time we refer 
+	// to the command list we will Reset it, and it needs to be closed before
+	// calling Reset.
+	commandList_->Close();
+}
+
+void Renderer::CreateSwapChain(HWND hwnd)
+{
+	// Release the previous swapchain
+	swapChain_.Reset();
+
+	// 1. D3D12용 SwapChainDesc
+	DXGI_SWAP_CHAIN_DESC1 sd = {};
+	sd.Width = clientWidth_;
+	sd.Height = clientHeight_;
+	sd.Format = backBufferFormat_;
+	sd.Stereo = FALSE;
+	sd.SampleDesc.Count = msaaState_ ? 4 : 1;
+	sd.SampleDesc.Quality = msaaState_ ? (msaaQuality_ - 1) : 0;
+	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	sd.BufferCount = numSwapChainBuffers_;
+	sd.Scaling = DXGI_SCALING_STRETCH;
+	sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	sd.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+	sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
+	// 2. SwapChain 생성
+	Microsoft::WRL::ComPtr<IDXGISwapChain1> swapChain1;
+	ThrowIfFailed(dxgiFactory_->CreateSwapChainForHwnd(
+		commandQueue_.Get(), // D3D12 커맨드 큐
+		hwnd,
+		&sd,
+		nullptr,  // fullscreen desc
+		nullptr,  // restrict output
+		&swapChain1
+	));
+
+	// 3. IDXGISwapChain3로 변환
+	ThrowIfFailed(swapChain1.As(&swapChain_));
+
+	// 4. ALT+ENTER fullscreen toggle 방지
+	dxgiFactory_->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER);
+}
+
+void Renderer::CreateRtvAndDsvDescriptorHeaps()
+{
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
+	rtvHeapDesc.NumDescriptors = numSwapChainBuffers_;
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	rtvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(d3dDevice_->CreateDescriptorHeap(
+		&rtvHeapDesc, IID_PPV_ARGS(rtvHeap_.GetAddressOf())));
+
+
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
+	dsvHeapDesc.NumDescriptors = 1;
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	dsvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(d3dDevice_->CreateDescriptorHeap(
+		&dsvHeapDesc, IID_PPV_ARGS(dsvHeap_.GetAddressOf())));
+}
+
+void Renderer::FlushCommandQueue()
+{
+	// 펜스(fence) 값을 증가시켜 현재 펜스 지점까지의 명령들을 표시합니다.
+	currentFence_++;
+
+	// 명령 큐에 새로운 펜스 지점을 설정하는 명령을 추가합니다.
+	// GPU 타임라인 상에서, 새로운 펜스 지점은 이전의 모든 명령이
+	// 처리될 때까지 설정되지 않습니다.
+	ThrowIfFailed(commandQueue_->Signal(fence_.Get(), currentFence_));
+
+	// GPU가 현재 펜스 지점까지의 명령을 완료할 때까지 대기합니다.
+	if (fence_->GetCompletedValue() < currentFence_) {
+		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
+
+		// GPU가 현재 펜스에 도달하면 이벤트를 발생시킵니다.
+		ThrowIfFailed(fence_->SetEventOnCompletion(currentFence_, eventHandle));
+
+		// GPU가 현재 펜스에 도달할 때까지 대기합니다.
+		WaitForSingleObject(eventHandle, INFINITE);
+		CloseHandle(eventHandle);
+	}
+}
+
+ID3D12Resource* Renderer::CurrentBackBuffer()const
+{
+	return swapChainBuffer_[currBackBuffer_].Get();
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE Renderer::CurrentBackBufferView()const
+{
+	return CD3DX12_CPU_DESCRIPTOR_HANDLE(
+		rtvHeap_->GetCPUDescriptorHandleForHeapStart(),
+		currBackBuffer_,
+		rtvDescriptorSize_);
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE Renderer::DepthStencilView()const
+{
+	return dsvHeap_->GetCPUDescriptorHandleForHeapStart();
+}
+
+void Renderer::UpdateObjectCBs(const GameTimer& gt, Scene* scene)
+{
+	auto currObjectCB = currFrameResource_->ObjectCB.get();
+	auto& numRenderItems = scene->GetAllRenderItems();
+	for (auto& e : numRenderItems) {
+		// 상수들이 바뀌었을 떄에만 cbuffer 자료를 갱신한다.
+		// 이러한 갱신을 프레임 자원마다 수행해야 한다.
+		if (e->numFramesDirty_ > 0) {
+			XMMATRIX world = XMLoadFloat4x4(&e->world_);
+			XMMATRIX texTransform = XMLoadFloat4x4(&e->texTransform_);
+
+			ObjectConstants objConstants;
+			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
+
+			currObjectCB->CopyData(e->objCBIndex_, objConstants);
+
+			// 다음 프레임 자원으로 넘어간다.
+			e->numFramesDirty_--;
+		}
+	}
+}
+
+void Renderer::UpdateSkinnedCBs(const GameTimer& gt, Scene* scene)
+{
+	auto currSkinnedCB = currFrameResource_->SkinnedCB.get();
+
+	auto& skinnedModelInsts = scene->GetSkinnedModelInsts();
+	for (auto& [name, skinnedModel] : skinnedModelInsts) {
+		skinnedModel->UpdateSkinnedAnimation();
+	}
+
+	SkinnedConstants skinnedConstants;
+	copy(skinnedModelInsts["Vanguard"]->finalTransforms_.begin(), skinnedModelInsts["Vanguard"]->finalTransforms_.end(),
+		&skinnedConstants.BoneTransforms[0]);
+
+	//for (int i = 0; i < 96; i++)
+	//	XMStoreFloat4x4(&skinnedConstants.BoneTransforms[i], XMMatrixTranspose(XMLoadFloat4x4(&MathHelper::Identity4x4())));
+	//XMStoreFloat4x4(&skinnedConstants.BoneTransforms[0], XMMatrixTranspose(XMMatrixTranslation(0.0f, 10.0f, 0.0f)));
+
+	currSkinnedCB->CopyData(0, skinnedConstants);
+}
+
+void Renderer::UpdateMaterialCBs(const GameTimer& gt, Scene* scene)
+{
+	auto currMaterialCB = currFrameResource_->MaterialCB.get();
+	auto& materials = scene->GetMaterials();
+	for (auto& e : materials) {
+		// Only update the cbuffer data if the constants have changed.  If the cbuffer
+		// data changes, it needs to be updated for each FrameResource.
+		Material* mat = e.second.get();
+		if (mat->numFramesDirty_ > 0) {
+			XMMATRIX matTransform = XMLoadFloat4x4(&mat->matTransform_);
+
+			MaterialConstants matConstants;
+			matConstants.DiffuseAlbedo = mat->diffuseAlbedo_;
+			matConstants.FresnelR0 = mat->fresnelR0_;
+			matConstants.Roughness = mat->roughness_;
+			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
+
+			currMaterialCB->CopyData(mat->matCBIndex_, matConstants);
+
+			// Next FrameResource need to be updated too.
+			mat->numFramesDirty_--;
+		}
+	}
+}
+
+void Renderer::UpdateMainPassCB(const GameTimer& gt, Scene* scene)
+{
+	XMMATRIX view = scene->GetCamera()->GetView();
+	XMMATRIX proj = scene->GetCamera()->GetProj();
+
+	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
+	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
+
+	XMStoreFloat4x4(&mainPassCB_.View, XMMatrixTranspose(view));
+	XMStoreFloat4x4(&mainPassCB_.InvView, XMMatrixTranspose(invView));
+	XMStoreFloat4x4(&mainPassCB_.Proj, XMMatrixTranspose(proj));
+	XMStoreFloat4x4(&mainPassCB_.InvProj, XMMatrixTranspose(invProj));
+	XMStoreFloat4x4(&mainPassCB_.ViewProj, XMMatrixTranspose(viewProj));
+	XMStoreFloat4x4(&mainPassCB_.InvViewProj, XMMatrixTranspose(invViewProj));
+	mainPassCB_.EyePosW = scene->GetCamera()->GetPosition3f();
+	mainPassCB_.RenderTargetSize = XMFLOAT2((float)clientWidth_, (float)clientHeight_);
+	mainPassCB_.InvRenderTargetSize = XMFLOAT2(1.0f / clientWidth_, 1.0f / clientHeight_);
+	mainPassCB_.NearZ = scene->GetCamera()->GetNearZ();
+	mainPassCB_.FarZ = scene->GetCamera()->GetFarZ();
+	mainPassCB_.TotalTime = gt.TotalTime();
+	mainPassCB_.DeltaTime = gt.DeltaTime();
+	mainPassCB_.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+	mainPassCB_.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+	mainPassCB_.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
+	mainPassCB_.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+	mainPassCB_.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+	mainPassCB_.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+	mainPassCB_.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+
+	auto currPassCB = currFrameResource_->PassCB.get();
+	currPassCB->CopyData(0, mainPassCB_);
+}
+
+void Renderer::DrawRenderItems(const vector<RenderItem*>& ritems)
+{
+	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+	UINT skinnedCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(SkinnedConstants));
+	UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
+
+	auto objectCB = currFrameResource_->ObjectCB->Resource();
+	auto skinnedCB = currFrameResource_->SkinnedCB->Resource();
+	auto materialCB = currFrameResource_->MaterialCB->Resource();
+
+	// For each render item...
+	for (size_t i = 0; i < ritems.size(); ++i) {
+		auto ri = ritems[i];
+
+		commandList_->IASetVertexBuffers(0, 1, &ri->mesh_->VertexBufferView());
+		commandList_->IASetIndexBuffer(&ri->mesh_->IndexBufferView());
+		commandList_->IASetPrimitiveTopology(ri->primitiveType_);
+
+		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(srvDescriptorHeap_->GetGPUDescriptorHandleForHeapStart());
+		tex.Offset(ri->material_->diffuseSrvHeapIndex_, cbvSrvDescriptorSize_);
+
+		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->objCBIndex_ * objCBByteSize;
+		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = materialCB->GetGPUVirtualAddress() + ri->material_->matCBIndex_ * matCBByteSize;
+
+		commandList_->SetGraphicsRootDescriptorTable(0, tex);
+		commandList_->SetGraphicsRootConstantBufferView(1, objCBAddress);
+
+		if (ri->skinnedModelInst_ != nullptr) {
+			D3D12_GPU_VIRTUAL_ADDRESS skinnedCBAddress = skinnedCB->GetGPUVirtualAddress() + ri->skinnedCBIndex_ * skinnedCBByteSize;
+			commandList_->SetGraphicsRootConstantBufferView(2, skinnedCBAddress);
+		}
+		else {
+			commandList_->SetGraphicsRootConstantBufferView(2, 0);
+		}
+
+		commandList_->SetGraphicsRootConstantBufferView(4, matCBAddress);
+
+		commandList_->DrawIndexedInstanced(ri->indexCount_, 1, ri->startIndexLocation_, ri->baseVertexLocation_, 0);
+	}
+}
+
+void Renderer::LogAdapters()
+{
+	UINT i = 0;
+	IDXGIAdapter* adapter = nullptr;
+	std::vector<IDXGIAdapter*> adapterList;
+	while (dxgiFactory_->EnumAdapters(i, &adapter) != DXGI_ERROR_NOT_FOUND) {
+		DXGI_ADAPTER_DESC desc;
+		adapter->GetDesc(&desc);
+
+		std::wstring text = L"***Adapter: ";
+		text += desc.Description;
+		text += L"\n";
+
+		OutputDebugString(text.c_str());
+
+		adapterList.push_back(adapter);
+
+		++i;
+	}
+
+	for (size_t i = 0; i < adapterList.size(); ++i) {
+		LogAdapterOutputs(adapterList[i]);
+		ReleaseCom(adapterList[i]);
+	}
+}
+
+void Renderer::LogAdapterOutputs(IDXGIAdapter* adapter)
+{
+	UINT i = 0;
+	IDXGIOutput* output = nullptr;
+	while (adapter->EnumOutputs(i, &output) != DXGI_ERROR_NOT_FOUND) {
+		DXGI_OUTPUT_DESC desc;
+		output->GetDesc(&desc);
+
+		std::wstring text = L"***Output: ";
+		text += desc.DeviceName;
+		text += L"\n";
+		OutputDebugString(text.c_str());
+
+		LogOutputDisplayModes(output, backBufferFormat_);
+
+		ReleaseCom(output);
+
+		++i;
+	}
+}
+
+void Renderer::LogOutputDisplayModes(IDXGIOutput* output, DXGI_FORMAT format)
+{
+	UINT count = 0;
+	UINT flags = 0;
+
+	// nullptr을 전달하여 지원되는 디스플레이 모드 개수를 가져옵니다.
+	output->GetDisplayModeList(format, flags, &count, nullptr);
+
+	std::vector<DXGI_MODE_DESC> modeList(count);
+	// 실제 디스플레이 모드 목록을 가져옵니다.
+	output->GetDisplayModeList(format, flags, &count, &modeList[0]);
+
+	for (auto& x : modeList) {
+		UINT n = x.RefreshRate.Numerator;
+		UINT d = x.RefreshRate.Denominator;
+		std::wstring text =
+			L"Width = " + std::to_wstring(x.Width) + L" " +
+			L"Height = " + std::to_wstring(x.Height) + L" " +
+			L"Refresh = " + std::to_wstring(n) + L"/" + std::to_wstring(d) +
+			L"\n";
+
+		// 디버그 출력 창에 디스플레이 모드 정보를 출력합니다.
+		::OutputDebugString(text.c_str());
+	}
+}

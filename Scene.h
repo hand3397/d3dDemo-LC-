@@ -9,6 +9,7 @@
 class Scene
 {
 public:
+    Scene();
 
     void InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
 

@@ -28,11 +28,17 @@
 #include "d3dx12.h"
 #include "DDSTextureLoader.h"
 #include "MathHelper.h"
+#include "FrameResource.h"
 #include <set>
 #include <queue>
 
 using namespace std;
 using namespace DirectX;
+
+// Link necessary d3d12 libraries.
+#pragma comment(lib,"d3dcompiler.lib")
+#pragma comment(lib, "D3D12.lib")
+#pragma comment(lib, "dxgi.lib")
 
 extern const int gNumFrameResources;
 
@@ -145,28 +151,6 @@ public:
     std::wstring FunctionName;
     std::wstring Filename;
     int LineNumber = -1;
-};
-
-struct Light {
-    DirectX::XMFLOAT3 Strength = { 0.5f, 0.5f, 0.5f };
-    float FalloffStart = 1.0f;                          // point/spot 라이트에만 해당
-    DirectX::XMFLOAT3 Direction = { 0.0f, -1.0f, 0.0f };// directional/spot 라이트에만 해당
-    float FalloffEnd = 10.0f;                           // point/spot 라이트에만 해당
-    DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };  // point/spot 라이트에만 해당
-    float SpotPower = 64.0f;                            // spot 라이트에만 해당
-};
-
-#define MaxLights 16
-
-struct MaterialConstants {
-    // 텍스처 색상(diffuse 색상)
-    DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
-    // 프레넬 반사 계수
-    DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
-    float Roughness = 0.25f;
-
-    // 텍스처 매핑에 사용됨.
-    DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
 };
 
 // 간단한 Material 구조체. 데모 용도로 사용됨.

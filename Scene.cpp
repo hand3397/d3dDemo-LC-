@@ -1,5 +1,9 @@
 #include "Scene.h"
 
+Scene::Scene()
+{
+}
+
 void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
 	player_ = make_unique<Player>("Player");
