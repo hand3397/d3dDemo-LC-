@@ -73,6 +73,9 @@ int D3DApp::Run()
 		}
 	}
 
+	if (renderer)
+		renderer->FlushCommandQueue();
+
 	return (int)msg.wParam;
 }
 

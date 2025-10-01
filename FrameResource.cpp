@@ -7,7 +7,7 @@ FrameResource::FrameResource(ID3D12Device* device, uint32_t passCount, uint32_t 
 		IID_PPV_ARGS(CmdListAlloc.GetAddressOf())));
 
     PassCB = std::make_unique<UploadBuffer<PassConstants>>(device, passCount, true);
-    MaterialCB = std::make_unique<UploadBuffer<MaterialConstants>>(device, materialCount, true);
+    MaterialBuffer = std::make_unique<UploadBuffer<MaterialData>>(device, materialCount, false);
     ObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(device, objectCount, true);
     SkinnedCB = std::make_unique<UploadBuffer<SkinnedConstants>>(device, skinnedObjectCount, true);
 }

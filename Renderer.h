@@ -26,14 +26,14 @@ public:
 	void Update(const GameTimer& gt, Scene* scene);
 	
 	void Draw(const Scene* scene);
+
+	void FlushCommandQueue();
 private:
 	bool InitDirect3D(HWND hwnd);
 
 	void CreateCommandObjects();
 	void CreateSwapChain(HWND hwnd);
 	void CreateRtvAndDsvDescriptorHeaps();
-
-	void FlushCommandQueue();
 
 	ID3D12Resource* CurrentBackBuffer()const;
 	D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView()const;
@@ -49,7 +49,7 @@ private:
 
 	void UpdateObjectCBs(const GameTimer& gt, Scene* scene);
 	void UpdateSkinnedCBs(const GameTimer& gt, Scene* scene);
-	void UpdateMaterialCBs(const GameTimer& gt, Scene* scene);
+	void UpdateMaterialBuffer(const GameTimer& gt, Scene* scene);
 	void UpdateMainPassCB(const GameTimer& gt, Scene* scene);
 
 	void DrawRenderItems(const vector<RenderItem*>& ritems);

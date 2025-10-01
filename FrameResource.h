@@ -23,18 +23,25 @@ struct ObjectConstants
 {
     DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
     DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
+    UINT     MaterialIndex = 0;
+    UINT     ObjPad0;
+    UINT     ObjPad1;
+    UINT     ObjPad2;
 };
 
-struct MaterialConstants
+struct MaterialData
 {
-    // 텍스처 색상(diffuse 색상)
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
-    // 프레넬 반사 계수
     DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
-    float Roughness = 0.25f;
+    float Roughness = 0.5f;
 
-    // 텍스처 매핑에 사용됨.
+    // Used in texture mapping.
     DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
+
+    UINT DiffuseMapIndex = 0;
+    UINT MaterialPad0;
+    UINT MaterialPad1;
+    UINT MaterialPad2;
 };
 
 struct SkinnedConstants
@@ -50,12 +57,15 @@ struct PassConstants
     DirectX::XMFLOAT4X4 InvProj = MathHelper::Identity4x4();
     DirectX::XMFLOAT4X4 ViewProj = MathHelper::Identity4x4();
     DirectX::XMFLOAT4X4 InvViewProj = MathHelper::Identity4x4();
+
     DirectX::XMFLOAT3 EyePosW = { 0.0f, 0.0f, 0.0f };
     float cbPerObjectPad1 = 0.0f;
     DirectX::XMFLOAT2 RenderTargetSize = { 0.0f, 0.0f };
     DirectX::XMFLOAT2 InvRenderTargetSize = { 0.0f, 0.0f };
+
     float NearZ = 0.0f;
     float FarZ = 0.0f;
+
     float TotalTime = 0.0f;
     float DeltaTime = 0.0f;
 
@@ -88,8 +98,8 @@ public:
     // 상수 버퍼는 그것을 참조하는 명령들을 GPU가 다 처리한 후에 갱신해야한다.
     // 따라서 프레임마다 상수 버퍼를 새로 만들어야한다.
     std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
-    std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
     std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
+    std::unique_ptr<UploadBuffer<MaterialData>> MaterialBuffer = nullptr;
     std::unique_ptr<UploadBuffer<SkinnedConstants>> SkinnedCB = nullptr;
 
     // Fence는 현재 울타리 지점까지의 명령들을 표시하는 값이다.

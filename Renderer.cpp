@@ -175,7 +175,7 @@ void Renderer::Update(const GameTimer& gt, Scene* scene)
 
 	// GPU가 현재 프레임 자원의 명령들을 다 처리했는지 확인한다.
 	// 아직 다 처리하지 않았으면 GPU가 이 울타리 지점까지의 명령들을 처리할 때까지 기다린다.
-	if (currFrameResource_->Fence != 0 
+	if (currFrameResource_ ->Fence != 0 
 		&& fence_->GetCompletedValue() < currFrameResource_->Fence) {
 		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
 		ThrowIfFailed(fence_->SetEventOnCompletion(currFrameResource_->Fence, eventHandle));
@@ -185,7 +185,7 @@ void Renderer::Update(const GameTimer& gt, Scene* scene)
 
 	UpdateObjectCBs(gt, scene);
 	UpdateSkinnedCBs(gt, scene);
-	UpdateMaterialCBs(gt, scene);
+	UpdateMaterialBuffer(gt, scene);
 	UpdateMainPassCB(gt, scene);
 }
 
@@ -221,7 +221,17 @@ void Renderer::Draw(const Scene* scene)
 	commandList_->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
 	auto passCB = currFrameResource_->PassCB->Resource();
-	commandList_->SetGraphicsRootConstantBufferView(3, passCB->GetGPUVirtualAddress());
+	commandList_->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
+	
+	// Bind all the materials used in this scene.  For structured buffers, we can bypass the heap and 
+	// set as a root descriptor.
+	auto matBuffer = currFrameResource_->MaterialBuffer->Resource();
+	commandList_->SetGraphicsRootShaderResourceView(3, matBuffer->GetGPUVirtualAddress());
+
+	// Bind all the textures used in this scene.  Observe
+	// that we only have to specify the first descriptor in the table.  
+	// The root signature knows how many descriptors are expected in the table.
+	commandList_->SetGraphicsRootDescriptorTable(4, srvDescriptorHeap_->GetGPUDescriptorHandleForHeapStart());
 
 	// ---------------------------------------------------------
 
@@ -271,20 +281,18 @@ void Renderer::BuildRootSignature()
 	// thought of as defining the function signature.  
 
 	CD3DX12_DESCRIPTOR_RANGE texTable;
-	texTable.Init(
-		D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-		1,  // number of descriptors
-		0); // register t0
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 16, 0);
 
 	// Root parameter can be a table, root descriptor or root constants.
 	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
 
 	// Create root CBVs.
-	slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-	slotRootParameter[1].InitAsConstantBufferView(0); // register b0
-	slotRootParameter[2].InitAsConstantBufferView(1); // register b1
-	slotRootParameter[3].InitAsConstantBufferView(2); // register b2
-	slotRootParameter[4].InitAsConstantBufferView(3); // register b3
+	slotRootParameter[0].InitAsConstantBufferView(0);		//objectCB
+	slotRootParameter[1].InitAsConstantBufferView(1);		//boneTransformCB
+	slotRootParameter[2].InitAsConstantBufferView(2);		//mainPassCB
+	slotRootParameter[3].InitAsShaderResourceView(0, 1);	//matData
+	slotRootParameter[4].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+
 
 	auto staticSamplers = GetStaticSamplers();
 
@@ -317,7 +325,7 @@ void Renderer::BuildDescriptorHeaps(Scene* scene)
 	auto& textures = scene->GetTextures();
 
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = static_cast<UINT>(textures.size());
+	srvHeapDesc.NumDescriptors = textures.size();
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(d3dDevice_->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvDescriptorHeap_)));
@@ -326,20 +334,18 @@ void Renderer::BuildDescriptorHeaps(Scene* scene)
 
 	// Loop over all textures and create SRVs
 	UINT texIndex = 0;
-	for (auto& kv : textures) {
-		auto& texName = kv.first;
-		auto& tex = kv.second;
-
+	
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+	
+	for (auto& [name, tex] : textures) {
 		auto resource = tex->Resource;
 
-		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		srvDesc.Format = resource->GetDesc().Format;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srvDesc.Texture2D.MostDetailedMip = 0;
 		srvDesc.Texture2D.MipLevels = resource->GetDesc().MipLevels;
-		srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
 		d3dDevice_->CreateShaderResourceView(resource.Get(), &srvDesc, hDescriptor);
 
 		// 다음 descriptor 위치로 이동
@@ -743,8 +749,8 @@ D3D12_CPU_DESCRIPTOR_HANDLE Renderer::DepthStencilView()const
 void Renderer::UpdateObjectCBs(const GameTimer& gt, Scene* scene)
 {
 	auto currObjectCB = currFrameResource_->ObjectCB.get();
-	auto& numRenderItems = scene->GetAllRenderItems();
-	for (auto& e : numRenderItems) {
+	auto& renderItems = scene->GetAllRenderItems();
+	for (auto& e : renderItems) {
 		// 상수들이 바뀌었을 떄에만 cbuffer 자료를 갱신한다.
 		// 이러한 갱신을 프레임 자원마다 수행해야 한다.
 		if (e->numFramesDirty_ > 0) {
@@ -754,7 +760,8 @@ void Renderer::UpdateObjectCBs(const GameTimer& gt, Scene* scene)
 			ObjectConstants objConstants;
 			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
 			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
-
+			objConstants.MaterialIndex = e->material_->matCBIndex_;
+			
 			currObjectCB->CopyData(e->objCBIndex_, objConstants);
 
 			// 다음 프레임 자원으로 넘어간다.
@@ -783,9 +790,9 @@ void Renderer::UpdateSkinnedCBs(const GameTimer& gt, Scene* scene)
 	currSkinnedCB->CopyData(0, skinnedConstants);
 }
 
-void Renderer::UpdateMaterialCBs(const GameTimer& gt, Scene* scene)
+void Renderer::UpdateMaterialBuffer(const GameTimer& gt, Scene* scene)
 {
-	auto currMaterialCB = currFrameResource_->MaterialCB.get();
+	auto currMaterialCB = currFrameResource_->MaterialBuffer.get();
 	auto& materials = scene->GetMaterials();
 	for (auto& e : materials) {
 		// Only update the cbuffer data if the constants have changed.  If the cbuffer
@@ -794,13 +801,14 @@ void Renderer::UpdateMaterialCBs(const GameTimer& gt, Scene* scene)
 		if (mat->numFramesDirty_ > 0) {
 			XMMATRIX matTransform = XMLoadFloat4x4(&mat->matTransform_);
 
-			MaterialConstants matConstants;
-			matConstants.DiffuseAlbedo = mat->diffuseAlbedo_;
-			matConstants.FresnelR0 = mat->fresnelR0_;
-			matConstants.Roughness = mat->roughness_;
-			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
+			MaterialData matData;
+			matData.DiffuseAlbedo = mat->diffuseAlbedo_;
+			matData.FresnelR0 = mat->fresnelR0_;
+			matData.Roughness = mat->roughness_;
+			XMStoreFloat4x4(&matData.MatTransform, XMMatrixTranspose(matTransform));
+			matData.DiffuseMapIndex = mat->diffuseSrvHeapIndex_;
 
-			currMaterialCB->CopyData(mat->matCBIndex_, matConstants);
+			currMaterialCB->CopyData(mat->matCBIndex_, matData);
 
 			// Next FrameResource need to be updated too.
 			mat->numFramesDirty_--;
@@ -847,11 +855,9 @@ void Renderer::DrawRenderItems(const vector<RenderItem*>& ritems)
 {
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 	UINT skinnedCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(SkinnedConstants));
-	UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
-
+	
 	auto objectCB = currFrameResource_->ObjectCB->Resource();
 	auto skinnedCB = currFrameResource_->SkinnedCB->Resource();
-	auto materialCB = currFrameResource_->MaterialCB->Resource();
 
 	// For each render item...
 	for (size_t i = 0; i < ritems.size(); ++i) {
@@ -861,24 +867,16 @@ void Renderer::DrawRenderItems(const vector<RenderItem*>& ritems)
 		commandList_->IASetIndexBuffer(&ri->mesh_->IndexBufferView());
 		commandList_->IASetPrimitiveTopology(ri->primitiveType_);
 
-		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(srvDescriptorHeap_->GetGPUDescriptorHandleForHeapStart());
-		tex.Offset(ri->material_->diffuseSrvHeapIndex_, cbvSrvDescriptorSize_);
-
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->objCBIndex_ * objCBByteSize;
-		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = materialCB->GetGPUVirtualAddress() + ri->material_->matCBIndex_ * matCBByteSize;
-
-		commandList_->SetGraphicsRootDescriptorTable(0, tex);
-		commandList_->SetGraphicsRootConstantBufferView(1, objCBAddress);
+		commandList_->SetGraphicsRootConstantBufferView(0, objCBAddress);
 
 		if (ri->skinnedModelInst_ != nullptr) {
 			D3D12_GPU_VIRTUAL_ADDRESS skinnedCBAddress = skinnedCB->GetGPUVirtualAddress() + ri->skinnedCBIndex_ * skinnedCBByteSize;
-			commandList_->SetGraphicsRootConstantBufferView(2, skinnedCBAddress);
+			commandList_->SetGraphicsRootConstantBufferView(1, skinnedCBAddress);
 		}
 		else {
-			commandList_->SetGraphicsRootConstantBufferView(2, 0);
+			commandList_->SetGraphicsRootConstantBufferView(1, 0);
 		}
-
-		commandList_->SetGraphicsRootConstantBufferView(4, matCBAddress);
 
 		commandList_->DrawIndexedInstanced(ri->indexCount_, 1, ri->startIndexLocation_, ri->baseVertexLocation_, 0);
 	}
