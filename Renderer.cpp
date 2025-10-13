@@ -175,15 +175,16 @@ void Renderer::Update(const GameTimer& gt, Scene* scene)
 
 	// GPU가 현재 프레임 자원의 명령들을 다 처리했는지 확인한다.
 	// 아직 다 처리하지 않았으면 GPU가 이 울타리 지점까지의 명령들을 처리할 때까지 기다린다.
-	if (currFrameResource_ ->Fence != 0 
-		&& fence_->GetCompletedValue() < currFrameResource_->Fence) {
+	if (currFrameResource_ ->fence_ != 0
+		&& fence_->GetCompletedValue() < currFrameResource_->fence_) {
 		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
-		ThrowIfFailed(fence_->SetEventOnCompletion(currFrameResource_->Fence, eventHandle));
+		ThrowIfFailed(fence_->SetEventOnCompletion(currFrameResource_->fence_, eventHandle));
 		WaitForSingleObject(eventHandle, INFINITE);
 		CloseHandle(eventHandle);
 	}
 
 	UpdateObjectCBs(gt, scene);
+	UpdateInstanceData(gt, scene);
 	UpdateSkinnedCBs(gt, scene);
 	UpdateMaterialBuffer(gt, scene);
 	UpdateMainPassCB(gt, scene);
@@ -191,7 +192,7 @@ void Renderer::Update(const GameTimer& gt, Scene* scene)
 
 void Renderer::Draw(const Scene* scene)
 {
-	auto cmdListAlloc = currFrameResource_->CmdListAlloc;
+	auto cmdListAlloc = currFrameResource_->cmdListAlloc_;
 
 	// 명령 기록에 관련된 메모리의 재활용을 위해 명령할당자를 재설정한다.
 	// 재설정은 GPU가 관련명령 목록을 모두 처리한 뒤 일어난다.
@@ -220,18 +221,21 @@ void Renderer::Draw(const Scene* scene)
 	ID3D12DescriptorHeap* descriptorHeaps[] = { srvDescriptorHeap_.Get() };
 	commandList_->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
-	auto passCB = currFrameResource_->PassCB->Resource();
+	auto passCB = currFrameResource_->passCB_->Resource();
 	commandList_->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
 	
+	auto instanceBuffer = currFrameResource_->instanceBuffer_->Resource();
+	commandList_->SetGraphicsRootShaderResourceView(3, instanceBuffer->GetGPUVirtualAddress());
+
 	// Bind all the materials used in this scene.  For structured buffers, we can bypass the heap and 
 	// set as a root descriptor.
-	auto matBuffer = currFrameResource_->MaterialBuffer->Resource();
-	commandList_->SetGraphicsRootShaderResourceView(3, matBuffer->GetGPUVirtualAddress());
+	auto matBuffer = currFrameResource_->materialBuffer_->Resource();
+	commandList_->SetGraphicsRootShaderResourceView(4, matBuffer->GetGPUVirtualAddress());
 
 	// Bind all the textures used in this scene.  Observe
 	// that we only have to specify the first descriptor in the table.  
 	// The root signature knows how many descriptors are expected in the table.
-	commandList_->SetGraphicsRootDescriptorTable(4, srvDescriptorHeap_->GetGPUDescriptorHandleForHeapStart());
+	commandList_->SetGraphicsRootDescriptorTable(5, srvDescriptorHeap_->GetGPUDescriptorHandleForHeapStart());
 
 	// ---------------------------------------------------------
 
@@ -245,6 +249,9 @@ void Renderer::Draw(const Scene* scene)
 
 	commandList_->SetPipelineState(PSOs_["skinnedOpaque"].Get());
 	DrawRenderItems(scene->GetRenderItems(RenderLayer::Skinned));
+
+	commandList_->SetPipelineState(PSOs_["instance"].Get());
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::Instance));
 
 	// ---------------------------------------------------------
 
@@ -263,7 +270,7 @@ void Renderer::Draw(const Scene* scene)
 	ThrowIfFailed(swapChain_->Present(0, 0));
 	currBackBuffer_ = (currBackBuffer_ + 1) % numSwapChainBuffers_;
 
-	currFrameResource_->Fence = ++currentFence_;
+	currFrameResource_->fence_ = ++currentFence_;
 
 	// 새 울타리 지점을 설정하는 명령을 명령 대기열에 추가한다.
 	// 지금 우리는 GPU의 시간선 상에 있으므로, 
@@ -284,20 +291,20 @@ void Renderer::BuildRootSignature()
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 16, 0);
 
 	// Root parameter can be a table, root descriptor or root constants.
-	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
+	CD3DX12_ROOT_PARAMETER slotRootParameter[6];
 
 	// Create root CBVs.
 	slotRootParameter[0].InitAsConstantBufferView(0);		//objectCB
 	slotRootParameter[1].InitAsConstantBufferView(1);		//boneTransformCB
 	slotRootParameter[2].InitAsConstantBufferView(2);		//mainPassCB
-	slotRootParameter[3].InitAsShaderResourceView(0, 1);	//matData
-	slotRootParameter[4].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-
+	slotRootParameter[3].InitAsShaderResourceView(0, 1);	//instanceData
+	slotRootParameter[4].InitAsShaderResourceView(1, 1);	//matData
+	slotRootParameter[5].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	auto staticSamplers = GetStaticSamplers();
 
 	// A root signature is an array of root parameters.
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(6, slotRootParameter,
 		(UINT)staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
@@ -376,7 +383,10 @@ void Renderer::BuildShadersAndInputLayout()
 
 	shaders_["standardVS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", nullptr, "VS", "vs_5_1");
 	shaders_["skinnedVS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", skinnedDefines, "VS", "vs_5_1");
+	shaders_["instanceVS"] = d3dUtil::CompileShader(L"Shaders/Instance.hlsl", defines, "VS", "vs_5_1");
+
 	shaders_["opaquePS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", defines, "PS", "ps_5_1");
+	shaders_["instancePS"] = d3dUtil::CompileShader(L"Shaders/Instance.hlsl", defines, "PS", "ps_5_1");
 	shaders_["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", alphaTestDefines, "PS", "ps_5_1");
 
 	inputLayout_ =
@@ -399,22 +409,22 @@ void Renderer::BuildShadersAndInputLayout()
 void Renderer::BuildFrameResources(Scene* scene)
 {
 	uint32_t numRenderItems = scene->GetAllRenderItems().size();
+	uint32_t numInstances = scene->GetNumInstances();
 	uint32_t numSkinnedObjects = scene->GetSkinnedModelInsts().size();
 	uint32_t numMaterials = scene->GetMaterials().size();
 	for (int i = 0; i < gNumFrameResources; ++i) {
 		frameResources_.push_back(make_unique<FrameResource>(d3dDevice_.Get(),
-			1, numRenderItems, numSkinnedObjects, numMaterials));
+			1, numRenderItems, numSkinnedObjects, numInstances, numMaterials));
 	}
 }
 
 void Renderer::BuildPSOs()
 {
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc = {};
 
 	//
 	// PSO for opaque objects.
 	//
-	ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
 	opaquePsoDesc.InputLayout = { inputLayout_.data(), (UINT)inputLayout_.size() };
 	opaquePsoDesc.pRootSignature = rootSignature_.Get();
 	opaquePsoDesc.VS =
@@ -440,7 +450,6 @@ void Renderer::BuildPSOs()
 	opaquePsoDesc.DSVFormat = depthStencilFormat_;
 	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&PSOs_["opaque"])));
 
-
 	//
 	// PSO for opaque wireframe objects.
 	//
@@ -448,6 +457,23 @@ void Renderer::BuildPSOs()
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueWireframePsoDesc = opaquePsoDesc;
 	opaqueWireframePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
 	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&PSOs_["opaque_wireframe"])));
+
+	//
+	// PSO for opaque instance objects.
+	//
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueInstancePsoDesc = opaquePsoDesc;
+	opaqueInstancePsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(shaders_["instanceVS"]->GetBufferPointer()),
+		shaders_["instanceVS"]->GetBufferSize()
+	};
+	opaqueInstancePsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(shaders_["instancePS"]->GetBufferPointer()),
+		shaders_["instancePS"]->GetBufferSize()
+	};
+	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&opaqueInstancePsoDesc, IID_PPV_ARGS(&PSOs_["instance"])));
 
 	//
 	// PSO for transparent objects
@@ -748,7 +774,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE Renderer::DepthStencilView()const
 
 void Renderer::UpdateObjectCBs(const GameTimer& gt, Scene* scene)
 {
-	auto currObjectCB = currFrameResource_->ObjectCB.get();
+	auto currObjectCB = currFrameResource_->objectCB_.get();
 	auto& renderItems = scene->GetAllRenderItems();
 	for (auto& e : renderItems) {
 		// 상수들이 바뀌었을 떄에만 cbuffer 자료를 갱신한다.
@@ -770,9 +796,31 @@ void Renderer::UpdateObjectCBs(const GameTimer& gt, Scene* scene)
 	}
 }
 
+void Renderer::UpdateInstanceData(const GameTimer& gt, Scene* scene)
+{
+	auto currInstanceBuffer = currFrameResource_->instanceBuffer_.get();
+	auto& renderItems = scene->GetAllRenderItems();
+	for (auto& e : renderItems) {
+		const auto& instanceData = e->instances_;
+
+		for (UINT i = 0; i < (UINT)instanceData.size(); ++i) {
+			XMMATRIX world = XMLoadFloat4x4(&instanceData[i].World);
+			XMMATRIX texTransform = XMLoadFloat4x4(&instanceData[i].TexTransform);
+			InstanceData data;
+
+			XMStoreFloat4x4(&data.World, XMMatrixTranspose(world));
+			XMStoreFloat4x4(&data.TexTransform, XMMatrixTranspose(texTransform));
+			data.MaterialIndex = instanceData[i].MaterialIndex;
+
+			// Write the instance data to structured buffer for the visible objects.
+			currInstanceBuffer->CopyData(i, data);
+		}
+	}
+}
+
 void Renderer::UpdateSkinnedCBs(const GameTimer& gt, Scene* scene)
 {
-	auto currSkinnedCB = currFrameResource_->SkinnedCB.get();
+	auto currSkinnedCB = currFrameResource_->skinnedCB_.get();
 
 	auto& skinnedModelInsts = scene->GetSkinnedModelInsts();
 	for (auto& [name, skinnedModel] : skinnedModelInsts) {
@@ -792,7 +840,7 @@ void Renderer::UpdateSkinnedCBs(const GameTimer& gt, Scene* scene)
 
 void Renderer::UpdateMaterialBuffer(const GameTimer& gt, Scene* scene)
 {
-	auto currMaterialCB = currFrameResource_->MaterialBuffer.get();
+	auto currMaterialCB = currFrameResource_->materialBuffer_.get();
 	auto& materials = scene->GetMaterials();
 	for (auto& e : materials) {
 		// Only update the cbuffer data if the constants have changed.  If the cbuffer
@@ -847,7 +895,7 @@ void Renderer::UpdateMainPassCB(const GameTimer& gt, Scene* scene)
 	mainPassCB_.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
 	mainPassCB_.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
 
-	auto currPassCB = currFrameResource_->PassCB.get();
+	auto currPassCB = currFrameResource_->passCB_.get();
 	currPassCB->CopyData(0, mainPassCB_);
 }
 
@@ -856,8 +904,8 @@ void Renderer::DrawRenderItems(const vector<RenderItem*>& ritems)
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 	UINT skinnedCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(SkinnedConstants));
 	
-	auto objectCB = currFrameResource_->ObjectCB->Resource();
-	auto skinnedCB = currFrameResource_->SkinnedCB->Resource();
+	auto objectCB = currFrameResource_->objectCB_->Resource();
+	auto skinnedCB = currFrameResource_->skinnedCB_->Resource();
 
 	// For each render item...
 	for (size_t i = 0; i < ritems.size(); ++i) {
@@ -878,7 +926,7 @@ void Renderer::DrawRenderItems(const vector<RenderItem*>& ritems)
 			commandList_->SetGraphicsRootConstantBufferView(1, 0);
 		}
 
-		commandList_->DrawIndexedInstanced(ri->indexCount_, 1, ri->startIndexLocation_, ri->baseVertexLocation_, 0);
+		commandList_->DrawIndexedInstanced(ri->indexCount_, ri->instanceCount_, ri->baseIndex_, ri->baseVertex_, ri->instanceOffset_);
 	}
 }
 

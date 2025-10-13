@@ -10,6 +10,7 @@ enum class RenderLayer : uint8_t
     Transparent,
     AlphaTested,
     Skinned,
+    Instance,
     Count
 };
 
@@ -19,6 +20,8 @@ enum class RenderLayer : uint8_t
 struct RenderItem
 {
     RenderItem() = default;
+
+    void SetFrameDirty() { numFramesDirty_ = gNumFrameResources; }
 
     // 셰계 공간을 기준으로 물체의 국소 공간을 서술하는 세계 행렬
     // 이 행렬은 세계공간에서의 물체의 크기, 회전, 위치를 결정.
@@ -40,16 +43,21 @@ struct RenderItem
     // Primitive topology.
     D3D12_PRIMITIVE_TOPOLOGY primitiveType_ = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-    BoundingBox boundBox_;
+    BoundingBox boundingBox_;
 
     // DrawIndexedInstanced parameters.
     uint32_t indexCount_ = 0;
-    uint32_t startIndexLocation_ = 0;
-    uint32_t baseVertexLocation_ = 0;
+    uint32_t baseIndex_ = 0;
+    uint32_t baseVertex_ = 0;
 
     // Only applicable to skinned render-items.
     uint32_t skinnedCBIndex_ = -1;
 
     // nullptr if this render-item is not animated by skinned mesh.
     SkinnedModelInstance* skinnedModelInst_ = nullptr;
+
+    // draw instance
+    uint32_t instanceCount_ = 1;
+    vector<InstanceData> instances_;
+    uint32_t instanceOffset_ = 0;
 };

@@ -57,6 +57,9 @@ public:
 	{
 		std::vector<Vertex> Vertices;
         std::vector<uint32> Indices32;
+		
+		DirectX::XMFLOAT3 minPos;
+		DirectX::XMFLOAT3 maxPos;
 
         std::vector<uint16>& GetIndices16()
         {
@@ -79,6 +82,7 @@ public:
     /// face has m rows and n columns of vertices.
 	///</summary>
     MeshData CreateBox(float width, float height, float depth, uint32 numSubdivisions);
+    MeshData CreateOnBox(float width, float height, float depth, uint32 numSubdivisions);
 
 	///<summary>
 	/// Creates a sphere centered at the origin with the given radius.  The

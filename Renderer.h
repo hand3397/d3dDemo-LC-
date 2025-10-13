@@ -48,6 +48,7 @@ private:
 	array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 
 	void UpdateObjectCBs(const GameTimer& gt, Scene* scene);
+	void UpdateInstanceData(const GameTimer& gt, Scene* scene);
 	void UpdateSkinnedCBs(const GameTimer& gt, Scene* scene);
 	void UpdateMaterialBuffer(const GameTimer& gt, Scene* scene);
 	void UpdateMainPassCB(const GameTimer& gt, Scene* scene);
@@ -89,8 +90,8 @@ private:
 	// ===========================================================
 	// Descriptor Heaps
 	// ===========================================================
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvHeap_;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> dsvHeap_;
+	ComPtr<ID3D12DescriptorHeap> rtvHeap_;
+	ComPtr<ID3D12DescriptorHeap> dsvHeap_;
 	ComPtr<ID3D12DescriptorHeap> srvDescriptorHeap_ = nullptr;
 
 	UINT rtvDescriptorSize_ = 0;

@@ -33,6 +33,11 @@ Camera* Scene::GetCamera()
 	return mainCamera_;
 }
 
+const uint32_t Scene::GetNumInstances()
+{
+	return numInstances;
+}
+
 const vector<unique_ptr<GameObject>>& Scene::GetGameObjects() const
 {
 	return gameObjects_;
@@ -114,6 +119,7 @@ void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 {
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
+	GeometryGenerator::MeshData wall = geoGen.CreateOnBox(1.0f, 3.0f, 0.1f, 3);
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
@@ -125,47 +131,42 @@ void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 
 	// Cache the vertex offsets to each object in the concatenated vertex buffer.
 	UINT boxVertexOffset = 0;
-	UINT gridVertexOffset = (UINT)box.Vertices.size();
+	UINT wallVertexOffset = (UINT)box.Vertices.size();
+	UINT gridVertexOffset = wallVertexOffset + (UINT)wall.Vertices.size();
 	UINT sphereVertexOffset = gridVertexOffset + (UINT)grid.Vertices.size();
 	UINT cylinderVertexOffset = sphereVertexOffset + (UINT)sphere.Vertices.size();
 
 	// Cache the starting index for each object in the concatenated index buffer.
 	UINT boxIndexOffset = 0;
-	UINT gridIndexOffset = (UINT)box.Indices32.size();
+	UINT wallIndexOffset = (UINT)box.Indices32.size();
+	UINT gridIndexOffset = wallIndexOffset + (UINT)wall.Indices32.size();
 	UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
 	UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
 
 	// Define the SubmeshGeometry that cover different 
 	// regions of the vertex/index buffers.
+	BoundingBox bb;
 
-	Submesh boxSubmesh;
-	boxSubmesh.IndexCount = (UINT)box.Indices32.size();
-	boxSubmesh.StartIndexLocation = boxIndexOffset;
-	boxSubmesh.BaseVertexLocation = boxVertexOffset;
-	boxSubmesh.Bounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	boxSubmesh.Bounds.Extents = XMFLOAT3(0.5f, 0.5f, 0.5f);
+	bb.Center = MathHelper::SumFloat3(box.maxPos, box.minPos);
+	bb.Extents = MathHelper::SubFloat3(box.maxPos, bb.Center);
+	Submesh boxSubmesh((UINT)box.Indices32.size(), boxIndexOffset, boxVertexOffset, bb);
 
-	geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
-	Submesh gridSubmesh;
-	gridSubmesh.IndexCount = (UINT)grid.Indices32.size();
-	gridSubmesh.StartIndexLocation = gridIndexOffset;
-	gridSubmesh.BaseVertexLocation = gridVertexOffset;
-	gridSubmesh.Bounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	gridSubmesh.Bounds.Extents = XMFLOAT3(10.0f, 0.01f, 30.0f);
+	bb.Center = MathHelper::SumFloat3(wall.maxPos, wall.minPos);
+	bb.Extents = MathHelper::SubFloat3(wall.maxPos, bb.Center);
+	Submesh wallSubmesh((UINT)wall.Indices32.size(), wallIndexOffset, wallVertexOffset, bb);
+	
+	bb.Center = MathHelper::SumFloat3(grid.maxPos, grid.minPos);
+	bb.Extents = MathHelper::SubFloat3(grid.maxPos, bb.Center);
+	Submesh gridSubmesh((UINT)grid.Indices32.size(), gridIndexOffset, gridVertexOffset, bb);
+	
+	bb.Center = MathHelper::SumFloat3(sphere.maxPos, sphere.minPos);
+	bb.Extents = MathHelper::SubFloat3(sphere.maxPos, bb.Center);
+	Submesh sphereSubmesh((UINT)sphere.Indices32.size(), sphereIndexOffset, sphereVertexOffset, bb);
 
-	Submesh sphereSubmesh;
-	sphereSubmesh.IndexCount = (UINT)sphere.Indices32.size();
-	sphereSubmesh.StartIndexLocation = sphereIndexOffset;
-	sphereSubmesh.BaseVertexLocation = sphereVertexOffset;
-	sphereSubmesh.Bounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	sphereSubmesh.Bounds.Extents = XMFLOAT3(0.5f, 0.5f, 0.5f);
-
-	Submesh cylinderSubmesh;
-	cylinderSubmesh.IndexCount = (UINT)cylinder.Indices32.size();
-	cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
-	cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
-	cylinderSubmesh.Bounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-	cylinderSubmesh.Bounds.Extents = XMFLOAT3(0.5f, 3.0f, 0.5f);
+	bb.Center = MathHelper::SumFloat3(cylinder.maxPos, cylinder.minPos);
+	bb.Extents = MathHelper::SubFloat3(cylinder.maxPos, bb.Center);
+	Submesh cylinderSubmesh((UINT)cylinder.Indices32.size(), cylinderIndexOffset, cylinderVertexOffset, bb);
+	
 	//
 	// Extract the vertex elements we are interested in and pack the
 	// vertices of all the meshes into one vertex buffer.
@@ -173,6 +174,7 @@ void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 
 	auto totalVertexCount =
 		box.Vertices.size() +
+		wall.Vertices.size() +
 		grid.Vertices.size() +
 		sphere.Vertices.size() +
 		cylinder.Vertices.size();
@@ -184,6 +186,12 @@ void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 		vertices[k].Pos = box.Vertices[i].Position;
 		vertices[k].Normal = box.Vertices[i].Normal;
 		vertices[k].TexC = box.Vertices[i].TexC;
+	}
+
+	for (size_t i = 0; i < wall.Vertices.size(); ++i, ++k) {
+		vertices[k].Pos = wall.Vertices[i].Position;
+		vertices[k].Normal = wall.Vertices[i].Normal;
+		vertices[k].TexC = wall.Vertices[i].TexC;
 	}
 
 	for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k) {
@@ -206,6 +214,7 @@ void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 
 	vector<uint32_t> indices;
 	indices.insert(indices.end(), begin(box.Indices32), end(box.Indices32));
+	indices.insert(indices.end(), begin(wall.Indices32), end(wall.Indices32));
 	indices.insert(indices.end(), begin(grid.Indices32), end(grid.Indices32));
 	indices.insert(indices.end(), begin(sphere.Indices32), end(sphere.Indices32));
 	indices.insert(indices.end(), begin(cylinder.Indices32), end(cylinder.Indices32));
@@ -213,6 +222,7 @@ void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 	auto geo = make_unique<MeshGeometry>();
 	geo->BuildMeshGeo("shapeGeo", vertices, indices, device, cmdList);
 	geo->AddSubmesh("box", boxSubmesh);
+	geo->AddSubmesh("wall", wallSubmesh);
 	geo->AddSubmesh("grid", gridSubmesh);
 	geo->AddSubmesh("sphere", sphereSubmesh);
 	geo->AddSubmesh("cylinder", cylinderSubmesh);
@@ -256,15 +266,36 @@ void Scene::BuildRenderItems()
 
 	BuildRenderItem((uint8_t)RenderLayer::Transparent,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["box"], materials_["ice0"].get(),
-		XMMatrixScaling(1.0f, 1.0f, 1.0f) * XMMatrixTranslation(0.0f, 4.0f, 0.0f));
+		XMMatrixTranslation(0.0f, 4.0f, 0.0f));
 
 	BuildRenderItem((uint8_t)RenderLayer::Opaque,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["grid"], materials_["tile0"].get(),
 		XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f));
 
-	auto demoBox = BuildRenderItem((uint8_t)RenderLayer::Opaque,
+	BuildRenderItem((uint8_t)RenderLayer::Opaque,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["box"], materials_["soldier"].get(),
 		XMMatrixIdentity(), XMMatrixIdentity());
+	
+	auto wall = BuildRenderItem((uint8_t)RenderLayer::Instance,
+		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["wall"], materials_["stone0"].get(),
+		XMMatrixIdentity(), XMMatrixIdentity());
+
+	const int n = 21;
+	wall->instanceCount_ = n * n * n;
+	numInstances += wall->instanceCount_;
+	wall->instanceOffset_ = 0;
+	wall->instances_.resize(numInstances);
+	// build wall
+	for (int x = 0; x < n; x++) {
+		for (int y = 0; y < n; y++) {
+			for (int z = 0; z < n; z++) {
+				int index = x * n * n + y * n + z;
+				XMStoreFloat4x4(&wall->instances_[index].World, 
+					XMMatrixTranslation(3.0f * x - 30.f, y * 4.0f - 40.f, -2.0f * z + 10.f));
+				wall->instances_[index].MaterialIndex = index % materials_.size();
+			}
+		}
+	}
 
 	auto palyerRenderItem1 = BuildRenderItem((uint8_t)RenderLayer::Skinned,
 		meshes_["skinnedGeo"].get(), meshes_["skinnedGeo"].get()->subMeshes_["0"], materials_["soldier"].get(),
@@ -318,9 +349,9 @@ RenderItem* Scene::BuildRenderItem(const uint8_t renderLayer,
 	renderItem->material_ = material;
 	renderItem->mesh_ = mesh;
 	//renderItem->primitiveType_ = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	renderItem->indexCount_ = submesh.IndexCount;
-	renderItem->startIndexLocation_ = submesh.StartIndexLocation;
-	renderItem->baseVertexLocation_ = submesh.BaseVertexLocation;
+	renderItem->indexCount_ = submesh.numIndices_;
+	renderItem->baseIndex_ = submesh.baseIndex_;
+	renderItem->baseVertex_ = submesh.baseVertex_;
 	renderItem->skinnedModelInst_ = skinnedModelInstance;
 	renderItem->skinnedCBIndex_ = skinnedCBIndex;
 

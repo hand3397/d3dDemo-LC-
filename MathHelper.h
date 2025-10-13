@@ -124,6 +124,18 @@ public:
         return I;
     }
 
+	static DirectX::XMFLOAT3 SumFloat3(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b)
+	{
+		DirectX::XMFLOAT3 out{ a.x + b.x, a.y + b.y, a.z + b.z };
+		return out;
+	}
+
+	static DirectX::XMFLOAT3 SubFloat3(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b)
+	{
+		DirectX::XMFLOAT3 out{ a.x - b.x, a.y - b.y, a.z - b.z };
+		return out;
+	}
+
     static DirectX::XMVECTOR RandUnitVec3();
     static DirectX::XMVECTOR RandHemisphereUnitVec3(DirectX::XMVECTOR n);
 

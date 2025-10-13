@@ -33,7 +33,7 @@ void GameObject::UpdateRenderItem()
                 XMMatrixScaling(scale_.x, scale_.y, scale_.z) *
                 XMMatrixRotationRollPitchYaw(rotation_.x, rotation_.y, rotation_.z) *
                 XMMatrixTranslation(position_.x, position_.y, position_.z));
-            ri->numFramesDirty_ = gNumFrameResources;
+            ri->SetFrameDirty();
         }
 }
 

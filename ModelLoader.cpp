@@ -184,7 +184,7 @@ void ModelLoader::ReadBoneData(const aiScene* scene)
         aiMesh* mesh = scene->mMeshes[mi];
         uint32_t numBones = mesh->mNumBones;
 
-        uint32_t baseVertex = subMeshes_[mi].BaseVertexLocation;
+        uint32_t baseVertex = subMeshes_[mi].baseVertex_;
 
         for (uint32_t bi = 0; bi < numBones; bi++) {
             aiBone* bone = mesh->mBones[bi];

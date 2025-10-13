@@ -14,11 +14,13 @@ public:
     void InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
 
     void KeyInput(const KeyInputManager& keyInput, float dt);
-    void AddObject();
+    void AddGameObject();
     void Update(float dt);
 
     Player* GetPlayer();
     Camera* GetCamera();
+
+    const uint32_t GetNumInstances();
 
     const vector<unique_ptr<GameObject>>& GetGameObjects()const;
     const vector<unique_ptr<RenderItem>>& GetAllRenderItems()const;
@@ -68,6 +70,8 @@ private:
     unordered_map<string, unique_ptr<Material>> materials_;
     unordered_map<string, unique_ptr<Texture>> textures_;
     unordered_map<string, unique_ptr<SkinnedData>> skinnedData_;
+
+    uint32_t numInstances = 0;
 
     unordered_map<string, unique_ptr<SkinnedModelInstance>> skinnedModelInsts_;
 };
