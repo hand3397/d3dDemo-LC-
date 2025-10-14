@@ -798,13 +798,35 @@ void Renderer::UpdateObjectCBs(const GameTimer& gt, Scene* scene)
 
 void Renderer::UpdateInstanceData(const GameTimer& gt, Scene* scene)
 {
+	BoundingFrustum worldFrustum = mainCamera_->GetBoundingFrustum();
+	XMMATRIX invView = XMMatrixInverse(nullptr, mainCamera_->GetView());
+	worldFrustum.Transform(worldFrustum, invView);
+
 	auto currInstanceBuffer = currFrameResource_->instanceBuffer_.get();
-	auto& renderItems = scene->GetAllRenderItems();
+	auto& renderItems = scene->GetRenderItems(RenderLayer::Instance);
 	for (auto& e : renderItems) {
 		const auto& instanceData = e->instances_;
 
+		if (e->instances_.empty())
+			continue;
+
+		BoundingBox boundingBox = e->boundingBox_;
+		BoundingSphere boundingSphere = e->boundingSphere_;
+
+		int visibleInstanceCount = 0;
 		for (UINT i = 0; i < (UINT)instanceData.size(); ++i) {
 			XMMATRIX world = XMLoadFloat4x4(&instanceData[i].World);
+
+			BoundingSphere bs;
+			boundingSphere.Transform(bs, world);
+			if (worldFrustum.Contains(bs) == DISJOINT)
+				continue;
+
+			BoundingBox bb;
+			boundingBox.Transform(bb, world);
+			if (worldFrustum.Contains(bb) == DISJOINT)
+				continue;
+
 			XMMATRIX texTransform = XMLoadFloat4x4(&instanceData[i].TexTransform);
 			InstanceData data;
 
@@ -813,8 +835,16 @@ void Renderer::UpdateInstanceData(const GameTimer& gt, Scene* scene)
 			data.MaterialIndex = instanceData[i].MaterialIndex;
 
 			// Write the instance data to structured buffer for the visible objects.
-			currInstanceBuffer->CopyData(i, data);
+			currInstanceBuffer->CopyData(visibleInstanceCount++, data);
 		}
+		e->instanceCount_ = visibleInstanceCount;
+
+		std::wostringstream outs;
+		outs.precision(6);
+		outs << L"Instancing and Culling Demo" <<
+			L"    " << e->instanceCount_ <<
+			L" objects visible out of " << e->instances_.size() << '\n';
+		OutputDebugStringW(outs.str().c_str());
 	}
 }
 

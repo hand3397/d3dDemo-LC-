@@ -78,8 +78,8 @@ void ModelLoader::ReadMesh(const aiScene* scene, MeshContainerType& meshContaine
         float floatMax = MathHelper::TypeMax<float>();
         float floatMin = MathHelper::TypeMin<float>();
 
-        aiVector3D minVec(floatMax, floatMax, floatMax);
-        aiVector3D maxVec(floatMin, floatMin, floatMin);
+        aiVector3D minVertex(floatMax, floatMax, floatMax);
+        aiVector3D maxVertex(floatMin, floatMin, floatMin);
 
         uint32_t numVertices = mesh->mNumVertices;
         meshContainer.vertices.reserve(meshContainer.vertices.size() + numVertices);
@@ -87,8 +87,8 @@ void ModelLoader::ReadMesh(const aiScene* scene, MeshContainerType& meshContaine
             VertexType v;
             v.Pos = { mesh->mVertices[vi].x, mesh->mVertices[vi].y, mesh->mVertices[vi].z };
 
-            minVec = { std::min(minVec.x, v.Pos.x), std::min(minVec.y, v.Pos.y), std::min(minVec.z, v.Pos.z) };
-            maxVec = { std::max(maxVec.x, v.Pos.x), std::max(maxVec.y, v.Pos.y), std::max(maxVec.z, v.Pos.z) };
+            minVertex = { std::min(minVertex.x, v.Pos.x), std::min(minVertex.y, v.Pos.y), std::min(minVertex.z, v.Pos.z) };
+            maxVertex = { std::max(maxVertex.x, v.Pos.x), std::max(maxVertex.y, v.Pos.y), std::max(maxVertex.z, v.Pos.z) };
 
             if (mesh->HasNormals())
                 v.Normal = { mesh->mNormals[vi].x, mesh->mNormals[vi].y, mesh->mNormals[vi].z };
@@ -109,11 +109,22 @@ void ModelLoader::ReadMesh(const aiScene* scene, MeshContainerType& meshContaine
                 meshContainer.indices.emplace_back(face.mIndices[i]);
             }
         }    
-
-        BoundingBox boundingBox = { {(minVec.x + maxVec.x) / 2.0f, (minVec.y + maxVec.y) / 2.0f, (minVec.z + maxVec.z) / 2.0f},
-            {(maxVec.x - minVec.x) / 2.0f, (maxVec.y - minVec.y) / 2.0f, (maxVec.z - minVec.z) / 2.0f} };
+        
         numIndices = mesh->mNumFaces * 3;
-        subMeshes_.push_back({ numIndices , baseIndex , baseVertex , boundingBox });
+
+        XMVECTOR minVec = XMVectorSet(minVertex.x, minVertex.y, minVertex.z, 0.0f);
+        XMVECTOR maxVec = XMVectorSet(maxVertex.x, maxVertex.y, maxVertex.z, 0.0f);
+        XMVECTOR centerVec = minVec + maxVec;
+        
+        BoundingBox boundingBox;
+        XMStoreFloat3(&boundingBox.Center, centerVec);
+        XMStoreFloat3(&boundingBox.Extents, maxVec - centerVec);
+        BoundingSphere boundingSphere;
+        boundingSphere.Center = boundingBox.Center;
+        boundingSphere.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&boundingBox.Extents)));
+
+        subMeshes_.push_back(Submesh(numIndices , baseIndex , baseVertex , boundingBox, boundingSphere));
+
         baseVertex += mesh->mNumVertices;
         baseIndex += numIndices;
     }

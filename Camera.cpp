@@ -142,6 +142,8 @@ void Camera::SetLens(float fovY, float aspect, float zn, float zf)
 
 	XMMATRIX P = XMMatrixPerspectiveFovLH(fovY_, aspect_, nearZ_, farZ_);
 	XMStoreFloat4x4(&projMat_, P);
+
+	BoundingFrustum::CreateFromMatrix(boundingFrustum_, P);
 }
 
 void Camera::LookAt(FXMVECTOR pos, FXMVECTOR target, FXMVECTOR worldUp)
@@ -195,6 +197,11 @@ XMFLOAT4X4 Camera::GetView4x4f()const
 XMFLOAT4X4 Camera::GetProj4x4f()const
 {
 	return projMat_;
+}
+
+BoundingFrustum Camera::GetBoundingFrustum() const
+{
+	return boundingFrustum_;
 }
 
 void Camera::Strafe(float d)

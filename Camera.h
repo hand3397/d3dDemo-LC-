@@ -61,6 +61,8 @@ public:
 	XMFLOAT4X4 GetView4x4f()const;
 	XMFLOAT4X4 GetProj4x4f()const;
 
+	BoundingFrustum GetBoundingFrustum()const;
+
 	// Strafe/Walk the camera a distance d.
 	void Strafe(float d);
 	void Walk(float d);
@@ -113,4 +115,6 @@ private:
 	// Cache View/Proj matrices.
 	XMFLOAT4X4 viewMat_ = MathHelper::Identity4x4();
 	XMFLOAT4X4 projMat_ = MathHelper::Identity4x4();
+
+	BoundingFrustum boundingFrustum_;
 };

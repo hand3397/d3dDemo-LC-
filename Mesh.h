@@ -32,14 +32,17 @@ struct SkinnedVertex
 struct Submesh
 {
     Submesh() = default;
-    Submesh(uint32_t indexCount, uint32_t baseIndex, uint32_t baseVertex, BoundingBox boundingBox) :
-        numIndices_(indexCount), baseIndex_(baseIndex), baseVertex_(baseVertex), boundingBox_(boundingBox) {}
+    Submesh(uint32_t indexCount, uint32_t baseIndex, uint32_t baseVertex, 
+        const BoundingBox& boundingBox, const BoundingSphere& boundingSphere) :
+        numIndices_(indexCount), baseIndex_(baseIndex), baseVertex_(baseVertex), 
+        boundingBox_(boundingBox), boundingSphere_(boundingSphere){}
 
     uint32_t numIndices_ = 0;
     uint32_t baseIndex_ = 0;
     uint32_t baseVertex_ = 0;
 
     BoundingBox boundingBox_;
+    BoundingSphere boundingSphere_;
 };
 
 class Mesh

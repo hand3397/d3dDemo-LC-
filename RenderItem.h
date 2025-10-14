@@ -44,6 +44,7 @@ struct RenderItem
     D3D12_PRIMITIVE_TOPOLOGY primitiveType_ = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
     BoundingBox boundingBox_;
+    BoundingSphere boundingSphere_;
 
     // DrawIndexedInstanced parameters.
     uint32_t indexCount_ = 0;
@@ -56,7 +57,7 @@ struct RenderItem
     // nullptr if this render-item is not animated by skinned mesh.
     SkinnedModelInstance* skinnedModelInst_ = nullptr;
 
-    // draw instance
+    // instance data
     uint32_t instanceCount_ = 1;
     vector<InstanceData> instances_;
     uint32_t instanceOffset_ = 0;

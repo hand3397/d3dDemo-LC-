@@ -27,9 +27,6 @@ private:
     virtual void Draw(const GameTimer& gt)override;
 
 	virtual void KeyInput(const GameTimer& gt);
-
-	void AnimateMaterials(const GameTimer& gt);
-
 private:
 	unique_ptr<Scene> scene;
 };
@@ -100,13 +97,10 @@ void Direct3DDemo::Update(const GameTimer& gt)
 {
 	const float dt = gt.DeltaTime();
 	keyInput_.Update();
-	scene.get()->GetPlayer()->Update(dt);
-
-	// 나중에 scene로 넣어야 함
-	AnimateMaterials(gt);
+	scene->Update(gt);
 
 	// update CB
-	renderer.get()->Update(gt, scene.get());
+	renderer->Update(gt, scene.get());
 }
 
 void Direct3DDemo::Draw(const GameTimer& gt)
@@ -125,9 +119,5 @@ void Direct3DDemo::KeyInput(const GameTimer& gt)
 		ReleaseCapture();
 
 	// KeyBoard
-	scene.get()->GetPlayer()->KeyInput(keyInput_, dt);
-}
-
-void Direct3DDemo::AnimateMaterials(const GameTimer& gt) {
-
+	scene->KeyInput(keyInput_, dt);
 }

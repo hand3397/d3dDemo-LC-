@@ -15,12 +15,18 @@ void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 
 void Scene::KeyInput(const KeyInputManager& keyInput, float dt)
 {
-
+	if (player_)
+		player_->KeyInput(keyInput, dt);
 }
 
-void Scene::Update(float dt)
+void Scene::Update(const GameTimer& gt)
 {
-
+	float dt = gt.DeltaTime();
+	
+	if (player_)
+		player_->Update(dt);
+	
+	AnimateMaterials(dt);
 }
 
 Player* Scene::GetPlayer()
@@ -146,26 +152,37 @@ void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 	// Define the SubmeshGeometry that cover different 
 	// regions of the vertex/index buffers.
 	BoundingBox bb;
+	BoundingSphere bs;
 
 	bb.Center = MathHelper::SumFloat3(box.maxPos, box.minPos);
 	bb.Extents = MathHelper::SubFloat3(box.maxPos, bb.Center);
-	Submesh boxSubmesh((UINT)box.Indices32.size(), boxIndexOffset, boxVertexOffset, bb);
+	bs.Center = bb.Center;
+	bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bb.Extents)));
+	Submesh boxSubmesh((UINT)box.Indices32.size(), boxIndexOffset, boxVertexOffset, bb, bs);
 
 	bb.Center = MathHelper::SumFloat3(wall.maxPos, wall.minPos);
 	bb.Extents = MathHelper::SubFloat3(wall.maxPos, bb.Center);
-	Submesh wallSubmesh((UINT)wall.Indices32.size(), wallIndexOffset, wallVertexOffset, bb);
+	bs.Center = bb.Center;
+	bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bb.Extents)));
+	Submesh wallSubmesh((UINT)wall.Indices32.size(), wallIndexOffset, wallVertexOffset, bb, bs);
 	
 	bb.Center = MathHelper::SumFloat3(grid.maxPos, grid.minPos);
 	bb.Extents = MathHelper::SubFloat3(grid.maxPos, bb.Center);
-	Submesh gridSubmesh((UINT)grid.Indices32.size(), gridIndexOffset, gridVertexOffset, bb);
+	bs.Center = bb.Center;
+	bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bb.Extents)));
+	Submesh gridSubmesh((UINT)grid.Indices32.size(), gridIndexOffset, gridVertexOffset, bb, bs);
 	
 	bb.Center = MathHelper::SumFloat3(sphere.maxPos, sphere.minPos);
 	bb.Extents = MathHelper::SubFloat3(sphere.maxPos, bb.Center);
-	Submesh sphereSubmesh((UINT)sphere.Indices32.size(), sphereIndexOffset, sphereVertexOffset, bb);
+	bs.Center = bb.Center;
+	bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bb.Extents)));
+	Submesh sphereSubmesh((UINT)sphere.Indices32.size(), sphereIndexOffset, sphereVertexOffset, bb, bs);
 
 	bb.Center = MathHelper::SumFloat3(cylinder.maxPos, cylinder.minPos);
 	bb.Extents = MathHelper::SubFloat3(cylinder.maxPos, bb.Center);
-	Submesh cylinderSubmesh((UINT)cylinder.Indices32.size(), cylinderIndexOffset, cylinderVertexOffset, bb);
+	bs.Center = bb.Center;
+	bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bb.Extents)));
+	Submesh cylinderSubmesh((UINT)cylinder.Indices32.size(), cylinderIndexOffset, cylinderVertexOffset, bb, bs);
 	
 	//
 	// Extract the vertex elements we are interested in and pack the
@@ -431,4 +448,8 @@ void Scene::LoadTexture(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList
 	tex->SrvHeapIndex = textures_.size();
 
 	textures_[tex->Name] = move(tex);
+}
+
+void Scene::AnimateMaterials(float dt)
+{
 }

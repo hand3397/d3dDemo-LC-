@@ -15,7 +15,7 @@ public:
 
     void KeyInput(const KeyInputManager& keyInput, float dt);
     void AddGameObject();
-    void Update(float dt);
+    void Update(const GameTimer& gt);
 
     Player* GetPlayer();
     Camera* GetCamera();
@@ -53,7 +53,9 @@ private:
     void LoadModels(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void LoadTextures(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void LoadTexture(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList,
-    const string& name, const wstring& fileName);
+        const string& name, const wstring& fileName);
+
+    void AnimateMaterials(float dt);
 
 private:
 
