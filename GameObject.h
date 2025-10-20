@@ -2,6 +2,7 @@
 
 #include "d3dUtil.h"
 #include "RenderItem.h"
+#include "Rigidbody.h"
 
 using namespace std;
 using namespace DirectX;
@@ -9,22 +10,30 @@ using namespace DirectX;
 class GameObject
 {
 public:
-    GameObject(const string& name);
+    GameObject() = default;
+    GameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position);
+    GameObject(const XMMATRIX& world);
 
     virtual void Update(float dt);
 
     void SetRenderItems(const vector<RenderItem*>& renderItems);
     void AddRenderItem(RenderItem* renderItem);
 
-    vector<RenderItem*> GetRenderItems() const;
+    void SetRigidBody(const Rigidbody& rigidbody);
+    void SetRigidBody(uint8_t rigidbodyType, const XMFLOAT3& scale, const XMFLOAT4& rotateQuat, const XMFLOAT3& transform);
+    void SetRigidBody(uint8_t rigidbodyType, const XMFLOAT3& scale, const XMFLOAT4& rotateQuat, const XMFLOAT3& transform,
+        const BoundingOrientedBox& bb, const BoundingSphere& bs);
 
-    void UpdateRenderItem();
+    vector<RenderItem*> GetRenderItems() const;
 
     void SetPosition(const XMFLOAT3& pos);
     XMFLOAT3 GetPosition() const;
 
+    Rigidbody GetRigidbody()const;
+
 protected:
-    string name_;
+
+    Rigidbody rigidbody_;
     vector<RenderItem*> renderItems_;
 
     XMFLOAT3 position_ = { 0.0f, 0.0f, 0.0f };
@@ -35,7 +44,7 @@ protected:
 class MovingObject : public GameObject
 {
 public:
-    MovingObject(const string& name);
+    MovingObject();
     virtual void Update(float dt) override;
 
     bool IsAccelerating() const;

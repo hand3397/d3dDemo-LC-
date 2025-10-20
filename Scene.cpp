@@ -4,10 +4,20 @@ Scene::Scene()
 {
 }
 
+Scene::~Scene()
+{
+	if (player_)
+		delete player_;
+
+	for (auto go : gameObjects_)
+		if (go)
+			delete go;
+}
+
 void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
-	player_ = make_unique<Player>("Player");
-	mainCamera_ = player_.get()->GetCamera();
+	player_ = new Player;
+	mainCamera_ = player_->GetCamera();
 
 	LoadScene(device, cmdList);
 	BuildScene(device, cmdList);
@@ -17,6 +27,11 @@ void Scene::KeyInput(const KeyInputManager& keyInput, float dt)
 {
 	if (player_)
 		player_->KeyInput(keyInput, dt);
+}
+
+void Scene::AddGameObject(GameObject* gameObject)
+{
+	gameObjects_.push_back(gameObject);
 }
 
 void Scene::Update(const GameTimer& gt)
@@ -31,7 +46,7 @@ void Scene::Update(const GameTimer& gt)
 
 Player* Scene::GetPlayer()
 {
-	return player_.get();
+	return player_;
 }
 
 Camera* Scene::GetCamera()
@@ -39,12 +54,12 @@ Camera* Scene::GetCamera()
 	return mainCamera_;
 }
 
-const uint32_t Scene::GetNumInstances()
+const uint32_t Scene::GetNumInstances() const
 {
 	return numInstances;
 }
 
-const vector<unique_ptr<GameObject>>& Scene::GetGameObjects() const
+const vector<GameObject*>& Scene::GetGameObjects() const
 {
 	return gameObjects_;
 }
@@ -118,14 +133,14 @@ void Scene::BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
 	BuildShapeGeometry(device, cmdList);
 	BuildMaterials();
-	BuildRenderItems();
+	BuildGameObjects();
 }
 
 void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
-	GeometryGenerator::MeshData wall = geoGen.CreateOnBox(1.0f, 3.0f, 0.1f, 3);
+	GeometryGenerator::MeshData wall = geoGen.CreateOnBox(1.0f, 3.0f, 0.1f, 1);
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
@@ -154,32 +169,32 @@ void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 	BoundingBox bb;
 	BoundingSphere bs;
 
-	bb.Center = MathHelper::SumFloat3(box.maxPos, box.minPos);
-	bb.Extents = MathHelper::SubFloat3(box.maxPos, bb.Center);
+	bb.Center = MathHelper::GetCenterFloat3(box.minPos, box.maxPos);
+	bb.Extents = MathHelper::GetExtentsFloat3(box.minPos, box.maxPos);
 	bs.Center = bb.Center;
 	bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bb.Extents)));
 	Submesh boxSubmesh((UINT)box.Indices32.size(), boxIndexOffset, boxVertexOffset, bb, bs);
 
-	bb.Center = MathHelper::SumFloat3(wall.maxPos, wall.minPos);
-	bb.Extents = MathHelper::SubFloat3(wall.maxPos, bb.Center);
+	bb.Center = MathHelper::GetCenterFloat3(wall.minPos, wall.maxPos);
+	bb.Extents = MathHelper::GetExtentsFloat3(wall.minPos, wall.maxPos);
 	bs.Center = bb.Center;
 	bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bb.Extents)));
 	Submesh wallSubmesh((UINT)wall.Indices32.size(), wallIndexOffset, wallVertexOffset, bb, bs);
 	
-	bb.Center = MathHelper::SumFloat3(grid.maxPos, grid.minPos);
-	bb.Extents = MathHelper::SubFloat3(grid.maxPos, bb.Center);
+	bb.Center = MathHelper::GetCenterFloat3(grid.minPos, grid.maxPos);
+	bb.Extents = MathHelper::GetExtentsFloat3(grid.minPos, grid.maxPos);
 	bs.Center = bb.Center;
 	bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bb.Extents)));
 	Submesh gridSubmesh((UINT)grid.Indices32.size(), gridIndexOffset, gridVertexOffset, bb, bs);
 	
-	bb.Center = MathHelper::SumFloat3(sphere.maxPos, sphere.minPos);
-	bb.Extents = MathHelper::SubFloat3(sphere.maxPos, bb.Center);
+	bb.Center = MathHelper::GetCenterFloat3(sphere.minPos, sphere.maxPos);
+	bb.Extents = MathHelper::GetExtentsFloat3(sphere.minPos, sphere.maxPos);
 	bs.Center = bb.Center;
 	bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bb.Extents)));
 	Submesh sphereSubmesh((UINT)sphere.Indices32.size(), sphereIndexOffset, sphereVertexOffset, bb, bs);
-
-	bb.Center = MathHelper::SumFloat3(cylinder.maxPos, cylinder.minPos);
-	bb.Extents = MathHelper::SubFloat3(cylinder.maxPos, bb.Center);
+	
+	bb.Center = MathHelper::GetCenterFloat3(cylinder.minPos, cylinder.maxPos);
+	bb.Extents = MathHelper::GetExtentsFloat3(cylinder.minPos, cylinder.maxPos);
 	bs.Center = bb.Center;
 	bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bb.Extents)));
 	Submesh cylinderSubmesh((UINT)cylinder.Indices32.size(), cylinderIndexOffset, cylinderVertexOffset, bb, bs);
@@ -273,107 +288,158 @@ void Scene::BuildMaterials()
 		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.25f) });
 }
 
-void Scene::BuildRenderItems()
+void Scene::BuildGameObjects()
 {
-	UINT objCBIndex = 0;
-
-	BuildRenderItem((uint8_t)RenderLayer::AlphaTested,
+	vector<RenderItem*> renderItems;
+	renderItems = { BuildRenderItem((uint8_t)RenderLayer::AlphaTested,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["box"], materials_["wirefence"].get(),
-		XMMatrixScaling(3.0f, 3.0f, 3.0f) * XMMatrixTranslation(0.0f, 3.0f, 0.0f));
-
-	BuildRenderItem((uint8_t)RenderLayer::Transparent,
+		XMMatrixScaling(3.0f, 3.0f, 3.0f) * XMMatrixTranslation(0.0f, 3.0f, 0.0f), XMMatrixIdentity()) };
+	BuildGameObject(XMFLOAT3(3.0f, 3.0f, 3.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 3.0f, 0.0f), 
+		renderItems, (uint8_t)RigidbodyType::Static);
+	
+	
+	renderItems = { BuildRenderItem((uint8_t)RenderLayer::Transparent,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["box"], materials_["ice0"].get(),
-		XMMatrixTranslation(0.0f, 4.0f, 0.0f));
+		XMMatrixTranslation(0.0f, 4.0f, 0.0f), XMMatrixIdentity()) };
+	BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 4.0f, 0.0f),
+		renderItems, (uint8_t)RigidbodyType::Static);
 
-	BuildRenderItem((uint8_t)RenderLayer::Opaque,
+	renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["grid"], materials_["tile0"].get(),
-		XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f));
-
-	BuildRenderItem((uint8_t)RenderLayer::Opaque,
+		XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f)) };
+	BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
+		renderItems, (uint8_t)RigidbodyType::Static);
+	
+	// build wall
+	renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["box"], materials_["soldier"].get(),
-		XMMatrixIdentity(), XMMatrixIdentity());
+		XMMatrixIdentity(), XMMatrixIdentity()) };
+	BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
+		renderItems, (uint8_t)RigidbodyType::Static);
 	
 	auto wall = BuildRenderItem((uint8_t)RenderLayer::Instance,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["wall"], materials_["stone0"].get(),
 		XMMatrixIdentity(), XMMatrixIdentity());
-
-	const int n = 21;
+	renderItems = { wall };
+	const int n = 5;
 	wall->instanceCount_ = n * n * n;
 	numInstances += wall->instanceCount_;
 	wall->instanceOffset_ = 0;
 	wall->instances_.resize(numInstances);
-	// build wall
+	
 	for (int x = 0; x < n; x++) {
 		for (int y = 0; y < n; y++) {
 			for (int z = 0; z < n; z++) {
 				int index = x * n * n + y * n + z;
-				XMStoreFloat4x4(&wall->instances_[index].World, 
-					XMMatrixTranslation(3.0f * x - 30.f, y * 4.0f - 40.f, -2.0f * z + 10.f));
+				XMStoreFloat4x4(&wall->instances_[index].World,
+					XMMatrixTranslation(3.0f * x - 6.f, y * 4.0f, -2.0f * z));
 				wall->instances_[index].MaterialIndex = index % materials_.size();
+				BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(3.0f * x - 6.f, y * 4.0f, -2.0f * z),
+					renderItems, (uint8_t)RigidbodyType::Static);
 			}
 		}
 	}
-
-	auto palyerRenderItem1 = BuildRenderItem((uint8_t)RenderLayer::Skinned,
+	
+	renderItems = { BuildRenderItem((uint8_t)RenderLayer::Skinned,
 		meshes_["skinnedGeo"].get(), meshes_["skinnedGeo"].get()->subMeshes_["0"], materials_["soldier"].get(),
 		XMMatrixIdentity(), XMMatrixIdentity(),
-		skinnedModelInsts_["Vanguard"].get(), 0);
+		skinnedModelInsts_["Vanguard"].get(), 0),
 
-	auto palyerRenderItem2 = BuildRenderItem((uint8_t)RenderLayer::Skinned,
+		BuildRenderItem((uint8_t)RenderLayer::Skinned,
 		meshes_["skinnedGeo"].get(), meshes_["skinnedGeo"].get()->subMeshes_["1"], materials_["soldier"].get(),
 		XMMatrixIdentity(), XMMatrixIdentity(),
-		skinnedModelInsts_["Vanguard"].get(), 0);
-
-	player_->AddRenderItem(palyerRenderItem1);
-	player_->AddRenderItem(palyerRenderItem2);
-
-	//---------------------------------------
-
+		skinnedModelInsts_["Vanguard"].get(), 0) };
+	player_->SetRenderItems(renderItems);
+	
 	for (int i = 0; i < 5; ++i) {
+		XMFLOAT3 leftCylPos = XMFLOAT3(-5.0f, 1.5f, -10.0f + i * 5.0f);
+		XMFLOAT3 rightCylPos = XMFLOAT3(+5.0f, 1.5f, -10.0f + i * 5.0f);
 		XMMATRIX leftCylWorld = XMMatrixTranslation(-5.0f, 1.5f, -10.0f + i * 5.0f);
 		XMMATRIX rightCylWorld = XMMatrixTranslation(+5.0f, 1.5f, -10.0f + i * 5.0f);
 
+		XMFLOAT3 leftSpherePos = XMFLOAT3(-5.0f, 3.5f, -10.0f + i * 5.0f);
+		XMFLOAT3 rightSpherePos = XMFLOAT3(+5.0f, 3.5f, -10.0f + i * 5.0f);
 		XMMATRIX leftSphereWorld = XMMatrixTranslation(-5.0f, 3.5f, -10.0f + i * 5.0f);
 		XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f, 3.5f, -10.0f + i * 5.0f);
 
-		BuildRenderItem((uint8_t)RenderLayer::Opaque,
+		renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
 			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["cylinder"], materials_["bricks0"].get(),
-			leftCylWorld);
+			leftCylWorld, XMMatrixIdentity()) };
+		BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), leftCylPos,
+			renderItems, (uint8_t)RigidbodyType::Static);
 
-		BuildRenderItem((uint8_t)RenderLayer::Opaque,
+		renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
 			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["cylinder"], materials_["bricks0"].get(),
-			rightCylWorld);
+			rightCylWorld, XMMatrixIdentity()) };
+		BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), rightCylPos,
+			renderItems, (uint8_t)RigidbodyType::Static);
 
-		BuildRenderItem((uint8_t)RenderLayer::Opaque,
+		renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
 			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["sphere"], materials_["stone0"].get(),
-			leftSphereWorld);
+			leftSphereWorld, XMMatrixIdentity()) };
+		BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), leftSpherePos,
+			renderItems, (uint8_t)RigidbodyType::Static);
 
-		BuildRenderItem((uint8_t)RenderLayer::Opaque,
+		renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
 			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["sphere"], materials_["stone0"].get(),
-			rightSphereWorld);
+			rightSphereWorld, XMMatrixIdentity()) };
+		BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), rightSpherePos,
+			renderItems, (uint8_t)RigidbodyType::Static);
 	}
 }
 
+GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& transform, 
+	vector<RenderItem*>& rItems, uint8_t rigidbodyType)
+{
+	XMFLOAT4 rotateQuat;
+	XMStoreFloat4(&rotateQuat, XMQuaternionRotationRollPitchYaw(rotate.x, rotate.y, rotate.z));
+	
+	XMMATRIX S = XMMatrixScaling(scale.x, scale.y, scale.z);
+	XMMATRIX R = XMMatrixRotationQuaternion(XMLoadFloat4(&rotateQuat));
+	XMMATRIX T = XMMatrixTranslation(transform.x, transform.y, transform.z);
+	XMMATRIX world = S * R * T;
+	
+	GameObject* gameObject = new GameObject(scale, rotate, transform);
+	for (RenderItem* ri : rItems) {
+		if (!ri) continue;
+		XMStoreFloat4x4(&ri->world_, world);
+		gameObject->AddRenderItem(ri);
+	}
+
+	auto rItem = gameObject->GetRenderItems()[0];
+	if (rItem) {
+		BoundingOrientedBox bb;
+		bb.Center = rItem->boundingBox_.Center;
+		bb.Extents = rItem->boundingBox_.Extents;
+		bb.Orientation = rotateQuat;
+		gameObject->SetRigidBody(rigidbodyType, scale, rotateQuat, transform,
+			bb, rItem->boundingSphere_);
+	} 
+	else {
+		gameObject->SetRigidBody(rigidbodyType, scale, rotateQuat, transform);
+	}
+	
+	AddGameObject(gameObject);
+	return gameObject;
+}
+
 RenderItem* Scene::BuildRenderItem(const uint8_t renderLayer,
-	MeshGeometry* mesh, const Submesh& submesh, Material* material,
-	const XMMATRIX& worldTransform, const XMMATRIX& texTransform,
+	const MeshGeometry* mesh, const Submesh& submesh, const Material* material,
+	const XMMATRIX& world, const XMMATRIX& texTransform,
 	SkinnedModelInstance* skinnedModelInstance, const int32_t skinnedCBIndex)
 {
-	auto renderItem = make_unique<RenderItem>();
-	XMStoreFloat4x4(&renderItem->world_, worldTransform);
-	XMStoreFloat4x4(&renderItem->texTransform_, texTransform);
+	auto renderItem = make_unique<RenderItem>(mesh, submesh, material, world, texTransform);
+	if (renderLayer == (uint8_t)RenderLayer::Skinned) {
+		renderItem->isSkinningObject = true;
+		renderItem->skinnedModelInst_ = skinnedModelInstance;
+		renderItem->skinnedCBIndex_ = skinnedCBIndex;
+	}
 	renderItem->objCBIndex_ = allRenderItems_.size();
-	renderItem->material_ = material;
-	renderItem->mesh_ = mesh;
-	//renderItem->primitiveType_ = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	renderItem->indexCount_ = submesh.numIndices_;
-	renderItem->baseIndex_ = submesh.baseIndex_;
-	renderItem->baseVertex_ = submesh.baseVertex_;
-	renderItem->skinnedModelInst_ = skinnedModelInstance;
-	renderItem->skinnedCBIndex_ = skinnedCBIndex;
+
+	renderItem->boundingBox_ = submesh.boundingBox_;
+	renderItem->boundingSphere_ = submesh.boundingSphere_;
 
 	RenderItem* rItem = renderItem.get();
-
 	renderItemLayer_[renderLayer].push_back(rItem);
 	allRenderItems_.push_back(move(renderItem));
 	return rItem;

@@ -130,6 +130,25 @@ public:
 		return out;
 	}
 
+	static DirectX::XMFLOAT3 GetCenterFloat3(const DirectX::XMFLOAT3& minPos, const DirectX::XMFLOAT3& maxPos)
+	{
+		DirectX::XMFLOAT3 out{ (minPos.x + maxPos.x) / 2.0f, (minPos.y + maxPos.y) / 2.0f, (minPos.z + maxPos.z) / 2.0f };
+		return out;
+	}
+
+	static DirectX::XMFLOAT3 GetExtentsFloat3(DirectX::XMFLOAT3 minPos, DirectX::XMFLOAT3 maxPos)
+	{
+		if (maxPos.x < minPos.x) {
+			DirectX::XMFLOAT3 temp = minPos;
+			minPos = maxPos;
+			maxPos = temp;
+		}
+			
+		DirectX::XMFLOAT3 center = GetCenterFloat3(minPos, maxPos);
+		DirectX::XMFLOAT3 out{ maxPos.x - center.x, maxPos.y - center.y, maxPos.z - center.z };
+		return out;
+	}
+
 	static DirectX::XMFLOAT3 SubFloat3(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b)
 	{
 		DirectX::XMFLOAT3 out{ a.x - b.x, a.y - b.y, a.z - b.z };

@@ -4,6 +4,7 @@
 #include "Camera.h"
 #include "FSM.h"
 
+// animation용 State
 class IdleState;
 class MoveState;
 class JumpState;
@@ -14,15 +15,15 @@ class FallingState;
     isMoving_, isRunning_, isFalling_, moveDir_과 같은 이동에 관한 flag만 정함.
     Jump만 바로 State변환
 
-    State는 해당 flag를 player로 부터받아와 player의 최종 애니메이션을 설정
+    State는 해당 flag를 player로 부터 받아와 player의 최종 애니메이션을 결정
 
     Player의 실제 이동은 MovingObject의 rigidBody를 phygics에 넘기고 phygics에서 모든 이동을 처리
 */
 
-class Player : public MovingObject 
+class Player : public GameObject 
 {
 public:
-    Player(const string& name);
+    Player();
 
     bool IsMoving() const;
     bool IsRunning() const;
@@ -36,14 +37,14 @@ public:
     void KeyInput(const KeyInputManager& keyInput, float dt);
     virtual void Update(float dt) override;
 
-    FSM<Player> GetFSM();
+    FSM<Player> GetFSM() const;
 
     Camera* GetCamera();
     void SetCameraOffset(const XMFLOAT3& offset);
     void SetCameraAngle(float pitch, float yaw, float roll);
 
     const string& GetAnimationName();
-    float GetAnimtionTime();
+    float GetAnimtionTime() const;
     void SetAnimation(const string& animName);
     void SetAnimationTime();
 private:

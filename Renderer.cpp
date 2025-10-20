@@ -67,6 +67,8 @@ void Renderer::InitScene(Scene* scene)
 	BuildShadersAndInputLayout();
 	BuildFrameResources(scene);
 	BuildPSOs();
+
+	BuildDebugMesh();
 }
 
 void Renderer::OnResize(int clientWidth, int clientHeight)
@@ -114,7 +116,7 @@ void Renderer::OnResize(int clientWidth, int clientHeight)
 	}
 
 	// Create the depth/stencil buffer and view.
-	D3D12_RESOURCE_DESC depthStencilDesc;
+	D3D12_RESOURCE_DESC depthStencilDesc = {};
 	depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	depthStencilDesc.Alignment = 0;
 	depthStencilDesc.Width = clientWidth_;
@@ -134,7 +136,7 @@ void Renderer::OnResize(int clientWidth, int clientHeight)
 	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
-	D3D12_CLEAR_VALUE optClear;
+	D3D12_CLEAR_VALUE optClear = {};
 	optClear.Format = depthStencilFormat_;
 	optClear.DepthStencil.Depth = 1.0f;
 	optClear.DepthStencil.Stencil = 0;
@@ -147,7 +149,7 @@ void Renderer::OnResize(int clientWidth, int clientHeight)
 		IID_PPV_ARGS(depthStencilBuffer_.GetAddressOf())));
 
 	// Create descriptor to mip level 0 of entire resource using the format of the resource.
-	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
 	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
 	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 	dsvDesc.Format = depthStencilFormat_;
@@ -188,11 +190,13 @@ void Renderer::Update(const GameTimer& gt, Scene* scene)
 	UpdateSkinnedCBs(gt, scene);
 	UpdateMaterialBuffer(gt, scene);
 	UpdateMainPassCB(gt, scene);
+	
+	UpdateDebugMesh(scene);
 }
 
 void Renderer::Draw(const Scene* scene)
 {
-	auto cmdListAlloc = currFrameResource_->cmdListAlloc_;
+	auto& cmdListAlloc = currFrameResource_->cmdListAlloc_;
 
 	// 명령 기록에 관련된 메모리의 재활용을 위해 명령할당자를 재설정한다.
 	// 재설정은 GPU가 관련명령 목록을 모두 처리한 뒤 일어난다.
@@ -253,6 +257,8 @@ void Renderer::Draw(const Scene* scene)
 	commandList_->SetPipelineState(PSOs_["instance"].Get());
 	DrawRenderItems(scene->GetRenderItems(RenderLayer::Instance));
 
+	commandList_->SetPipelineState(PSOs_["color"].Get());
+	DrawDebugBox();
 	// ---------------------------------------------------------
 
 	// Indicate a state transition on the resource usage.
@@ -287,11 +293,11 @@ void Renderer::BuildRootSignature()
 	// the input resources as function parameters, then the root signature can be
 	// thought of as defining the function signature.  
 
-	CD3DX12_DESCRIPTOR_RANGE texTable;
+	CD3DX12_DESCRIPTOR_RANGE texTable = {};
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 16, 0);
 
 	// Root parameter can be a table, root descriptor or root constants.
-	CD3DX12_ROOT_PARAMETER slotRootParameter[6];
+	CD3DX12_ROOT_PARAMETER slotRootParameter[6] = {};
 
 	// Create root CBVs.
 	slotRootParameter[0].InitAsConstantBufferView(0);		//objectCB
@@ -349,7 +355,7 @@ void Renderer::BuildDescriptorHeaps(Scene* scene)
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 	
 	for (auto& [name, tex] : textures) {
-		auto resource = tex->Resource;
+		auto& resource = tex->Resource;
 
 		srvDesc.Format = resource->GetDesc().Format;
 		srvDesc.Texture2D.MipLevels = resource->GetDesc().MipLevels;
@@ -381,22 +387,30 @@ void Renderer::BuildShadersAndInputLayout()
 		{ NULL, NULL }
 	};
 
+	shaders_["colorVS"] = d3dUtil::CompileShader(L"Shaders/color.hlsl", nullptr, "VS", "vs_5_1");
 	shaders_["standardVS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", nullptr, "VS", "vs_5_1");
 	shaders_["skinnedVS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", skinnedDefines, "VS", "vs_5_1");
 	shaders_["instanceVS"] = d3dUtil::CompileShader(L"Shaders/Instance.hlsl", defines, "VS", "vs_5_1");
 
+	shaders_["colorPS"] = d3dUtil::CompileShader(L"Shaders/color.hlsl", nullptr, "PS", "ps_5_1");
 	shaders_["opaquePS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", defines, "PS", "ps_5_1");
 	shaders_["instancePS"] = d3dUtil::CompileShader(L"Shaders/Instance.hlsl", defines, "PS", "ps_5_1");
 	shaders_["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", alphaTestDefines, "PS", "ps_5_1");
 
-	inputLayout_ =
+	inputLayouts_["standard"] =
 	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(Vertex, Pos), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(Vertex, Normal), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, (UINT)offsetof(Vertex, TexC), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
+	
+	inputLayouts_["color"] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(ColorVertex, Pos), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, (UINT)offsetof(ColorVertex, Color), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
 
-	skinnedInputLayout_ =
+	inputLayouts_["skinned"] =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(SkinnedVertex, Pos), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(SkinnedVertex, Normal), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -425,7 +439,7 @@ void Renderer::BuildPSOs()
 	//
 	// PSO for opaque objects.
 	//
-	opaquePsoDesc.InputLayout = { inputLayout_.data(), (UINT)inputLayout_.size() };
+	opaquePsoDesc.InputLayout = { inputLayouts_["standard"].data(), (UINT)inputLayouts_["standard"].size() };
 	opaquePsoDesc.pRootSignature = rootSignature_.Get();
 	opaquePsoDesc.VS =
 	{
@@ -454,9 +468,22 @@ void Renderer::BuildPSOs()
 	// PSO for opaque wireframe objects.
 	//
 
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueWireframePsoDesc = opaquePsoDesc;
-	opaqueWireframePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
-	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&PSOs_["opaque_wireframe"])));
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC colorWireFramePsoDesc = opaquePsoDesc;
+	colorWireFramePsoDesc.InputLayout = { inputLayouts_["color"].data(), (UINT)inputLayouts_["color"].size() };
+	colorWireFramePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	colorWireFramePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+	colorWireFramePsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	colorWireFramePsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(shaders_["colorVS"]->GetBufferPointer()),
+		shaders_["colorVS"]->GetBufferSize()
+	};
+	colorWireFramePsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(shaders_["colorPS"]->GetBufferPointer()),
+		shaders_["colorPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&colorWireFramePsoDesc, IID_PPV_ARGS(&PSOs_["color"])));
 
 	//
 	// PSO for opaque instance objects.
@@ -481,7 +508,7 @@ void Renderer::BuildPSOs()
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC transparentPsoDesc = opaquePsoDesc;
 
-	D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
+	D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc = {};
 	transparencyBlendDesc.BlendEnable = true;
 	transparencyBlendDesc.LogicOpEnable = false;
 	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
@@ -514,13 +541,62 @@ void Renderer::BuildPSOs()
 	//
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedOpaquePsoDesc = opaquePsoDesc;
-	skinnedOpaquePsoDesc.InputLayout = { skinnedInputLayout_.data(), (UINT)skinnedInputLayout_.size() };
+	skinnedOpaquePsoDesc.InputLayout = { inputLayouts_["skinned"].data(), (UINT)inputLayouts_["skinned"].size() };
 	skinnedOpaquePsoDesc.VS =
 	{
 		reinterpret_cast<BYTE*>(shaders_["skinnedVS"]->GetBufferPointer()),
 		shaders_["skinnedVS"]->GetBufferSize()
 	};
 	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&skinnedOpaquePsoDesc, IID_PPV_ARGS(&PSOs_["skinnedOpaque"])));
+}
+
+void Renderer::BuildDebugMesh()
+{
+	debugMesh_.vertexBufferUploader_;
+	
+	ThrowIfFailed(d3dDevice_->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+		D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(maxDebugVertices_ * sizeof(ColorVertex)),
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(debugMesh_.vertexBufferUploader_.GetAddressOf())));
+
+	// Persistent map
+	CD3DX12_RANGE readRange(0, 0);
+	ThrowIfFailed(debugMesh_.vertexBufferUploader_->Map(
+		0, &readRange, reinterpret_cast<void**>(&mappedData_)));
+}
+
+void Renderer::UpdateDebugMesh(Scene* scene)
+{
+	vector<ColorVertex> vertices;
+
+	auto& gameObejects = scene->GetGameObjects();
+	XMFLOAT4 color;
+	XMStoreFloat4(&color, DirectX::Colors::Red);
+	
+	for (auto& go : gameObejects) 
+	{
+		if (vertices.size() + 24 > maxDebugVertices_)
+			break;
+
+		XMFLOAT3 corner[8];
+		go->GetRigidbody().boundingBox_.GetCorners(corner);
+
+		auto pushEdge = [&](int a, int b) {
+			vertices.emplace_back(corner[a], color);
+			vertices.emplace_back(corner[b], color);};
+		pushEdge(0, 1); pushEdge(1, 2); pushEdge(2, 3); pushEdge(3, 0); // bottom
+		pushEdge(4, 5); pushEdge(5, 6); pushEdge(6, 7); pushEdge(7, 4); // top
+		pushEdge(0, 4); pushEdge(1, 5); pushEdge(2, 6); pushEdge(3, 7); // sides
+	}
+
+	memcpy(mappedData_, vertices.data(), sizeof(ColorVertex) * vertices.size());
+
+	debugMesh_.vertexByteStride_ = sizeof(ColorVertex);
+	debugMesh_.vertexBufferByteSize_ = sizeof(ColorVertex) * vertices.size();
+	countDebugVertices_ = vertices.size();
 }
 
 array<const CD3DX12_STATIC_SAMPLER_DESC, 6> Renderer::GetStaticSamplers()
@@ -621,7 +697,7 @@ bool Renderer::InitDirect3D(HWND hwnd)
 
 	// 백버퍼 포맷에 대해 4X MSAA 품질 지원 여부 확인
 	// Direct3D 11 지원 장치에서는 모든 렌더 타겟 포맷에 대해 4X MSAA 지원
-	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
+	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels = {};
 	msQualityLevels.Format = backBufferFormat_;
 	msQualityLevels.SampleCount = 4;
 	msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
@@ -713,7 +789,7 @@ void Renderer::CreateSwapChain(HWND hwnd)
 
 void Renderer::CreateRtvAndDsvDescriptorHeaps()
 {
-	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
 	rtvHeapDesc.NumDescriptors = numSwapChainBuffers_;
 	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
@@ -722,7 +798,7 @@ void Renderer::CreateRtvAndDsvDescriptorHeaps()
 		&rtvHeapDesc, IID_PPV_ARGS(rtvHeap_.GetAddressOf())));
 
 
-	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
 	dsvHeapDesc.NumDescriptors = 1;
 	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
@@ -838,13 +914,15 @@ void Renderer::UpdateInstanceData(const GameTimer& gt, Scene* scene)
 			currInstanceBuffer->CopyData(visibleInstanceCount++, data);
 		}
 		e->instanceCount_ = visibleInstanceCount;
-
+		
+		/*
 		std::wostringstream outs;
 		outs.precision(6);
 		outs << L"Instancing and Culling Demo" <<
 			L"    " << e->instanceCount_ <<
 			L" objects visible out of " << e->instances_.size() << '\n';
 		OutputDebugStringW(outs.str().c_str());
+		*/
 	}
 }
 
@@ -857,7 +935,7 @@ void Renderer::UpdateSkinnedCBs(const GameTimer& gt, Scene* scene)
 		skinnedModel->UpdateSkinnedAnimation();
 	}
 
-	SkinnedConstants skinnedConstants;
+	SkinnedConstants skinnedConstants = {};
 	copy(skinnedModelInsts["Vanguard"]->finalTransforms_.begin(), skinnedModelInsts["Vanguard"]->finalTransforms_.end(),
 		&skinnedConstants.BoneTransforms[0]);
 
@@ -931,8 +1009,8 @@ void Renderer::UpdateMainPassCB(const GameTimer& gt, Scene* scene)
 
 void Renderer::DrawRenderItems(const vector<RenderItem*>& ritems)
 {
-	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
-	UINT skinnedCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(SkinnedConstants));
+	uint32_t objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+	uint32_t skinnedCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(SkinnedConstants));
 	
 	auto objectCB = currFrameResource_->objectCB_->Resource();
 	auto skinnedCB = currFrameResource_->skinnedCB_->Resource();
@@ -952,12 +1030,17 @@ void Renderer::DrawRenderItems(const vector<RenderItem*>& ritems)
 			D3D12_GPU_VIRTUAL_ADDRESS skinnedCBAddress = skinnedCB->GetGPUVirtualAddress() + ri->skinnedCBIndex_ * skinnedCBByteSize;
 			commandList_->SetGraphicsRootConstantBufferView(1, skinnedCBAddress);
 		}
-		else {
-			commandList_->SetGraphicsRootConstantBufferView(1, 0);
-		}
 
 		commandList_->DrawIndexedInstanced(ri->indexCount_, ri->instanceCount_, ri->baseIndex_, ri->baseVertex_, ri->instanceOffset_);
 	}
+}
+
+void Renderer::DrawDebugBox()
+{
+	commandList_->IASetVertexBuffers(0, 1, &debugMesh_.VertexUploadBufferView());
+	commandList_->IASetIndexBuffer(nullptr);
+	commandList_->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+	commandList_->DrawInstanced(countDebugVertices_, 1, 0, 0);
 }
 
 void Renderer::LogAdapters()

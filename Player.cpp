@@ -1,15 +1,16 @@
 #include "Player.h"
 
-Player::Player(const string& name) : MovingObject(name), fsm_(this)
+Player::Player() : fsm_(this)
 {
     SetAnimation({ "Idle" });
     fsm_.Change(IdleState::Instance());
 
-    speed_ = 250.0f;
     camera_.SetMode(CameraMode::TPS);
     SetPosition(XMFLOAT3(0.0f, 0.0f, 20.0f));
     SetCameraOffset(XMFLOAT3(0.0f, 2.0f, 0.0f));
     SetCameraAngle(XMConvertToRadians(30), 0.0f, 0.0f);
+
+    SetRigidBody((uint8_t)RigidbodyType::Kinematic, XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 20.0f));
 }
 
 bool Player::IsMoving() const
@@ -93,7 +94,8 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
 
 void Player::Update(float dt)
 {
-    MovingObject::Update(dt);
+    GameObject::Update(dt);
+
     isFalling_ = true;
     if (position_.y < 0.0f) {
         position_.y = 0.0f;
@@ -115,7 +117,7 @@ void Player::Update(float dt)
     camera_.UpdateViewMatrix();
 }
 
-FSM<Player> Player::GetFSM()
+FSM<Player> Player::GetFSM() const
 {
     return fsm_;
 }
@@ -142,7 +144,7 @@ const string& Player::GetAnimationName()
     return currAnimation_;
 }
 
-float Player::GetAnimtionTime()
+float Player::GetAnimtionTime() const
 {
     return animationTime_;
 }

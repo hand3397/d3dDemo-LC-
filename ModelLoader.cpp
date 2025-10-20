@@ -114,7 +114,7 @@ void ModelLoader::ReadMesh(const aiScene* scene, MeshContainerType& meshContaine
 
         XMVECTOR minVec = XMVectorSet(minVertex.x, minVertex.y, minVertex.z, 0.0f);
         XMVECTOR maxVec = XMVectorSet(maxVertex.x, maxVertex.y, maxVertex.z, 0.0f);
-        XMVECTOR centerVec = minVec + maxVec;
+        XMVECTOR centerVec = (minVec + maxVec) / 2.0f;
         
         BoundingBox boundingBox;
         XMStoreFloat3(&boundingBox.Center, centerVec);

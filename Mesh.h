@@ -16,8 +16,18 @@ struct Vertex
         Pos({ px, py, pz }), Normal({ nx, ny,nz }), TexC({tx, ty}) {}
 
     XMFLOAT3 Pos = XMFLOAT3(0.0f, 0.0f, 0.0f);
-    XMFLOAT3 Normal = XMFLOAT3(0.0f, 0.0f, 0.0f);;
-    XMFLOAT2 TexC = XMFLOAT2(0.0f, 0.0f);;
+    XMFLOAT3 Normal = XMFLOAT3(0.0f, 0.0f, 0.0f);
+    XMFLOAT2 TexC = XMFLOAT2(0.0f, 0.0f);
+};
+
+struct ColorVertex
+{
+    ColorVertex() = default;
+    ColorVertex(const XMFLOAT3& p, const XMFLOAT4& c) :
+        Pos(p), Color(c) {}
+
+    XMFLOAT3 Pos = XMFLOAT3(0.0f, 0.0f, 0.0f);
+    XMFLOAT4 Color = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
 };
 
 struct SkinnedVertex
@@ -137,8 +147,18 @@ struct MeshGeometry
 
     D3D12_VERTEX_BUFFER_VIEW VertexBufferView()const
     {
-        D3D12_VERTEX_BUFFER_VIEW vbv;
+        D3D12_VERTEX_BUFFER_VIEW vbv = {};
         vbv.BufferLocation = vertexBufferGPU_->GetGPUVirtualAddress();
+        vbv.StrideInBytes = vertexByteStride_;
+        vbv.SizeInBytes = vertexBufferByteSize_;
+
+        return vbv;
+    }
+
+    D3D12_VERTEX_BUFFER_VIEW VertexUploadBufferView()const
+    {
+        D3D12_VERTEX_BUFFER_VIEW vbv = {};
+        vbv.BufferLocation = vertexBufferUploader_->GetGPUVirtualAddress();
         vbv.StrideInBytes = vertexByteStride_;
         vbv.SizeInBytes = vertexBufferByteSize_;
 
@@ -147,7 +167,7 @@ struct MeshGeometry
 
     D3D12_INDEX_BUFFER_VIEW IndexBufferView()const
     {
-        D3D12_INDEX_BUFFER_VIEW ibv;
+        D3D12_INDEX_BUFFER_VIEW ibv = {};
         ibv.BufferLocation = indexBufferGPU_->GetGPUVirtualAddress();
         ibv.Format = indexFormat_;
         ibv.SizeInBytes = indexBufferByteSize_;

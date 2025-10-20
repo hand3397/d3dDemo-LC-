@@ -44,6 +44,8 @@ private:
 	void BuildShadersAndInputLayout();
 	void BuildFrameResources(Scene* scene);
 	void BuildPSOs();
+	void BuildDebugMesh();
+	void UpdateDebugMesh(Scene* scene);
 
 	array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 
@@ -54,6 +56,7 @@ private:
 	void UpdateMainPassCB(const GameTimer& gt, Scene* scene);
 
 	void DrawRenderItems(const vector<RenderItem*>& ritems);
+	void DrawDebugBox();
 
 	void LogAdapters();
 	void LogAdapterOutputs(IDXGIAdapter* adapter);
@@ -105,8 +108,7 @@ private:
 	ComPtr<ID3D12RootSignature> rootSignature_ = nullptr;
 	unordered_map<string, ComPtr<ID3DBlob>> shaders_;
 	unordered_map<string, ComPtr<ID3D12PipelineState>> PSOs_;
-	vector<D3D12_INPUT_ELEMENT_DESC> inputLayout_;
-	vector<D3D12_INPUT_ELEMENT_DESC> skinnedInputLayout_;
+	unordered_map<string, vector<D3D12_INPUT_ELEMENT_DESC>> inputLayouts_;
 
 	// ===========================================================
 	// Frame Resources
@@ -146,5 +148,13 @@ private:
 	int clientWidth_;
 	int clientHeight_;
 
+
+	// ===========================================================
+	// Debug Mesh
+	// ===========================================================
+	MeshGeometry debugMesh_;
+	uint32_t countDebugVertices_;
+	const uint32_t maxDebugVertices_ = 10000;
+	UINT8* mappedData_ = nullptr;
 };
 

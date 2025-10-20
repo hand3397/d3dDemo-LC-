@@ -10,19 +10,20 @@ class Scene
 {
 public:
     Scene();
-
+    ~Scene();
+    
     void InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
 
     void KeyInput(const KeyInputManager& keyInput, float dt);
-    void AddGameObject();
+    void AddGameObject(GameObject* gameObject);
     void Update(const GameTimer& gt);
 
     Player* GetPlayer();
     Camera* GetCamera();
 
-    const uint32_t GetNumInstances();
+    const uint32_t GetNumInstances()const;
 
-    const vector<unique_ptr<GameObject>>& GetGameObjects()const;
+    const vector<GameObject*>& GetGameObjects()const;
     const vector<unique_ptr<RenderItem>>& GetAllRenderItems()const;
     const vector<RenderItem*>& GetRenderItems(RenderLayer layer) const;
 
@@ -42,11 +43,14 @@ private:
     void BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void BuildMaterials();
-    void BuildRenderItems();
-    RenderItem* BuildRenderItem(const uint8_t renderLayer,
-        MeshGeometry* mesh, const Submesh& submesh, Material* material,
-        const XMMATRIX& worldTransform = XMMatrixIdentity(),
-        const XMMATRIX& texTransform = XMMatrixIdentity(),
+
+    void BuildGameObjects();
+    GameObject* BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& transform,
+        vector<RenderItem*>& rItems, uint8_t rigidbodyType);
+
+    RenderItem* BuildRenderItem(const uint8_t renderLayer, 
+        const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
+        const XMMATRIX& world = XMMatrixIdentity(), const XMMATRIX& texTransform = XMMatrixIdentity(),
         SkinnedModelInstance* skinnedModelInstance = nullptr, const int32_t skinnedCBIndex = -1);
 
     void LoadScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
@@ -59,11 +63,11 @@ private:
 
 private:
 
-    unique_ptr<Player> player_;
+    Player* player_;
 
     Camera* mainCamera_ = nullptr;
 
-    vector<unique_ptr<GameObject>> gameObjects_;
+    vector<GameObject*> gameObjects_;
 
     vector<unique_ptr<RenderItem>> allRenderItems_;
     vector<RenderItem*> renderItemLayer_[(uint8_t)RenderLayer::Count];
