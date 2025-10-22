@@ -1,37 +1,18 @@
 #include "GameObject.h"
 
-GameObject::GameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position) :
-    scale_(scale), rotation_(rotate), position_(position)
+GameObject::GameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position, 
+    const uint8_t rigidbodyType = (uint8_t)RigidbodyType::Static) :
+    scale_(scale), position_(position)
 {
-}
-
-GameObject::GameObject(const XMMATRIX& world)
-{
-    XMVECTOR s, r, t;
-    XMMatrixDecompose(&s, &r, &t, world);
-
-    XMStoreFloat3(&position_, t);
-    XMStoreFloat3(&scale_, s);
-
-    XMMATRIX rotM = XMMatrixRotationQuaternion(r);
-    rotation_.x = asinf(-rotM.r[2].m128_f32[1]);
-    rotation_.y = atan2f(rotM.r[2].m128_f32[0], rotM.r[2].m128_f32[2]);
-    rotation_.z = atan2f(rotM.r[0].m128_f32[1], rotM.r[1].m128_f32[1]);
+    XMStoreFloat4(&rotateQuat_, XMQuaternionRotationRollPitchYaw(rotate.x, rotate.y, rotate.z));
+    rigidbody_ = Rigidbody(rigidbodyType, scale, rotateQuat_, position);
+    rigidbody_.UpdateBounds();
 }
 
 void GameObject::Update(float dt)
 {
-
-
-    // update RenderItem
-    for (auto& ri : renderItems_)
-        if (ri) {
-            XMStoreFloat4x4(&ri->world_,
-                XMMatrixScaling(scale_.x, scale_.y, scale_.z) *
-                XMMatrixRotationRollPitchYaw(rotation_.x, rotation_.y, rotation_.z) *
-                XMMatrixTranslation(position_.x, position_.y, position_.z));
-            ri->SetFrameDirty();
-        }
+    UpdateTransformFromRigidbody();
+    UpdateRenderItem();
 }
 
 void GameObject::SetRenderItems(const vector<RenderItem*>& renderItems)
@@ -45,29 +26,8 @@ void GameObject::AddRenderItem(RenderItem* renderItem)
     renderItems_.push_back(renderItem);
 }
 
-void GameObject::SetRigidBody(const Rigidbody& rigidbody)
+void GameObject::SetBounds(const BoundingOrientedBox& bb, const BoundingSphere& bs)
 {
-    rigidbody_ = rigidbody;
-    rigidbody_.UpdateBounds();
-}
-
-void GameObject::SetRigidBody(uint8_t rigidbodyType, const XMFLOAT3& scale, const XMFLOAT4& rotateQuat, const XMFLOAT3& transform)
-{
-    rigidbody_.type_ = rigidbodyType;
-    rigidbody_.scale_ = scale;
-    rigidbody_.orientation_ = rotateQuat;
-    rigidbody_.position_ = transform;
-    rigidbody_.UpdateBounds();
-}
-
-void GameObject::SetRigidBody(uint8_t rigidbodyType, const XMFLOAT3& scale, const XMFLOAT4& rotateQuat, const XMFLOAT3& transform,
-    const BoundingOrientedBox& bb, const BoundingSphere& bs)
-{
-    rigidbody_.type_ = rigidbodyType;
-    rigidbody_.scale_ = scale;
-    rigidbody_.orientation_ = rotateQuat;
-    rigidbody_.position_ = transform;
-
     rigidbody_.localBoundingBox_ = bb;
     rigidbody_.localBoundingSphere_ = bs;
     rigidbody_.UpdateBounds();
@@ -81,6 +41,7 @@ vector<RenderItem*> GameObject::GetRenderItems() const
 void GameObject::SetPosition(const XMFLOAT3& pos) 
 { 
     position_ = pos; 
+    rigidbody_.position_ = pos;
 }
 
 XMFLOAT3 GameObject::GetPosition() const 
@@ -88,11 +49,35 @@ XMFLOAT3 GameObject::GetPosition() const
     return position_; 
 }
 
-Rigidbody GameObject::GetRigidbody() const
+Rigidbody& GameObject::GetRigidbody()
 {
     return rigidbody_;
 }
 
+void GameObject::UpdateTransformFromRigidbody()
+{
+    // update pos to rigidbody
+    scale_ = rigidbody_.scale_;
+    rotateQuat_ = rigidbody_.orientation_;
+    position_ = rigidbody_.position_;
+}
+
+void GameObject::UpdateRenderItem()
+{
+    // update RenderItem
+    for (auto& ri : renderItems_)
+        if (ri) {
+            XMStoreFloat4x4(&ri->world_,
+                XMMatrixAffineTransformation(
+                    XMLoadFloat3(&scale_),
+                    XMVectorZero(),
+                    XMLoadFloat4(&rotateQuat_),
+                    XMLoadFloat3(&position_)));
+            ri->SetFrameDirty();
+        }
+}
+
+/*
 MovingObject::MovingObject() : GameObject()
 {
 }
@@ -165,3 +150,4 @@ void MovingObject::UpdatePhysics(float dt)
         velocity_.y = 0.0f;
     }
 }
+*/

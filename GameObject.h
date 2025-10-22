@@ -10,26 +10,28 @@ using namespace DirectX;
 class GameObject
 {
 public:
-    GameObject() = default;
-    GameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position);
-    GameObject(const XMMATRIX& world);
+    GameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position, 
+        const uint8_t rigidbodyType);
+    virtual ~GameObject() {}
 
     virtual void Update(float dt);
 
     void SetRenderItems(const vector<RenderItem*>& renderItems);
     void AddRenderItem(RenderItem* renderItem);
 
-    void SetRigidBody(const Rigidbody& rigidbody);
-    void SetRigidBody(uint8_t rigidbodyType, const XMFLOAT3& scale, const XMFLOAT4& rotateQuat, const XMFLOAT3& transform);
-    void SetRigidBody(uint8_t rigidbodyType, const XMFLOAT3& scale, const XMFLOAT4& rotateQuat, const XMFLOAT3& transform,
-        const BoundingOrientedBox& bb, const BoundingSphere& bs);
+    void SetBounds(const BoundingOrientedBox& bb, const BoundingSphere& bs);
 
     vector<RenderItem*> GetRenderItems() const;
 
     void SetPosition(const XMFLOAT3& pos);
     XMFLOAT3 GetPosition() const;
 
-    Rigidbody GetRigidbody()const;
+    Rigidbody& GetRigidbody();
+
+protected:
+
+    void UpdateTransformFromRigidbody();
+    void UpdateRenderItem();
 
 protected:
 
@@ -37,10 +39,11 @@ protected:
     vector<RenderItem*> renderItems_;
 
     XMFLOAT3 position_ = { 0.0f, 0.0f, 0.0f };
-    XMFLOAT3 rotation_ = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT4 rotateQuat_ = { 0.0f, 0.0f, 0.0f, 1.0f };
     XMFLOAT3 scale_ = { 1.0f, 1.0f, 1.0f };
 };
 
+/*
 class MovingObject : public GameObject
 {
 public:
@@ -65,3 +68,6 @@ protected:
     bool hasGravity = true;
     float gravity_ = 9.8f;
 };
+*/
+
+

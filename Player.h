@@ -23,7 +23,7 @@ class FallingState;
 class Player : public GameObject 
 {
 public:
-    Player();
+    Player(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position);
 
     bool IsMoving() const;
     bool IsRunning() const;

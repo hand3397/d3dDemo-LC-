@@ -5,6 +5,7 @@
 #include "Player.h"
 #include "ModelLoader.h"
 #include "GeometryGenerator.h"
+#include "GamePhysics.h"
 
 class Scene
 {
@@ -15,7 +16,7 @@ public:
     void InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
 
     void KeyInput(const KeyInputManager& keyInput, float dt);
-    void AddGameObject(GameObject* gameObject);
+    void AddGameObject(const uint8_t layer, unique_ptr<GameObject> gameObject);
     void Update(const GameTimer& gt);
 
     Player* GetPlayer();
@@ -23,9 +24,10 @@ public:
 
     const uint32_t GetNumInstances()const;
 
-    const vector<GameObject*>& GetGameObjects()const;
+    const vector<unique_ptr<GameObject>>& GetAllGameObjects()const;
+    const vector<GameObject*>& GetGameObjects(const RigidbodyType layer)const;
     const vector<unique_ptr<RenderItem>>& GetAllRenderItems()const;
-    const vector<RenderItem*>& GetRenderItems(RenderLayer layer) const;
+    const vector<RenderItem*>& GetRenderItems(const RenderLayer layer) const;
 
     const unordered_map<string, unique_ptr<MeshGeometry>>& GetMeshes() const;
     const MeshGeometry* GetMesh(const string& name) const;
@@ -62,12 +64,12 @@ private:
     void AnimateMaterials(float dt);
 
 private:
-
     Player* player_;
 
     Camera* mainCamera_ = nullptr;
 
-    vector<GameObject*> gameObjects_;
+    vector<unique_ptr<GameObject>> allGameObjects_;
+    vector<GameObject*> gameObjectLayer[(uint8_t)RigidbodyType::Count];
 
     vector<unique_ptr<RenderItem>> allRenderItems_;
     vector<RenderItem*> renderItemLayer_[(uint8_t)RenderLayer::Count];
@@ -80,4 +82,6 @@ private:
     uint32_t numInstances = 0;
 
     unordered_map<string, unique_ptr<SkinnedModelInstance>> skinnedModelInsts_;
+
+    GamePhysics gamePhysics;
 };

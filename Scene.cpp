@@ -6,17 +6,19 @@ Scene::Scene()
 
 Scene::~Scene()
 {
-	if (player_)
-		delete player_;
-
-	for (auto go : gameObjects_)
-		if (go)
-			delete go;
+	allGameObjects_.clear();
+	for (auto& layer : gameObjectLayer)
+		layer.clear();
+	allRenderItems_.clear();
+	for (auto& layer : renderItemLayer_)
+		layer.clear();
 }
 
 void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
-	player_ = new Player;
+	auto player = make_unique<Player>(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 20.0f));
+	player_ = player.get();
+	AddGameObject((uint8_t)RigidbodyType::Kinematic, move(player));
 	mainCamera_ = player_->GetCamera();
 
 	LoadScene(device, cmdList);
@@ -29,17 +31,20 @@ void Scene::KeyInput(const KeyInputManager& keyInput, float dt)
 		player_->KeyInput(keyInput, dt);
 }
 
-void Scene::AddGameObject(GameObject* gameObject)
+void Scene::AddGameObject(const uint8_t layer, unique_ptr<GameObject> gameObject)
 {
-	gameObjects_.push_back(gameObject);
+	gameObjectLayer[layer].push_back(gameObject.get());
+	allGameObjects_.push_back(move(gameObject));
 }
 
 void Scene::Update(const GameTimer& gt)
 {
 	float dt = gt.DeltaTime();
 	
-	if (player_)
-		player_->Update(dt);
+	gamePhysics.Update(dt, allGameObjects_, gameObjectLayer, player_);
+
+	//if (player_)
+	//	player_->Update(dt);
 	
 	AnimateMaterials(dt);
 }
@@ -59,9 +64,14 @@ const uint32_t Scene::GetNumInstances() const
 	return numInstances;
 }
 
-const vector<GameObject*>& Scene::GetGameObjects() const
+const vector<unique_ptr<GameObject>>& Scene::GetAllGameObjects() const
 {
-	return gameObjects_;
+	return allGameObjects_;
+}
+
+const vector<GameObject*>& Scene::GetGameObjects(const RigidbodyType layer) const
+{
+	return gameObjectLayer[(uint8_t)layer];
 }
 
 const vector<unique_ptr<RenderItem>>& Scene::GetAllRenderItems() const
@@ -399,7 +409,7 @@ GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate
 	XMMATRIX T = XMMatrixTranslation(transform.x, transform.y, transform.z);
 	XMMATRIX world = S * R * T;
 	
-	GameObject* gameObject = new GameObject(scale, rotate, transform);
+	auto gameObject = make_unique<GameObject>(scale, rotate, transform, rigidbodyType);
 	for (RenderItem* ri : rItems) {
 		if (!ri) continue;
 		XMStoreFloat4x4(&ri->world_, world);
@@ -408,19 +418,18 @@ GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate
 
 	auto rItem = gameObject->GetRenderItems()[0];
 	if (rItem) {
-		BoundingOrientedBox bb;
+		BoundingOrientedBox bb = {};
 		bb.Center = rItem->boundingBox_.Center;
 		bb.Extents = rItem->boundingBox_.Extents;
-		bb.Orientation = rotateQuat;
-		gameObject->SetRigidBody(rigidbodyType, scale, rotateQuat, transform,
-			bb, rItem->boundingSphere_);
-	} 
-	else {
-		gameObject->SetRigidBody(rigidbodyType, scale, rotateQuat, transform);
+		BoundingSphere bs;
+		bs.Center = bb.Center;
+		bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bb.Extents)));
+		gameObject->SetBounds(bb, bs);
 	}
 	
-	AddGameObject(gameObject);
-	return gameObject;
+	GameObject* go = gameObject.get();
+	AddGameObject(rigidbodyType, move(gameObject));
+	return go;
 }
 
 RenderItem* Scene::BuildRenderItem(const uint8_t renderLayer,

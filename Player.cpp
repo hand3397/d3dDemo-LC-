@@ -1,16 +1,28 @@
 #include "Player.h"
 
-Player::Player() : fsm_(this)
+Player::Player(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position) : 
+    GameObject(scale, rotate, position, (uint8_t)RigidbodyType::Kinematic), fsm_(this)
 {
     SetAnimation({ "Idle" });
     fsm_.Change(IdleState::Instance());
 
     camera_.SetMode(CameraMode::TPS);
-    SetPosition(XMFLOAT3(0.0f, 0.0f, 20.0f));
     SetCameraOffset(XMFLOAT3(0.0f, 2.0f, 0.0f));
     SetCameraAngle(XMConvertToRadians(30), 0.0f, 0.0f);
 
-    SetRigidBody((uint8_t)RigidbodyType::Kinematic, XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 20.0f));
+    XMFLOAT3 maxPos = { 0.3f, 1.7f, 0.3f };
+    XMFLOAT3 minPos = { -0.3f, 0.0f, -0.3f };
+
+    BoundingOrientedBox bb;
+    bb.Center = MathHelper::GetCenterFloat3(minPos, maxPos);
+    bb.Extents = MathHelper::GetExtentsFloat3(minPos, maxPos);
+    bb.Orientation = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+
+    BoundingSphere bs;
+    bs.Center = bb.Center;
+    bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&maxPos) - XMLoadFloat3(&bs.Center)));
+    
+    SetBounds(bb, bs);
 }
 
 bool Player::IsMoving() const
@@ -90,11 +102,22 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
 
     if (isMoving_ && keyInput.IsKeyDown(VK_LSHIFT))
         isRunning_ = true;
+    
+    XMVECTOR look = this->GetLookXZ();
+    XMVECTOR right = this->GetRightXZ();
+    XMVECTOR moveForceVec = XMVector3Normalize(look * moveDir_.z + right * moveDir_.x);
+    XMFLOAT3 moveForce;
+    XMStoreFloat3(&moveForce, 100.0f * moveForceVec);
+    
+    if (wasJump_)
+        moveForce.y += 100.0f;
+
+    rigidbody_.ApplyForce(moveForce);
 }
 
 void Player::Update(float dt)
 {
-    GameObject::Update(dt);
+    UpdateTransformFromRigidbody();
 
     isFalling_ = true;
     if (position_.y < 0.0f) {
@@ -115,6 +138,8 @@ void Player::Update(float dt)
 
     camera_.SetTarget(position_);
     camera_.UpdateViewMatrix();
+
+    UpdateRenderItem();
 }
 
 FSM<Player> Player::GetFSM() const

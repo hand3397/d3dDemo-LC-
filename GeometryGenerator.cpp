@@ -676,8 +676,8 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGrid(float width, float dep
 	float halfWidth = 0.5f*width;
 	float halfDepth = 0.5f*depth;
 
-	meshData.maxPos = { halfWidth, 0.01f, halfDepth };
-	meshData.minPos = { -halfWidth, -0.01f, -halfDepth };
+	meshData.maxPos = { halfWidth, 0.00f, halfDepth };
+	meshData.minPos = { -halfWidth, -0.05f, -halfDepth };
 
 	float dx = width / (n-1);
 	float dz = depth / (m-1);

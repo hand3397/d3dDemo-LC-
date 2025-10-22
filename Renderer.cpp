@@ -572,24 +572,47 @@ void Renderer::UpdateDebugMesh(Scene* scene)
 {
 	vector<ColorVertex> vertices;
 
-	auto& gameObejects = scene->GetGameObjects();
-	XMFLOAT4 color;
-	XMStoreFloat4(&color, DirectX::Colors::Red);
+	XMFLOAT4 blue, red, orange;
+	XMStoreFloat4(&blue, DirectX::Colors::Blue);
+	XMStoreFloat4(&red, DirectX::Colors::Red);
+	XMStoreFloat4(&orange, DirectX::Colors::Orange);
 	
-	for (auto& go : gameObejects) 
+	XMFLOAT3 corner[8];
+	auto pushEdge = [&](int a, int b, XMFLOAT4 color) {
+		vertices.emplace_back(corner[a], color);
+		vertices.emplace_back(corner[b], color); };
+	auto CreateBox = [&](const XMFLOAT3 corner[8], const XMFLOAT4& color) {
+		pushEdge(0, 1, color); pushEdge(1, 2, color); pushEdge(2, 3, color); pushEdge(3, 0, color); // bottom
+		pushEdge(4, 5, color); pushEdge(5, 6, color); pushEdge(6, 7, color); pushEdge(7, 4, color); // top
+		pushEdge(0, 4, color); pushEdge(1, 5, color); pushEdge(2, 6, color); pushEdge(3, 7, color); // sides 
+		};
+
+	auto& staticObjects = scene->GetGameObjects(RigidbodyType::Static);
+	auto player = scene->GetPlayer();
+	
+	if (player && (vertices.size() + 24 <= maxDebugVertices_)) {
+		bool isCollide = false;
+
+		for (auto& go : staticObjects) {
+			if (player->GetRigidbody().boundingBox_.Intersects(go->GetRigidbody().boundingBox_)) {
+				isCollide = true;
+				break;
+			}
+		}
+
+		player->GetRigidbody().boundingBox_.GetCorners(corner);
+		if (isCollide)
+			CreateBox(corner, red);
+		else
+			CreateBox(corner, orange);
+	}
+
+	for (auto& go : staticObjects)
 	{
 		if (vertices.size() + 24 > maxDebugVertices_)
 			break;
-
-		XMFLOAT3 corner[8];
 		go->GetRigidbody().boundingBox_.GetCorners(corner);
-
-		auto pushEdge = [&](int a, int b) {
-			vertices.emplace_back(corner[a], color);
-			vertices.emplace_back(corner[b], color);};
-		pushEdge(0, 1); pushEdge(1, 2); pushEdge(2, 3); pushEdge(3, 0); // bottom
-		pushEdge(4, 5); pushEdge(5, 6); pushEdge(6, 7); pushEdge(7, 4); // top
-		pushEdge(0, 4); pushEdge(1, 5); pushEdge(2, 6); pushEdge(3, 7); // sides
+		CreateBox(corner, blue);
 	}
 
 	memcpy(mappedData_, vertices.data(), sizeof(ColorVertex) * vertices.size());
