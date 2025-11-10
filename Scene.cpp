@@ -16,7 +16,7 @@ Scene::~Scene()
 
 void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
-	auto player = make_unique<Player>(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 20.0f));
+	auto player = make_unique<Player>(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 5.0f));
 	player_ = player.get();
 	AddGameObject((uint8_t)RigidbodyType::Kinematic, move(player));
 	mainCamera_ = player_->GetCamera();
@@ -41,10 +41,10 @@ void Scene::Update(const GameTimer& gt)
 {
 	float dt = gt.DeltaTime();
 	
-	gamePhysics.Update(dt, allGameObjects_, gameObjectLayer, player_);
+	//gamePhysics.Update(dt, allGameObjects_, gameObjectLayer, player_);
 
-	//if (player_)
-	//	player_->Update(dt);
+	if (player_)
+		player_->Update(dt);
 	
 	AnimateMaterials(dt);
 }
@@ -151,7 +151,7 @@ void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
 	GeometryGenerator::MeshData wall = geoGen.CreateOnBox(1.0f, 3.0f, 0.1f, 1);
-	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
+	GeometryGenerator::MeshData grid = geoGen.CreateGrid(40.0f, 50.0f, 60, 40);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
 
@@ -424,7 +424,6 @@ GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate
 		BoundingSphere bs;
 		bs.Center = bb.Center;
 		bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bb.Extents)));
-		gameObject->SetBounds(bb, bs);
 	}
 	
 	GameObject* go = gameObject.get();
@@ -453,7 +452,39 @@ RenderItem* Scene::BuildRenderItem(const uint8_t renderLayer,
 	allRenderItems_.push_back(move(renderItem));
 	return rItem;
 }
+/*
+GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
+{
+	XMFLOAT4 rotateQuat = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+	XMMATRIX T = XMMatrixTranslation(pos.x, pos.y, pos.z);
+	XMMATRIX world = T;
 
+	auto gameObject = make_unique<GameObject>(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), pos,
+		RigidbodyType::Dynamic);
+	
+	auto renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
+			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["sphere"], materials_["bricks0"].get(),
+			XMMatrixIdentity(), XMMatrixIdentity()) };
+
+	for (RenderItem* ri : renderItems) {
+		if (!ri) continue;
+		XMStoreFloat4x4(&ri->world_, world);
+		gameObject->AddRenderItem(ri);
+	}
+
+	auto& rigidbody = gameObject->GetRigidbody();
+	
+	SphereShape* sphereShape = new SphereShape;
+	sphereShape->SetRadius(0.5f);
+
+	Fixture* fixture = new Fixture(sphereShape);
+	rigidbody.AddFixture(fixture);
+
+	GameObject* go = gameObject.get();
+	AddGameObject((uint8_t)RigidbodyType::Dynamic, move(gameObject));
+	return go;
+}
+*/
 void Scene::LoadScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
 	LoadTextures(device, cmdList);

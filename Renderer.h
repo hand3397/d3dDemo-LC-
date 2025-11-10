@@ -5,6 +5,8 @@
 #include "Scene.h"
 #include "GameTimer.h"
 
+#include "MeshCollision.h"
+
 using Microsoft::WRL::ComPtr;
 
 class Renderer
@@ -45,7 +47,7 @@ private:
 	void BuildFrameResources(Scene* scene);
 	void BuildPSOs();
 	void BuildDebugMesh();
-	void UpdateDebugMesh(Scene* scene);
+	void UpdateDebugMesh(Scene* scene, const float dt);
 
 	array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 

@@ -260,19 +260,54 @@ void Camera::RotateRoll(float radian)
 	viewDirty_ = true;
 }
 
+void Camera::SetEulerRotate(const XMFLOAT3& euler)
+{
+	// Rotate up and look vector about the right vector.
+	pitch_ = euler.x;
+	pitch_ = std::clamp(pitch_, -maxPitch_, maxPitch_);
+
+	yaw_ = euler.y;
+	roll_ = euler.z;
+
+	viewDirty_ = true;
+}
+
 void Camera::SetPitch(float radian)
 {
 	pitch_ = radian;
+	viewDirty_ = true;
 }
 
 void Camera::SetYaw(float radian)
 {
 	yaw_ = radian;
+	viewDirty_ = true;
 }
 
 void Camera::SetRoll(float radian)
 {
 	roll_ = radian;
+	viewDirty_ = true;
+}
+
+XMFLOAT3 Camera::GetEulerRotate() const
+{
+	return XMFLOAT3(pitch_, yaw_, roll_);
+}
+
+float Camera::GetPitch() const
+{
+	return pitch_;
+}
+
+float Camera::GetYaw() const
+{
+	return yaw_;
+}
+
+float Camera::GetRoll() const
+{
+	return roll_;
 }
 
 void Camera::UpdateViewMatrix()

@@ -171,6 +171,8 @@ void Renderer::OnResize(int clientWidth, int clientHeight)
 
 void Renderer::Update(const GameTimer& gt, Scene* scene)
 {
+	const float dt = gt.DeltaTime();
+
 	// 순환적으로 자원 프레임 배열의 다음 원소에 접근한다.
 	currFrameResourceIndex_ = (currFrameResourceIndex_ + 1) % gNumFrameResources;
 	currFrameResource_ = frameResources_[currFrameResourceIndex_].get();
@@ -191,7 +193,7 @@ void Renderer::Update(const GameTimer& gt, Scene* scene)
 	UpdateMaterialBuffer(gt, scene);
 	UpdateMainPassCB(gt, scene);
 	
-	UpdateDebugMesh(scene);
+	UpdateDebugMesh(scene, dt);
 }
 
 void Renderer::Draw(const Scene* scene)
@@ -243,19 +245,19 @@ void Renderer::Draw(const Scene* scene)
 
 	// ---------------------------------------------------------
 
-	DrawRenderItems(scene->GetRenderItems(RenderLayer::Opaque));
+	//DrawRenderItems(scene->GetRenderItems(RenderLayer::Opaque));
 
 	commandList_->SetPipelineState(PSOs_["alphaTested"].Get());
-	DrawRenderItems(scene->GetRenderItems(RenderLayer::AlphaTested));
+	//DrawRenderItems(scene->GetRenderItems(RenderLayer::AlphaTested));
 
 	commandList_->SetPipelineState(PSOs_["transparent"].Get());
-	DrawRenderItems(scene->GetRenderItems(RenderLayer::Transparent));
+	//DrawRenderItems(scene->GetRenderItems(RenderLayer::Transparent));
 
 	commandList_->SetPipelineState(PSOs_["skinnedOpaque"].Get());
-	DrawRenderItems(scene->GetRenderItems(RenderLayer::Skinned));
+	//DrawRenderItems(scene->GetRenderItems(RenderLayer::Skinned));
 
 	commandList_->SetPipelineState(PSOs_["instance"].Get());
-	DrawRenderItems(scene->GetRenderItems(RenderLayer::Instance));
+	//DrawRenderItems(scene->GetRenderItems(RenderLayer::Instance));
 
 	commandList_->SetPipelineState(PSOs_["color"].Get());
 	DrawDebugBox();
@@ -568,36 +570,55 @@ void Renderer::BuildDebugMesh()
 		0, &readRange, reinterpret_cast<void**>(&mappedData_)));
 }
 
-void Renderer::UpdateDebugMesh(Scene* scene)
+void Renderer::UpdateDebugMesh(Scene* scene, const float dt)
 {
 	vector<ColorVertex> vertices;
 
-	XMFLOAT4 blue, red, orange;
-	XMStoreFloat4(&blue, DirectX::Colors::Blue);
-	XMStoreFloat4(&red, DirectX::Colors::Red);
-	XMStoreFloat4(&orange, DirectX::Colors::Orange);
-	
-	XMFLOAT3 corner[8];
-	auto pushEdge = [&](int a, int b, XMFLOAT4 color) {
+	auto pushEdge = [&](const XMFLOAT3 corner[8], int a, int b, const XMVECTOR& color) {
 		vertices.emplace_back(corner[a], color);
 		vertices.emplace_back(corner[b], color); };
-	auto CreateBox = [&](const XMFLOAT3 corner[8], const XMFLOAT4& color) {
-		pushEdge(0, 1, color); pushEdge(1, 2, color); pushEdge(2, 3, color); pushEdge(3, 0, color); // bottom
-		pushEdge(4, 5, color); pushEdge(5, 6, color); pushEdge(6, 7, color); pushEdge(7, 4, color); // top
-		pushEdge(0, 4, color); pushEdge(1, 5, color); pushEdge(2, 6, color); pushEdge(3, 7, color); // sides 
+	auto pushLine = [&](const XMFLOAT3& a, const XMFLOAT3& b, const XMVECTOR& color) {
+		vertices.emplace_back(a, color);
+		vertices.emplace_back(b, color); };
+	auto CreateBox = [&](const XMFLOAT3 corner[8], const XMVECTOR& color) {
+		pushEdge(corner, 0, 1, color); pushEdge(corner, 1, 2, color); pushEdge(corner, 2, 3, color); pushEdge(corner, 3, 0, color); // bottom
+		pushEdge(corner, 4, 5, color); pushEdge(corner, 5, 6, color); pushEdge(corner, 6, 7, color); pushEdge(corner, 7, 4, color); // top
+		pushEdge(corner, 0, 4, color); pushEdge(corner, 1, 5, color); pushEdge(corner, 2, 6, color); pushEdge(corner, 3, 7, color); // sides 
 		};
+	auto CreatePoint = [&](const XMFLOAT3& pos, const XMVECTOR& color) {
+		BoundingBox bbb;
+		XMFLOAT3 cornerEx[8];
+		bbb.Center = pos;
+		bbb.Extents = XMFLOAT3(0.01f, 0.01f, 0.01f);
+		bbb.GetCorners(cornerEx);
+		CreateBox(cornerEx, color);
+		};
+	auto CreateMesh = [&](const vector<XMVECTOR>& pos, const vector<size_t>&faces, const XMVECTOR& color) {
+		int numFaces = faces.size();
+		for (int i = 0; i < numFaces; i+=3) {
+			XMFLOAT3 a, b, c;
+			XMStoreFloat3(&a, pos[faces[i]]);
+			XMStoreFloat3(&b, pos[faces[i + 1]]);
+			XMStoreFloat3(&c, pos[faces[i + 2]]);
+			pushLine(a, b, color);
+			pushLine(b, c, color);
+			pushLine(a, c, color);
+		}
+		};
+
 
 	auto& staticObjects = scene->GetGameObjects(RigidbodyType::Static);
 	auto player = scene->GetPlayer();
-	
+	/*
 	if (player && (vertices.size() + 24 <= maxDebugVertices_)) {
 		bool isCollide = false;
 
 		for (auto& go : staticObjects) {
-			if (player->GetRigidbody().boundingBox_.Intersects(go->GetRigidbody().boundingBox_)) {
-				isCollide = true;
-				break;
-			}
+			if (player->GetRigidbody().boundingSphere_.Intersects(go->GetRigidbody().boundingSphere_))
+				if (player->GetRigidbody().boundingBox_.Intersects(go->GetRigidbody().boundingBox_)) {
+					isCollide = true;
+					break;
+				}
 		}
 
 		player->GetRigidbody().boundingBox_.GetCorners(corner);
@@ -606,7 +627,16 @@ void Renderer::UpdateDebugMesh(Scene* scene)
 		else
 			CreateBox(corner, orange);
 	}
+	*/
 
+	//---------------------------
+	CreatePoint(XMFLOAT3(0.f, 0.f, 0.f), DirectX::Colors::Black);
+	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(5.f, 0.f, 0.f), DirectX::Colors::Red);
+	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(0.f, 5.f, 0.f), DirectX::Colors::Green);
+	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(0.f, 0.f, 5.f), DirectX::Colors::Blue);
+	//---------------------------
+
+	/*
 	for (auto& go : staticObjects)
 	{
 		if (vertices.size() + 24 > maxDebugVertices_)
@@ -614,7 +644,7 @@ void Renderer::UpdateDebugMesh(Scene* scene)
 		go->GetRigidbody().boundingBox_.GetCorners(corner);
 		CreateBox(corner, blue);
 	}
-
+	*/
 	memcpy(mappedData_, vertices.data(), sizeof(ColorVertex) * vertices.size());
 
 	debugMesh_.vertexByteStride_ = sizeof(ColorVertex);

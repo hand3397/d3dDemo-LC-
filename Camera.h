@@ -73,9 +73,15 @@ public:
 	void RotateYaw(float radian);
 	void RotateRoll(float radian);
 
+	void SetEulerRotate(const XMFLOAT3& euler);
 	void SetPitch(float radian);
 	void SetYaw(float radian);
 	void SetRoll(float radian);
+
+	XMFLOAT3 GetEulerRotate()const;
+	float GetPitch()const;
+	float GetYaw()const;
+	float GetRoll()const;
 
 	// After modifying camera position/orientation, call to rebuild the view matrix.
 	void UpdateViewMatrix();

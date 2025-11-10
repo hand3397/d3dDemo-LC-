@@ -19,12 +19,12 @@ public:
     void SetRenderItems(const vector<RenderItem*>& renderItems);
     void AddRenderItem(RenderItem* renderItem);
 
-    void SetBounds(const BoundingOrientedBox& bb, const BoundingSphere& bs);
-
     vector<RenderItem*> GetRenderItems() const;
 
     void SetPosition(const XMFLOAT3& pos);
     XMFLOAT3 GetPosition() const;
+    void SetRotate(const XMFLOAT3& rotate);
+    void SetRotateQuat(const XMFLOAT4& rotateQuat);
 
     Rigidbody& GetRigidbody();
 
@@ -42,6 +42,7 @@ protected:
     XMFLOAT4 rotateQuat_ = { 0.0f, 0.0f, 0.0f, 1.0f };
     XMFLOAT3 scale_ = { 1.0f, 1.0f, 1.0f };
 };
+
 
 /*
 class MovingObject : public GameObject

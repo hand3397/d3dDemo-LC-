@@ -130,6 +130,7 @@
     <ClCompile Include="Camera.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Contact.cpp" />
     <ClCompile Include="d3dApp.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -139,6 +140,7 @@
     <ClCompile Include="DDSTextureLoader.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Fixture.cpp" />
     <ClCompile Include="FrameResource.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -164,6 +166,7 @@
     <ClCompile Include="MathHelper.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="MeshCollision.cpp" />
     <ClCompile Include="ModelLoader.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -175,15 +178,18 @@
     <ClCompile Include="Scene.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Shape.cpp" />
     <ClCompile Include="SkinnedData.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="Contact.h" />
     <ClInclude Include="d3dApp.h" />
     <ClInclude Include="d3dUtil.h" />
     <ClInclude Include="DDSTextureLoader.h" />
+    <ClInclude Include="Fixture.h" />
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="FSM.h" />
     <ClInclude Include="GameObject.h" />
@@ -193,12 +199,14 @@
     <ClInclude Include="KeyInputManager.h" />
     <ClInclude Include="MathHelper.h" />
     <ClInclude Include="Mesh.h" />
+    <ClInclude Include="MeshCollision.h" />
     <ClInclude Include="ModelLoader.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="RenderItem.h" />
     <ClInclude Include="Rigidbody.h" />
     <ClInclude Include="Scene.h" />
+    <ClInclude Include="Shape.h" />
     <ClInclude Include="SkinnedData.h" />
     <ClInclude Include="UploadBuffer.h" />
   </ItemGroup>

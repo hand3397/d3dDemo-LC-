@@ -25,6 +25,10 @@ struct ColorVertex
     ColorVertex() = default;
     ColorVertex(const XMFLOAT3& p, const XMFLOAT4& c) :
         Pos(p), Color(c) {}
+    ColorVertex(const XMFLOAT3& p, const XMVECTOR& c) :
+        Pos(p) {
+        XMStoreFloat4(&Color, c);
+    }
 
     XMFLOAT3 Pos = XMFLOAT3(0.0f, 0.0f, 0.0f);
     XMFLOAT4 Color = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);

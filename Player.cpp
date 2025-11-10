@@ -21,8 +21,6 @@ Player::Player(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& po
     BoundingSphere bs;
     bs.Center = bb.Center;
     bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&maxPos) - XMLoadFloat3(&bs.Center)));
-    
-    SetBounds(bb, bs);
 }
 
 bool Player::IsMoving() const
@@ -72,6 +70,8 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
         camera_.RotatePitch(static_cast<float>(dy) * 0.01f);
         camera_.RotateYaw(static_cast<float>(dx) * 0.01f);
         camera_.UpdateViewMatrix();
+
+        SetRotate(XMFLOAT3(0.0f, camera_.GetYaw(), 0.0f));
     }
 
     //keyboard input
@@ -107,12 +107,12 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
     XMVECTOR right = this->GetRightXZ();
     XMVECTOR moveForceVec = XMVector3Normalize(look * moveDir_.z + right * moveDir_.x);
     XMFLOAT3 moveForce;
-    XMStoreFloat3(&moveForce, 100.0f * moveForceVec);
+    XMStoreFloat3(&moveForce, 4000.0f * moveForceVec * dt);
     
     if (wasJump_)
-        moveForce.y += 100.0f;
+        moveForce.y += 500000.0f * dt;
 
-    rigidbody_.ApplyForce(moveForce);
+    rigidbody_.AddForce(moveForce);
 }
 
 void Player::Update(float dt)
@@ -120,9 +120,13 @@ void Player::Update(float dt)
     UpdateTransformFromRigidbody();
 
     isFalling_ = true;
-    if (position_.y < 0.0f) {
+    if (position_.y <= 0.0f) {
         position_.y = 0.0f;
         isFalling_ = false;
+    }
+
+    if (isFalling_) {
+        rigidbody_.AddForce(XMFLOAT3(0.f, -5000.f  * dt, 0.f));
     }
 
     fsm_.Update();
