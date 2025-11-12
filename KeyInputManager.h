@@ -21,8 +21,8 @@ public:
     KeyInputManager();
 
     // Win32 이벤트 처리
-    void OnKeyDown(WPARAM wparam);
-    void OnKeyUp(WPARAM wparam);
+    void OnKeyDown(WPARAM wparam, LPARAM lParam);
+    void OnKeyUp(WPARAM wparam, LPARAM lParam);
     void OnMouseDown(MouseButton button);
     void OnMouseUp(MouseButton button);
     void SetMousePos(int x, int y);
@@ -43,6 +43,8 @@ public:
     void GetMouseDelta(int& dx, int& dy) const;
 
 private:
+    WPARAM MapLeftRightKeys(WPARAM vk, LPARAM lParam);
+
     std::array<bool, NUM_KEYS> prevKeyState_;
     std::array<bool, NUM_KEYS> currKeyState_;
     std::array<bool, NUM_KEYS> keyPressed_;

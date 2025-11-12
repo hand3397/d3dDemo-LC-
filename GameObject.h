@@ -10,9 +10,15 @@ using namespace DirectX;
 class GameObject
 {
 public:
+    GameObject(const RigidbodyType rigidbodyType);
     GameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position, 
-        const uint8_t rigidbodyType);
+        const RigidbodyType rigidbodyType);
     virtual ~GameObject() {}
+
+    void OnSpawn();
+    void OnDestroy();
+
+    bool isActive() const;
 
     virtual void Update(float dt);
 
@@ -27,6 +33,7 @@ public:
     void SetRotateQuat(const XMFLOAT4& rotateQuat);
 
     Rigidbody& GetRigidbody();
+    RigidbodyType GetType()const;
 
 protected:
 
@@ -34,6 +41,8 @@ protected:
     void UpdateRenderItem();
 
 protected:
+
+    bool isActive_ = false;
 
     Rigidbody rigidbody_;
     vector<RenderItem*> renderItems_;

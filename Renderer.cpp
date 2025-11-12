@@ -245,19 +245,19 @@ void Renderer::Draw(const Scene* scene)
 
 	// ---------------------------------------------------------
 
-	//DrawRenderItems(scene->GetRenderItems(RenderLayer::Opaque));
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::Opaque));
 
 	commandList_->SetPipelineState(PSOs_["alphaTested"].Get());
-	//DrawRenderItems(scene->GetRenderItems(RenderLayer::AlphaTested));
-
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::AlphaTested));
+	
 	commandList_->SetPipelineState(PSOs_["transparent"].Get());
-	//DrawRenderItems(scene->GetRenderItems(RenderLayer::Transparent));
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::Transparent));
 
-	commandList_->SetPipelineState(PSOs_["skinnedOpaque"].Get());
+	//commandList_->SetPipelineState(PSOs_["skinnedOpaque"].Get());
 	//DrawRenderItems(scene->GetRenderItems(RenderLayer::Skinned));
 
 	commandList_->SetPipelineState(PSOs_["instance"].Get());
-	//DrawRenderItems(scene->GetRenderItems(RenderLayer::Instance));
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::Instance));
 
 	commandList_->SetPipelineState(PSOs_["color"].Get());
 	DrawDebugBox();
@@ -424,8 +424,9 @@ void Renderer::BuildShadersAndInputLayout()
 
 void Renderer::BuildFrameResources(Scene* scene)
 {
-	uint32_t numRenderItems = scene->GetAllRenderItems().size();
+	uint32_t numRenderItems = scene->MaxNumGameObjects();
 	uint32_t numInstances = scene->GetNumInstances();
+	numInstances = (numInstances < 1 ? 1 : numInstances);
 	uint32_t numSkinnedObjects = scene->GetSkinnedModelInsts().size();
 	uint32_t numMaterials = scene->GetMaterials().size();
 	for (int i = 0; i < gNumFrameResources; ++i) {

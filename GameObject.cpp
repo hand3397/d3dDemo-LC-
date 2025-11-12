@@ -1,10 +1,32 @@
 #include "GameObject.h"
 
-GameObject::GameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position, 
-    const uint8_t rigidbodyType = (uint8_t)RigidbodyType::Static) :
+GameObject::GameObject(const RigidbodyType rigidbodyType) :
+    scale_(XMFLOAT3(1.0f, 1.0f, 1.0f)), position_(XMFLOAT3(0.0f, 0.0f, 0.0f)), rotateQuat_(XMFLOAT4(0.f, 0.f, 0.f, 1.f))
+{   
+    rigidbody_ = Rigidbody(rigidbodyType, rotateQuat_, position_);
+}
+
+GameObject::GameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position,
+    const RigidbodyType rigidbodyType = RigidbodyType::Static) :
     scale_(scale), position_(position)
 {
     XMStoreFloat4(&rotateQuat_, XMQuaternionRotationRollPitchYaw(rotate.x, rotate.y, rotate.z));
+    rigidbody_ = Rigidbody(rigidbodyType, rotateQuat_, position);
+}
+
+void GameObject::OnSpawn()
+{ 
+    isActive_ = true;
+}
+
+void GameObject::OnDestroy()
+{ 
+    isActive_ = false;
+}
+
+bool GameObject::isActive() const
+{
+    return isActive_;
 }
 
 void GameObject::Update(float dt)
@@ -55,6 +77,11 @@ void GameObject::SetRotateQuat(const XMFLOAT4& rotateQuat)
 Rigidbody& GameObject::GetRigidbody()
 {
     return rigidbody_;
+}
+
+RigidbodyType GameObject::GetType()const
+{
+    return rigidbody_.GetType();
 }
 
 void GameObject::UpdateTransformFromRigidbody()

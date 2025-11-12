@@ -206,16 +206,10 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		if (wParam == VK_ESCAPE) {
 			PostQuitMessage(0);
 		}
-		if (wParam == VK_SHIFT)
-			(lParam & (1 << 24)) ?
-			keyInput_.OnKeyDown(VK_RSHIFT) : keyInput_.OnKeyDown(VK_LSHIFT);
-		keyInput_.OnKeyUp(wParam);
+		keyInput_.OnKeyUp(wParam, lParam);
 		return 0;
 	case WM_KEYDOWN:
-		if (wParam == VK_SHIFT)
-			(lParam & (1 << 24)) ?
-			keyInput_.OnKeyDown(VK_RSHIFT) : keyInput_.OnKeyDown(VK_LSHIFT);
-		keyInput_.OnKeyDown(wParam);
+		keyInput_.OnKeyDown(wParam, lParam);
 		return 0;
 	}
 

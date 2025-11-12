@@ -70,23 +70,29 @@ void Rigidbody::Integrate(float dt)
     }
 
     // Set acceleration by F = ma
-    XMVECTOR linearAccVec = XMLoadFloat3(&force_) * inverseMass_;
+    XMVECTOR linearAccVec = XMLoadFloat3(&linearAcceleration_);
+    linearAccVec += XMLoadFloat3(&force_) * inverseMass_;
 
     // gravity
     //addGravity();
 
     // set angular acceleration
-    XMVECTOR angularAccVec = XMVector3TransformNormal(XMLoadFloat3(&torque_), XMLoadFloat3x3(&inverseInertiaTensorWorld_));
+    XMVECTOR angularAccVec = XMLoadFloat3(&angularAcceleration_);
+    angularAccVec += XMVector3TransformNormal(XMLoadFloat3(&torque_), XMLoadFloat3x3(&inverseInertiaTensorWorld_));
 
     // set velocity by accerleration
     XMVECTOR linearVelocityVec = XMLoadFloat3(&linearVelocity_);
     XMVECTOR angularVelocityVec = XMLoadFloat3(&angularVelocity_);
-    linearVelocityVec += (XMLoadFloat3(&linearAcceleration_) * dt);
-    angularVelocityVec += (XMLoadFloat3(&angularAcceleration_) * dt);
+    linearVelocityVec += (linearAccVec * dt);
+    angularVelocityVec += (angularAccVec * dt);
 
     // impose drag
     linearVelocityVec *= (1.0f - linearDamping_);
     angularVelocityVec *= (1.0f - angularDamping_);
+
+    // store velocity
+    XMStoreFloat3(&linearVelocity_, linearVelocityVec);
+    XMStoreFloat3(&angularVelocity_, angularVelocityVec);
 
     // set sweep (previous Transform)
     //m_sweep.p = m_xf.position;

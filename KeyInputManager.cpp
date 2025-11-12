@@ -1,5 +1,6 @@
 #include "KeyInputManager.h"
 
+
 KeyInputManager::KeyInputManager()
     : mouseX_(0), mouseY_(0), prevMouseX_(0), prevMouseY_(0)
 {
@@ -14,16 +15,36 @@ KeyInputManager::KeyInputManager()
     mouseReleased_.fill(false);
 }
 
-void KeyInputManager::OnKeyDown(WPARAM wparam)
+void KeyInputManager::OnKeyDown(WPARAM wparam, LPARAM lParam)
 {
-    if (wparam < NUM_KEYS)
-        currKeyState_[wparam] = true;
+    if (wparam >= NUM_KEYS)
+        return;
+
+    switch (wparam) {
+    case VK_SHIFT:
+    case VK_CONTROL:
+    case VK_MENU:
+        currKeyState_[MapLeftRightKeys(wparam, lParam)] = true;
+        break;
+    }
+
+    currKeyState_[wparam] = true;
 }
 
-void KeyInputManager::OnKeyUp(WPARAM wparam)
+void KeyInputManager::OnKeyUp(WPARAM wparam, LPARAM lParam)
 {
-    if (wparam < NUM_KEYS)
-        currKeyState_[wparam] = false;
+    if (wparam >= NUM_KEYS)
+        return;
+
+    switch (wparam) {
+    case VK_SHIFT:
+    case VK_CONTROL:
+    case VK_MENU:
+        currKeyState_[MapLeftRightKeys(wparam, lParam)] = false;
+        break;
+    }
+
+    currKeyState_[wparam] = false;
 }
 
 void KeyInputManager::OnMouseDown(MouseButton button)
@@ -103,4 +124,30 @@ void KeyInputManager::GetMouseDelta(int& dx, int& dy) const
 {
     dx = mouseX_ - prevMouseX_;
     dy = mouseY_ - prevMouseY_;
+}
+
+WPARAM KeyInputManager::MapLeftRightKeys(WPARAM vk, LPARAM lParam)
+{
+    WPARAM new_vk = vk;
+    UINT scancode = (lParam & 0x00ff0000) >> 16;
+    int extended = (lParam & 0x01000000) != 0;
+
+    switch (vk) {
+    case VK_SHIFT:
+        new_vk = MapVirtualKey(scancode, MAPVK_VSC_TO_VK_EX);
+        break;
+    case VK_CONTROL:
+        new_vk = extended ? VK_RCONTROL : VK_LCONTROL;
+        break;
+    case VK_MENU:
+        new_vk = extended ? VK_RMENU : VK_LMENU;
+        break;
+    default:
+        // not a key we map from generic to left/right specialized
+        //  just return it.
+        new_vk = vk;
+        break;
+    }
+
+    return new_vk;
 }

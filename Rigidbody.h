@@ -2,7 +2,7 @@
 #include "Fixture.h"
 #include "Shape.h"
 
-enum class RigidbodyType : uint8_t
+enum class RigidbodyType
 {
     Static = 0,
     Dynamic,

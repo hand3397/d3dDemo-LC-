@@ -1,17 +1,27 @@
 #include "GamePhysics.h"
-/*
+
+GamePhysics::GamePhysics()
+{
+}
+
+GamePhysics::~GamePhysics()
+{
+}
+
 void GamePhysics::Update(float dt, vector<unique_ptr<GameObject>>& allGameObjects, vector<GameObject*> gameObjectLayer[], Player* player)
 {
     auto& dynamicGameObjects = gameObjectLayer[(uint8_t)RigidbodyType::Dynamic];
     auto& kinematicGameObjects = gameObjectLayer[(uint8_t)RigidbodyType::Kinematic];
     
     // gravity falling
+    /*
     for (auto& go : dynamicGameObjects)
         if (!go->GetRigidbody().isGrounded_)
-            go->GetRigidbody().ApplyForce(XMFLOAT3(0.f, gravity_, 0.f));
+            go->GetRigidbody().AddForce(XMFLOAT3(0.f, gravity_, 0.f));
     for (auto& go : kinematicGameObjects) 
         if (!go->GetRigidbody().isGrounded_)
-            go->GetRigidbody().ApplyForce(XMFLOAT3(0.f, gravity_, 0.f));
+            go->GetRigidbody().AddForce(XMFLOAT3(0.f, gravity_, 0.f));
+    */
 
     // Intergraer rigidbody
     for (auto& go : dynamicGameObjects) {
@@ -23,6 +33,7 @@ void GamePhysics::Update(float dt, vector<unique_ptr<GameObject>>& allGameObject
         go->Update(dt);
     }
 
+    /*
     auto& playerRigidbody = player->GetRigidbody();
 
     if (IsBelowWorldBounds(playerRigidbody)) {
@@ -30,22 +41,6 @@ void GamePhysics::Update(float dt, vector<unique_ptr<GameObject>>& allGameObject
         playerRigidbody.isGrounded_ = true;
         player->Update(dt);
     }
+    */
 }
 
-bool GamePhysics::IsIntersect(const Rigidbody& a, const Rigidbody& b)
-{
-    if (a.boundingSphere_.Intersects(b.boundingSphere_)) {
-        if (a.boundingBox_.Intersects(b.boundingBox_)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-bool GamePhysics::IsBelowWorldBounds(const Rigidbody& rigidbody)
-{
-    float minY = rigidbody.boundingBox_.Center.y - rigidbody.boundingBox_.Extents.y;
-    return (minY < minFloorY_);
-}
-*/

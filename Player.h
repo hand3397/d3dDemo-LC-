@@ -64,6 +64,7 @@ private:
     bool isRunning_ = false;
     bool isFalling_ = false;
     bool wasJump_ = false;
+    bool isObserver_ = false;
     // 실제 플레이어의 이동 벡터가 아닌 플레이어가 바라보는 방향을 z+, 우측은 x+라고 가정하고 방향성을 나타내는 값
     // forward = z+, right = x+ (Normalize)
     XMFLOAT3 moveDir_ = { 0.0f,0.0f, 0.0f, };

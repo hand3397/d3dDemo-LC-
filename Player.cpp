@@ -1,7 +1,7 @@
 #include "Player.h"
 
 Player::Player(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position) : 
-    GameObject(scale, rotate, position, (uint8_t)RigidbodyType::Kinematic), fsm_(this)
+    GameObject(scale, rotate, position, RigidbodyType::Kinematic), fsm_(this)
 {
     SetAnimation({ "Idle" });
     fsm_.Change(IdleState::Instance());
@@ -21,6 +21,8 @@ Player::Player(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& po
     BoundingSphere bs;
     bs.Center = bb.Center;
     bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&maxPos) - XMLoadFloat3(&bs.Center)));
+
+    isObserver_ = true;
 }
 
 bool Player::IsMoving() const
@@ -74,14 +76,24 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
         SetRotate(XMFLOAT3(0.0f, camera_.GetYaw(), 0.0f));
     }
 
-    //keyboard input
     wasJump_ = false;
-    if (!isFalling_ && keyInput.IsKeyDown(VK_SPACE)) {
-        isFalling_ = true;
-        wasJump_ = true;
-        fsm_.Change(JumpState::Instance());
+    //keyboard input
+    if (isObserver_) {
+        if (keyInput.IsKeyDown(VK_SPACE)) {
+            rigidbody_.AddForce(XMFLOAT3(0.f, 4000.0f * dt, 0.f));
+        }
+        if (keyInput.IsKeyDown(VK_LCONTROL)) {
+            rigidbody_.AddForce(XMFLOAT3(0.f, -4000.0f * dt, 0.f));
+        }
     }
-
+    else {
+        if (!isFalling_ && keyInput.IsKeyDown(VK_SPACE)) {
+            isFalling_ = true;
+            wasJump_ = true;
+            fsm_.Change(JumpState::Instance());
+        }
+    }
+    
     isMoving_ = false;
     isRunning_ = false;
     moveDir_ = { 0.0f, 0.0f, 0.0f };
@@ -109,7 +121,7 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
     XMFLOAT3 moveForce;
     XMStoreFloat3(&moveForce, 4000.0f * moveForceVec * dt);
     
-    if (wasJump_)
+    if (!isObserver_ && wasJump_)
         moveForce.y += 500000.0f * dt;
 
     rigidbody_.AddForce(moveForce);
@@ -118,16 +130,6 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
 void Player::Update(float dt)
 {
     UpdateTransformFromRigidbody();
-
-    isFalling_ = true;
-    if (position_.y <= 0.0f) {
-        position_.y = 0.0f;
-        isFalling_ = false;
-    }
-
-    if (isFalling_) {
-        rigidbody_.AddForce(XMFLOAT3(0.f, -5000.f  * dt, 0.f));
-    }
 
     fsm_.Update();
 

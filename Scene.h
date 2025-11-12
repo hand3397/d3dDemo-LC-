@@ -6,6 +6,7 @@
 #include "ModelLoader.h"
 #include "GeometryGenerator.h"
 #include "GamePhysics.h"
+#include "ObjectManager.h"
 
 class Scene
 {
@@ -16,7 +17,6 @@ public:
     void InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
 
     void KeyInput(const KeyInputManager& keyInput, float dt);
-    void AddGameObject(const uint8_t layer, unique_ptr<GameObject> gameObject);
     void Update(const GameTimer& gt);
 
     Player* GetPlayer();
@@ -24,8 +24,9 @@ public:
 
     const uint32_t GetNumInstances()const;
 
-    const vector<unique_ptr<GameObject>>& GetAllGameObjects()const;
-    const vector<GameObject*>& GetGameObjects(const RigidbodyType layer)const;
+    const size_t MaxNumGameObjects()const;
+    const vector<GameObject*>& GetAllGameObjects();
+    const vector<GameObject*>& GetGameObjects(const RigidbodyType layer);
     const vector<unique_ptr<RenderItem>>& GetAllRenderItems()const;
     const vector<RenderItem*>& GetRenderItems(const RenderLayer layer) const;
 
@@ -48,7 +49,7 @@ private:
 
     void BuildGameObjects();
     GameObject* BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& transform,
-        vector<RenderItem*>& rItems, uint8_t rigidbodyType);
+        vector<RenderItem*>& rItems, RigidbodyType rigidbodyType);
 
     RenderItem* BuildRenderItem(const uint8_t renderLayer, 
         const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
@@ -65,12 +66,12 @@ private:
     void AnimateMaterials(float dt);
 
 private:
-    Player* player_;
+    unique_ptr<Player> player_;
 
     Camera* mainCamera_ = nullptr;
 
-    vector<unique_ptr<GameObject>> allGameObjects_;
-    vector<GameObject*> gameObjectLayer[(uint8_t)RigidbodyType::Count];
+    const uint32_t MAX_NUM_OBJECTS = 128;
+    LayeredObjectManager<GameObject, RigidbodyType> gameObejctManager_;
 
     vector<unique_ptr<RenderItem>> allRenderItems_;
     vector<RenderItem*> renderItemLayer_[(uint8_t)RenderLayer::Count];

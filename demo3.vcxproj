@@ -166,10 +166,12 @@
     <ClCompile Include="MathHelper.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="MemoryPool.cpp" />
     <ClCompile Include="MeshCollision.cpp" />
     <ClCompile Include="ModelLoader.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="ObjectManager.cpp" />
     <ClCompile Include="Player.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -198,9 +200,11 @@
     <ClInclude Include="GeometryGenerator.h" />
     <ClInclude Include="KeyInputManager.h" />
     <ClInclude Include="MathHelper.h" />
+    <ClInclude Include="MemoryPool.h" />
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="MeshCollision.h" />
     <ClInclude Include="ModelLoader.h" />
+    <ClInclude Include="ObjectManager.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="RenderItem.h" />
