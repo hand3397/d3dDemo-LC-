@@ -1,9 +1,16 @@
 #include "Fixture.h"
 
+namespace spe {;
+
 Fixture::Fixture(Shape* shape)
 {
     shape_ = shape;
     shapeType_ = shape->GetType();
+}
+
+Shape* Fixture::GetShape()
+{
+    return shape_;
 }
 
 ShapeType Fixture::GetShapeType()const
@@ -19,4 +26,6 @@ float Fixture::GetFriction()
 float Fixture::GetRestitution()
 {
     return restitution_;
+}
+
 }

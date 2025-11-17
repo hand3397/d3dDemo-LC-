@@ -608,7 +608,7 @@ void Renderer::UpdateDebugMesh(Scene* scene, const float dt)
 		};
 
 
-	auto& staticObjects = scene->GetGameObjects(RigidbodyType::Static);
+	auto& staticObjects = scene->GetGameObjects(spe::RigidbodyType::Static);
 	auto player = scene->GetPlayer();
 	/*
 	if (player && (vertices.size() + 24 <= maxDebugVertices_)) {

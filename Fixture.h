@@ -1,11 +1,14 @@
 #pragma once
 #include "Shape.h"
 
+namespace spe {; 
+
 class Fixture
 {
 public:
     Fixture(Shape* shape);
 
+    Shape* GetShape();
     ShapeType GetShapeType()const;
     float GetFriction();
     float GetRestitution();
@@ -18,4 +21,7 @@ protected:
     float friction_ = 0.f;
     float restitution_ = 0.f;
 };
+
+}
+
 

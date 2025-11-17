@@ -1,7 +1,7 @@
 #include "Player.h"
 
 Player::Player(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position) : 
-    GameObject(scale, rotate, position, RigidbodyType::Kinematic), fsm_(this)
+    GameObject(scale, rotate, position, spe::RigidbodyType::Kinematic), fsm_(this)
 {
     SetAnimation({ "Idle" });
     fsm_.Change(IdleState::Instance());
@@ -48,6 +48,11 @@ bool Player::wasJump() const
 XMFLOAT3 Player::GetMoveDir() const
 {
     return moveDir_;
+}
+
+XMVECTOR Player::GetLook() const
+{
+    return camera_.GetLook();
 }
 
 XMVECTOR Player::GetLookXZ() const

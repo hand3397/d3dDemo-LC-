@@ -1,17 +1,17 @@
 #include "GameObject.h"
 
-GameObject::GameObject(const RigidbodyType rigidbodyType) :
+GameObject::GameObject(const spe::RigidbodyType rigidbodyType) :
     scale_(XMFLOAT3(1.0f, 1.0f, 1.0f)), position_(XMFLOAT3(0.0f, 0.0f, 0.0f)), rotateQuat_(XMFLOAT4(0.f, 0.f, 0.f, 1.f))
 {   
-    rigidbody_ = Rigidbody(rigidbodyType, rotateQuat_, position_);
+    rigidbody_ = spe::Rigidbody(rigidbodyType, rotateQuat_, position_);
 }
 
 GameObject::GameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position,
-    const RigidbodyType rigidbodyType = RigidbodyType::Static) :
+    const spe::RigidbodyType rigidbodyType = spe::RigidbodyType::Static) :
     scale_(scale), position_(position)
 {
     XMStoreFloat4(&rotateQuat_, XMQuaternionRotationRollPitchYaw(rotate.x, rotate.y, rotate.z));
-    rigidbody_ = Rigidbody(rigidbodyType, rotateQuat_, position);
+    rigidbody_ = spe::Rigidbody(rigidbodyType, rotateQuat_, position);
 }
 
 void GameObject::OnSpawn()
@@ -74,12 +74,12 @@ void GameObject::SetRotateQuat(const XMFLOAT4& rotateQuat)
     rigidbody_.orientation_ = rotateQuat_;
 }
 
-Rigidbody& GameObject::GetRigidbody()
+spe::Rigidbody& GameObject::GetRigidbody()
 {
     return rigidbody_;
 }
 
-RigidbodyType GameObject::GetType()const
+spe::RigidbodyType GameObject::GetType()const
 {
     return rigidbody_.GetType();
 }

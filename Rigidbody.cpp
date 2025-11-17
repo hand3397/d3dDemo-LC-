@@ -1,5 +1,7 @@
 #include "RigidBody.h"
 
+namespace spe { ; 
+
 Rigidbody::Rigidbody()
 {
     CalculateMatrix();
@@ -40,7 +42,7 @@ void Rigidbody::ClearAcclerations()
 void Rigidbody::CreateFixture(Shape* shape)
 {
     Fixture* fixture = new Fixture(shape);
-    
+
     numFixtures_ = 1;
     fixtures_ = fixture;
 }
@@ -114,7 +116,7 @@ void Rigidbody::Integrate(float dt)
     // Synchronize the transform matrix with the current position and orientation
     CalculateMatrix();
 
-    ClearForces(); 
+    ClearForces();
     ClearAcclerations();
 }
 
@@ -248,4 +250,8 @@ void Rigidbody::SetAwake()
 {
     isAwake_ = true;
 }
+
+} // namespace spe
+
+
 

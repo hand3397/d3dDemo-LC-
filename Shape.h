@@ -1,6 +1,13 @@
 #pragma once
 #include "d3dUtil.h"
 
+namespace spe {; 
+
+static inline float VecDot(const XMVECTOR& a, const XMVECTOR& b) noexcept
+{
+	return XMVectorGetX(XMVector3Dot(a, b));
+}
+
 enum class ShapeType
 {
 	SPHERE = (1 << 0),
@@ -14,17 +21,23 @@ int32_t operator|(ShapeType type1, ShapeType type2);
 
 struct ConvexInfo
 {
+	~ConvexInfo();
+
 	XMFLOAT3* points = nullptr;
 	XMFLOAT3* axes = nullptr;
 
 	int32_t numPoints;
 	int32_t numAxes;
-	
+
 	XMFLOAT3 center;
 	XMFLOAT3 halfSize;
 
 	float radius;
 	float height;
+
+	ShapeType type;
+
+	XMFLOAT3 GetFarthestPoint(const XMVECTOR& dir) const;
 };
 
 class Shape
@@ -34,7 +47,7 @@ public:
 	virtual ConvexInfo GetConvexInfo(const XMMATRIX& transform) const = 0;
 
 	ShapeType GetType() const;
-	
+
 	void SetType(ShapeType type);
 	void SetCenter(const XMFLOAT3& center);
 protected:
@@ -59,3 +72,6 @@ public:
 protected:
 	XMFLOAT3 halfSize_;
 };
+
+}
+

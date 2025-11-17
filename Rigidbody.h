@@ -2,6 +2,8 @@
 #include "Fixture.h"
 #include "Shape.h"
 
+namespace spe {;
+
 enum class RigidbodyType
 {
     Static = 0,
@@ -79,10 +81,15 @@ public:
     float angularDamping_ = 0.1f;
 
     // flag
-    bool isGrounded_ = true;
+    bool isGrounded_ = false;
     bool isAwake_ = false;
 
     // fixture
     Fixture* fixtures_ = nullptr;
     uint32_t numFixtures_ = 0;
 };
+
+}
+
+
+

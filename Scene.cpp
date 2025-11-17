@@ -24,17 +24,30 @@ void Scene::KeyInput(const KeyInputManager& keyInput, float dt)
 {
 	if (player_)
 		player_->KeyInput(keyInput, dt);
+
+	if (keyInput.WasKeyPressed('O') && player_) {
+		auto ball = AddBallObject(player_->GetPosition());
+		XMFLOAT3 force;
+		XMStoreFloat3(&force, 8000.0f * player_->GetLook());
+		ball->GetRigidbody().AddForce(force);
+	}
 }
 
 void Scene::Update(const GameTimer& gt)
 {
 	float dt = gt.DeltaTime();
 	
-	//gamePhysics.Update(dt, player_);
+	
+	gamePhysics.Update(dt, gameObejctManager_.GetAllObjects(), 
+		gameObejctManager_.GetLayeredObjects(spe::RigidbodyType::Dynamic),
+		gameObejctManager_.GetLayeredObjects(spe::RigidbodyType::Kinematic),
+		player_.get());
+	
 	
 	if (player_)
 		player_->Update(dt);
-
+	
+	
 	AnimateMaterials(dt);
 }
 
@@ -63,7 +76,7 @@ const vector<GameObject*>& Scene::GetAllGameObjects()
 	return gameObejctManager_.GetAllObjects();
 }
 
-const vector<GameObject*>& Scene::GetGameObjects(const RigidbodyType layer)
+const vector<GameObject*>& Scene::GetGameObjects(const spe::RigidbodyType layer)
 {
 	return gameObejctManager_.GetLayeredObjects(layer);
 }
@@ -312,7 +325,7 @@ void Scene::BuildGameObjects()
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["grid"], materials_["tile0"].get(),
 		XMMatrixIdentity(), XMMatrixScaling(15.0f, 15.0f, 1.0f)) };
 	BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
-		renderItems, RigidbodyType::Static);
+		renderItems, spe::RigidbodyType::Static);
 	
 	// build wall
 	/*
@@ -398,7 +411,7 @@ void Scene::BuildGameObjects()
 }
 
 GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& transform, 
-	vector<RenderItem*>& rItems, RigidbodyType rigidbodyType)
+	vector<RenderItem*>& rItems, spe::RigidbodyType rigidbodyType)
 {
 	XMFLOAT4 rotateQuat;
 	XMStoreFloat4(&rotateQuat, XMQuaternionRotationRollPitchYaw(rotate.x, rotate.y, rotate.z));
@@ -457,7 +470,7 @@ GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
 	XMMATRIX world = T;
 
 	GameObject* gameObject = gameObejctManager_.CreateObject(
-		XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), pos, RigidbodyType::Dynamic);
+		XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), pos, spe::RigidbodyType::Dynamic);
 	
 	auto renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
 			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["sphere"], materials_["bricks0"].get(),
@@ -470,11 +483,12 @@ GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
 	}
 
 	auto& rigidbody = gameObject->GetRigidbody();
-	
-	SphereShape* sphereShape = new SphereShape;
+	rigidbody.SetLinearDamping(0.01f);
+
+	spe::SphereShape* sphereShape = new spe::SphereShape;
 	sphereShape->SetRadius(0.5f);
 
-	Fixture* fixture = new Fixture(sphereShape);
+	spe::Fixture* fixture = new spe::Fixture(sphereShape);
 	rigidbody.AddFixture(fixture);
 
 	return gameObject;

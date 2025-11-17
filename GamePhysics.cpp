@@ -8,20 +8,14 @@ GamePhysics::~GamePhysics()
 {
 }
 
-void GamePhysics::Update(float dt, vector<unique_ptr<GameObject>>& allGameObjects, vector<GameObject*> gameObjectLayer[], Player* player)
+void GamePhysics::Update(float dt, 
+    vector<GameObject*>& allGameObjects, 
+    vector<GameObject*>& dynamicGameObjects, 
+    vector<GameObject*>& kinematicGameObjects,
+    Player* player)
 {
-    auto& dynamicGameObjects = gameObjectLayer[(uint8_t)RigidbodyType::Dynamic];
-    auto& kinematicGameObjects = gameObjectLayer[(uint8_t)RigidbodyType::Kinematic];
-    
     // gravity falling
-    /*
-    for (auto& go : dynamicGameObjects)
-        if (!go->GetRigidbody().isGrounded_)
-            go->GetRigidbody().AddForce(XMFLOAT3(0.f, gravity_, 0.f));
-    for (auto& go : kinematicGameObjects) 
-        if (!go->GetRigidbody().isGrounded_)
-            go->GetRigidbody().AddForce(XMFLOAT3(0.f, gravity_, 0.f));
-    */
+    OnGravity(dynamicGameObjects, kinematicGameObjects, player);
 
     // Intergraer rigidbody
     for (auto& go : dynamicGameObjects) {
@@ -33,14 +27,19 @@ void GamePhysics::Update(float dt, vector<unique_ptr<GameObject>>& allGameObject
         go->Update(dt);
     }
 
-    /*
+    
     auto& playerRigidbody = player->GetRigidbody();
+    playerRigidbody.Integrate(dt);
+}
 
-    if (IsBelowWorldBounds(playerRigidbody)) {
-        playerRigidbody.position_.y = minFloorY_;
-        playerRigidbody.isGrounded_ = true;
-        player->Update(dt);
-    }
-    */
+void GamePhysics::OnGravity(vector<GameObject*>& dynamicGameObjects,
+    vector<GameObject*>& kinematicGameObjects, Player* player)
+{
+    for (auto& go : dynamicGameObjects)
+        if (!go->GetRigidbody().isGrounded_)
+            go->GetRigidbody().AddForce(XMFLOAT3(0.f, gravity_ * 10.f, 0.f));
+    for (auto& go : kinematicGameObjects)
+        if (!go->GetRigidbody().isGrounded_)
+            go->GetRigidbody().AddForce(XMFLOAT3(0.f, gravity_ * 10.f, 0.f));
 }
 

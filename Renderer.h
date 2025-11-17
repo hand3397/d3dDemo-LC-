@@ -5,8 +5,6 @@
 #include "Scene.h"
 #include "GameTimer.h"
 
-#include "MeshCollision.h"
-
 using Microsoft::WRL::ComPtr;
 
 class Renderer

@@ -31,6 +31,7 @@ public:
     bool wasJump() const;
     XMFLOAT3 GetMoveDir() const;
 
+    XMVECTOR GetLook() const;
     XMVECTOR GetLookXZ() const;
     XMVECTOR GetRightXZ() const;
 

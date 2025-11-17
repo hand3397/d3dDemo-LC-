@@ -127,6 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="BoxToBoxContact.cpp" />
     <ClCompile Include="Camera.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -167,7 +168,6 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="MemoryPool.cpp" />
-    <ClCompile Include="MeshCollision.cpp" />
     <ClCompile Include="ModelLoader.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -184,9 +184,13 @@
     <ClCompile Include="SkinnedData.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="SphereToBoxContact.cpp" />
+    <ClCompile Include="SphereToSphereContact.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BoxToBoxContact.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="Collision.h" />
     <ClInclude Include="Contact.h" />
     <ClInclude Include="d3dApp.h" />
     <ClInclude Include="d3dUtil.h" />
@@ -202,7 +206,6 @@
     <ClInclude Include="MathHelper.h" />
     <ClInclude Include="MemoryPool.h" />
     <ClInclude Include="Mesh.h" />
-    <ClInclude Include="MeshCollision.h" />
     <ClInclude Include="ModelLoader.h" />
     <ClInclude Include="ObjectManager.h" />
     <ClInclude Include="Player.h" />
@@ -212,6 +215,8 @@
     <ClInclude Include="Scene.h" />
     <ClInclude Include="Shape.h" />
     <ClInclude Include="SkinnedData.h" />
+    <ClInclude Include="SphereToBoxContact.h" />
+    <ClInclude Include="SphereToSphereContact.h" />
     <ClInclude Include="UploadBuffer.h" />
   </ItemGroup>
   <ItemGroup>

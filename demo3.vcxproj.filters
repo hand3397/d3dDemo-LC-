@@ -19,14 +19,20 @@
     <Filter Include="소스 파일\Physics">
       <UniqueIdentifier>{0d4c702e-c852-4816-a9e7-42abc74be9b5}</UniqueIdentifier>
     </Filter>
-    <Filter Include="헤더 파일\physics">
-      <UniqueIdentifier>{cdda3827-e23b-4d43-bcf7-06731d471417}</UniqueIdentifier>
-    </Filter>
     <Filter Include="소스 파일\Graphics">
       <UniqueIdentifier>{d04e5468-3277-43e4-a654-4334973fbf7f}</UniqueIdentifier>
     </Filter>
     <Filter Include="헤더 파일\Graphics">
       <UniqueIdentifier>{f574a7b3-e11c-443c-87a3-26696c4a7fdd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="소스 파일\Physics\Contacts">
+      <UniqueIdentifier>{728e7d31-a97b-43b4-944c-1fae4788be37}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="헤더 파일\Physics">
+      <UniqueIdentifier>{cdda3827-e23b-4d43-bcf7-06731d471417}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="헤더 파일\Physics\Contacts">
+      <UniqueIdentifier>{11c20fb3-c9db-4497-92f9-756bc7e9c00a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -63,9 +69,6 @@
     <ClCompile Include="GamePhysics.cpp">
       <Filter>소스 파일\Physics</Filter>
     </ClCompile>
-    <ClCompile Include="MeshCollision.cpp">
-      <Filter>소스 파일\Physics</Filter>
-    </ClCompile>
     <ClCompile Include="Rigidbody.cpp">
       <Filter>소스 파일\Physics</Filter>
     </ClCompile>
@@ -96,14 +99,23 @@
     <ClCompile Include="Fixture.cpp">
       <Filter>소스 파일\Physics</Filter>
     </ClCompile>
-    <ClCompile Include="Contact.cpp">
-      <Filter>소스 파일\Physics</Filter>
-    </ClCompile>
     <ClCompile Include="MemoryPool.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="ObjectManager.cpp">
       <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="SphereToSphereContact.cpp">
+      <Filter>소스 파일\Physics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="Contact.cpp">
+      <Filter>소스 파일\Physics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="SphereToBoxContact.cpp">
+      <Filter>소스 파일\Physics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="BoxToBoxContact.cpp">
+      <Filter>소스 파일\Physics\Contacts</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -144,16 +156,13 @@
       <Filter>헤더 파일\Graphics</Filter>
     </ClInclude>
     <ClInclude Include="GamePhysics.h">
-      <Filter>헤더 파일\physics</Filter>
-    </ClInclude>
-    <ClInclude Include="MeshCollision.h">
-      <Filter>헤더 파일\physics</Filter>
+      <Filter>헤더 파일\Physics</Filter>
     </ClInclude>
     <ClInclude Include="ModelLoader.h">
       <Filter>헤더 파일\Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Rigidbody.h">
-      <Filter>헤더 파일\physics</Filter>
+      <Filter>헤더 파일\Physics</Filter>
     </ClInclude>
     <ClInclude Include="RenderItem.h">
       <Filter>헤더 파일\Graphics</Filter>
@@ -165,7 +174,7 @@
       <Filter>헤더 파일\Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Shape.h">
-      <Filter>헤더 파일\physics</Filter>
+      <Filter>헤더 파일\Physics</Filter>
     </ClInclude>
     <ClInclude Include="SkinnedData.h">
       <Filter>헤더 파일\Graphics</Filter>
@@ -177,16 +186,28 @@
       <Filter>헤더 파일\Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Fixture.h">
-      <Filter>헤더 파일\physics</Filter>
-    </ClInclude>
-    <ClInclude Include="Contact.h">
-      <Filter>헤더 파일\physics</Filter>
+      <Filter>헤더 파일\Physics</Filter>
     </ClInclude>
     <ClInclude Include="MemoryPool.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="ObjectManager.h">
       <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Collision.h">
+      <Filter>헤더 파일\Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Contact.h">
+      <Filter>헤더 파일\Physics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="SphereToSphereContact.h">
+      <Filter>헤더 파일\Physics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="SphereToBoxContact.h">
+      <Filter>헤더 파일\Physics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="BoxToBoxContact.h">
+      <Filter>헤더 파일\Physics\Contacts</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -26,7 +26,7 @@ public:
 
     const size_t MaxNumGameObjects()const;
     const vector<GameObject*>& GetAllGameObjects();
-    const vector<GameObject*>& GetGameObjects(const RigidbodyType layer);
+    const vector<GameObject*>& GetGameObjects(const spe::RigidbodyType layer);
     const vector<unique_ptr<RenderItem>>& GetAllRenderItems()const;
     const vector<RenderItem*>& GetRenderItems(const RenderLayer layer) const;
 
@@ -49,7 +49,7 @@ private:
 
     void BuildGameObjects();
     GameObject* BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& transform,
-        vector<RenderItem*>& rItems, RigidbodyType rigidbodyType);
+        vector<RenderItem*>& rItems, spe::RigidbodyType rigidbodyType);
 
     RenderItem* BuildRenderItem(const uint8_t renderLayer, 
         const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
@@ -71,7 +71,7 @@ private:
     Camera* mainCamera_ = nullptr;
 
     const uint32_t MAX_NUM_OBJECTS = 128;
-    LayeredObjectManager<GameObject, RigidbodyType> gameObejctManager_;
+    LayeredObjectManager<GameObject, spe::RigidbodyType> gameObejctManager_;
 
     vector<unique_ptr<RenderItem>> allRenderItems_;
     vector<RenderItem*> renderItemLayer_[(uint8_t)RenderLayer::Count];
