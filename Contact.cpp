@@ -70,6 +70,15 @@ Contact::Contact(Fixture* fixtureA, Fixture* fixtureB) :
 
 void Contact::Update()
 {
+    Rigidbody* bodyA = fixtureA_->GetRigidbody();
+    Rigidbody* bodyB = fixtureB_->GetRigidbody();
+    XMMATRIX transformA = bodyA->GetTransformMatrix();
+    XMMATRIX transformB = bodyB->GetTransformMatrix();
+
+    // Evaluate
+    manifold_.pointsCount = 0;
+    Evaluate(manifold_, transformA, transformB);
+    isTouching_ = manifold_.pointsCount > 0;
 }
 
 void Contact::Evaluate(Manifold& manifold, const XMMATRIX& transformA, const XMMATRIX& transformB)
@@ -77,8 +86,9 @@ void Contact::Evaluate(Manifold& manifold, const XMMATRIX& transformA, const XMM
     Shape* shapeA = fixtureA_->GetShape();
     Shape* shapeB = fixtureB_->GetShape();
 
-    ConvexInfo convexA = shapeA->GetConvexInfo(transformA);
-    ConvexInfo convexB = shapeB->GetConvexInfo(transformB);
+    ConvexInfo convexA, convexB;
+    shapeA->GetConvexInfo(transformA, convexA);
+    shapeB->GetConvexInfo(transformB, convexB);
 
     Simplex simplex;
     CollisionInfo collisionInfo;
@@ -89,21 +99,21 @@ void Contact::Evaluate(Manifold& manifold, const XMMATRIX& transformA, const XMM
 
     if (isCollide) {
         // std::cout << "EPA start\n";
-        ResultEPA epaInfo = GetEPA(simplex, convexA, convexB);
+        ResultEPA resultEPA = GetEPA(simplex, convexA, convexB);
 
-        if (epaInfo.dist == -1.0f) {
-            //freeConvexInfo(convexA, convexB);
+        if (resultEPA.dist == -1.0f) {
+            freeConvexInfo(convexA, convexB);
             return;
         }
 
         // std::cout << "CLIPPING start\n";
-        findCollisionPoints(convexA, convexB, collisionInfo, epaInfo, simplex);
+        findCollisionPoints(convexA, convexB, collisionInfo, resultEPA, simplex);
 
         // std::cout << "createManifold start\n";
         generateManifolds(collisionInfo, manifold, fixtureA_, fixtureB_);
     }
 
-    //freeConvexInfo(convexA, convexB);
+    freeConvexInfo(convexA, convexB);
 }
 
 void Contact::generateManifolds(CollisionInfo& collisionInfo, Manifold& manifold, Fixture* fixtureA, Fixture* fixtureB)
@@ -119,6 +129,11 @@ void Contact::generateManifolds(CollisionInfo& collisionInfo, Manifold& manifold
     }
 }
 
+bool Contact::IsTouching() const
+{
+    return isTouching_;
+}
+
 float Contact::GetFriction() const
 {
     return friction_;
@@ -129,12 +144,33 @@ float Contact::GetRestitution() const
     return restitution_;
 }
 
+void Fixture::SetRigidbody(Rigidbody* rigidbody)
+{
+    rigidbody_ = rigidbody;
+}
+
+void Fixture::SetFriction(float friction)
+{
+    friction_ = friction;
+}
+
+void Fixture::SetRestitution(float restitution)
+{
+    restitution_ = restitution;
+}
+
 std::tuple<std::vector<XMVECTOR>, std::vector<float>, uint32_t> Contact::GetFaceNormals(const std::vector<SupportPoint>& polytope, const std::vector<uint32_t>& faces)
 {
+    XMVECTOR center = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
     std::vector<XMVECTOR> normals;
     std::vector<float> distances;
+
     uint32_t minTriangle = 0;
     float  minDistance = FLT_MAX;
+
+    for (const auto& p : polytope)
+        center += p.diff;
+    center /= static_cast<float>(polytope.size());
 
     size_t numFaces = faces.size() / 3;
     normals.reserve(numFaces);
@@ -146,12 +182,11 @@ std::tuple<std::vector<XMVECTOR>, std::vector<float>, uint32_t> Contact::GetFace
         XMVECTOR c = polytope[faces[i + 2]].diff;
 
         XMVECTOR normal = XMVector3Normalize(XMVector3Cross(b - a, c - a));
-        float distance = VecDot(normal, a);
 
-        if (distance < 0) {
-            normal *= -1;
-            distance *= -1;
-        }
+        if (VecDot(normal, a - center) < 0)
+            normal = -normal;
+        float distance = VecDot(normal, a);
+        assert(distance >= 0);
 
         normals.emplace_back(normal);
         distances.emplace_back(distance);
@@ -213,14 +248,9 @@ ResultEPA Contact::GetEPA(Simplex& simplex, const ConvexInfo& convexA, const Con
 
         SupportPoint support = GetSupportPoint(convexA, convexB, minNormal);
         float sDistance = VecDot(minNormal, support.diff);
-
-        // XMFLOAT3 f3;
-        // XMStoreFloat3(&f3, support.diff);
-        // std::cout << "(" << f3.x << ", " << f3.y << ", " << f3.z << ")\n";
-        // std::cout << "minDistance: " << minDistance << ", distance: " << sDistance << "\n";
         
         // 새로구한 support의 거리가 polytope의 면 최소거리보다 짧거나 같다면 루프를 종료한다.
-        if (sDistance > minDistance) {
+        if (std::abs(sDistance - minDistance) > 1e-2f && !IsDuplicatedPoint(polytope, support.diff)) {
             minDistance = FLT_MAX;
 
             std::vector<std::pair<uint32_t, uint32_t>> uniqueEdges;
@@ -248,12 +278,18 @@ ResultEPA Contact::GetEPA(Simplex& simplex, const ConvexInfo& convexA, const Con
                 }
             }
 
+            if (uniqueEdges.empty()) {
+                break;
+            }
+
             std::vector<uint32_t> newFaces;
             for (auto [edgeIndex1, edgeIndex2] : uniqueEdges) {
                 newFaces.push_back(edgeIndex1);
                 newFaces.push_back(edgeIndex2);
                 newFaces.push_back(polytope.size());
             }
+
+            assert(!newFaces.empty());
 
             polytope.push_back(support);
 
@@ -446,6 +482,27 @@ void Contact::AddIfUniqueEdge(std::vector<std::pair<uint32_t, uint32_t>>& edges,
     else {
         edges.emplace_back(faces[a], faces[b]);
     }
+}
+
+bool Contact::IsDuplicatedPoint(const vector<SupportPoint>& polytope, const XMVECTOR& supportPoint)
+{
+    size_t numPoints = polytope.size();
+    for (size_t i = 0; i < numPoints; ++i) {
+        const XMVECTOR delta = polytope[i].diff - supportPoint;
+
+        // 제곱 길이 구하기: XMVector3LengthSq 반환은 XMVECTOR( x, x, x, x ) 형식이므로 XMVECTORGetX로 추출
+        if (XMVectorGetX(XMVector3LengthSq(delta)) < EPS_FLOAT)
+            return true;
+    }
+    return false;
+}
+
+void Contact::freeConvexInfo(ConvexInfo& convexA, ConvexInfo& convexB)
+{
+    delete[] convexA.axes;
+    delete[] convexB.axes;
+    delete[] convexA.points;
+    delete[] convexB.points;
 }
 
 } // naemspace spe

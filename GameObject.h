@@ -52,32 +52,3 @@ protected:
     XMFLOAT3 scale_ = { 1.0f, 1.0f, 1.0f };
 };
 
-
-/*
-class MovingObject : public GameObject
-{
-public:
-    MovingObject();
-    virtual void Update(float dt) override;
-
-    bool IsAccelerating() const;
-protected:
-    void ApplyForce(const XMFLOAT3& force);
-    void UpdatePhysics(float dt);
-
-    float speed_ = 0.0f;
-    
-    XMFLOAT3 velocity_ = { 0.0f, 0.0f, 0.0f };
-    XMFLOAT3 acceleration_ = { 0.0f, 0.0f, 0.0f };
-
-    float mass_ = 1.0f;
-    float drag_ = 0.0f;            // 공기 저항
-    float friction_ = 0.7f;        // 바닥 마찰 계수
-    float linearFriction_ = 3.0f;
-
-    bool hasGravity = true;
-    float gravity_ = 9.8f;
-};
-*/
-
-

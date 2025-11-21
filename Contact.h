@@ -77,6 +77,7 @@ public:
 
 	void generateManifolds(CollisionInfo& collisionInfo, Manifold& manifold, Fixture* fixtureA, Fixture* fixtureB);
 
+	bool IsTouching()const;
 	float GetFriction() const;
 	float GetRestitution() const;
 	std::tuple<std::vector<XMVECTOR>, std::vector<float>, uint32_t> GetFaceNormals(
@@ -107,6 +108,7 @@ protected:
 
 	virtual void findCollisionPoints(const ConvexInfo& convexA, const ConvexInfo& convexB, CollisionInfo& collisionInfo,
 		ResultEPA& resultEPA, Simplex& simplexArray) = 0;
+	bool IsDuplicatedPoint(const vector<SupportPoint>& polytope, const XMVECTOR& supportPoint);
 
 	/*
 	void computeContactPolygon(ContactPolygon& contactPolygon, Face& refFace, Face& incFace);
@@ -126,15 +128,18 @@ protected:
 	void addFaceInFaceArray(FaceArray& faceArray, int32_t idx1, int32_t idx2, int32_t idx3);
 	void mergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray);
 	void sizeUpFaceArray(FaceArray& faceArray, int32_t newMaxCount);
-	void freeConvexInfo(ConvexInfo& convexA, ConvexInfo& convexB);
 	*/
+	void freeConvexInfo(ConvexInfo& convexA, ConvexInfo& convexB);
+	
 	float friction_;
 	float restitution_;
 
-	Fixture* fixtureA_;
-	Fixture* fixtureB_;
+	Fixture* fixtureA_ = nullptr;
+	Fixture* fixtureB_ = nullptr;
 
 	Manifold manifold_;
+
+	bool isTouching_ = false;
 };
 
 }	// namespace spe

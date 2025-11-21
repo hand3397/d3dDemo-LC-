@@ -74,7 +74,7 @@ private:
     LayeredObjectManager<GameObject, spe::RigidbodyType> gameObejctManager_;
 
     vector<unique_ptr<RenderItem>> allRenderItems_;
-    vector<RenderItem*> renderItemLayer_[(uint8_t)RenderLayer::Count];
+    vector<RenderItem*> renderItemLayer_[(uint32_t)RenderLayer::COUNT];
 
     unordered_map<string, unique_ptr<MeshGeometry>> meshes_;
     unordered_map<string, unique_ptr<Material>> materials_;
@@ -85,5 +85,5 @@ private:
 
     unordered_map<string, unique_ptr<SkinnedModelInstance>> skinnedModelInsts_;
 
-    GamePhysics gamePhysics;
+    spe::GamePhysics gamePhysics;
 };

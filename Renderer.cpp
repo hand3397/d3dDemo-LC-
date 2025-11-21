@@ -193,7 +193,7 @@ void Renderer::Update(const GameTimer& gt, Scene* scene)
 	UpdateMaterialBuffer(gt, scene);
 	UpdateMainPassCB(gt, scene);
 	
-	UpdateDebugMesh(scene, dt);
+	UpdateDebugMesh(scene);
 }
 
 void Renderer::Draw(const Scene* scene)
@@ -245,19 +245,19 @@ void Renderer::Draw(const Scene* scene)
 
 	// ---------------------------------------------------------
 
-	DrawRenderItems(scene->GetRenderItems(RenderLayer::Opaque));
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_OPAQUE));
 
 	commandList_->SetPipelineState(PSOs_["alphaTested"].Get());
-	DrawRenderItems(scene->GetRenderItems(RenderLayer::AlphaTested));
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_ALPHATESTED));
 	
 	commandList_->SetPipelineState(PSOs_["transparent"].Get());
-	DrawRenderItems(scene->GetRenderItems(RenderLayer::Transparent));
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_TRANSPARENT));
 
 	//commandList_->SetPipelineState(PSOs_["skinnedOpaque"].Get());
-	//DrawRenderItems(scene->GetRenderItems(RenderLayer::Skinned));
+	//DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_SKINNED));
 
 	commandList_->SetPipelineState(PSOs_["instance"].Get());
-	DrawRenderItems(scene->GetRenderItems(RenderLayer::Instance));
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_INSTANCE));
 
 	commandList_->SetPipelineState(PSOs_["color"].Get());
 	DrawDebugBox();
@@ -571,7 +571,7 @@ void Renderer::BuildDebugMesh()
 		0, &readRange, reinterpret_cast<void**>(&mappedData_)));
 }
 
-void Renderer::UpdateDebugMesh(Scene* scene, const float dt)
+void Renderer::UpdateDebugMesh(Scene* scene)
 {
 	vector<ColorVertex> vertices;
 
@@ -607,8 +607,42 @@ void Renderer::UpdateDebugMesh(Scene* scene, const float dt)
 		}
 		};
 
+	auto pushAABB = [&](const XMFLOAT3& lower, const XMFLOAT3& upper, const XMVECTOR& color) {
+		XMFLOAT3 corner[8];
 
-	auto& staticObjects = scene->GetGameObjects(spe::RigidbodyType::Static);
+		// 8개의 꼭짓점 만들기
+		corner[0] = { lower.x, lower.y, lower.z };
+		corner[1] = { upper.x, lower.y, lower.z };
+		corner[2] = { upper.x, upper.y, lower.z };
+		corner[3] = { lower.x, upper.y, lower.z };
+
+		corner[4] = { lower.x, lower.y, upper.z };
+		corner[5] = { upper.x, lower.y, upper.z };
+		corner[6] = { upper.x, upper.y, upper.z };
+		corner[7] = { lower.x, upper.y, upper.z };
+
+		// 아래 사각형
+		pushEdge(corner, 0, 1, color);
+		pushEdge(corner, 1, 2, color);
+		pushEdge(corner, 2, 3, color);
+		pushEdge(corner, 3, 0, color);
+
+		// 위 사각형
+		pushEdge(corner, 4, 5, color);
+		pushEdge(corner, 5, 6, color);
+		pushEdge(corner, 6, 7, color);
+		pushEdge(corner, 7, 4, color);
+
+		// 세로 엣지
+		pushEdge(corner, 0, 4, color);
+		pushEdge(corner, 1, 5, color);
+		pushEdge(corner, 2, 6, color);
+		pushEdge(corner, 3, 7, color);
+		};
+
+	// staticObjects가 실제로 존재해도 나오지 않는 문제가 있음
+	auto& staticObjects = scene->GetGameObjects(spe::RigidbodyType::STATIC);
+	auto& dynamicObjects = scene->GetGameObjects(spe::RigidbodyType::DYNAMIC);
 	auto player = scene->GetPlayer();
 	/*
 	if (player && (vertices.size() + 24 <= maxDebugVertices_)) {
@@ -629,6 +663,21 @@ void Renderer::UpdateDebugMesh(Scene* scene, const float dt)
 			CreateBox(corner, orange);
 	}
 	*/
+
+	for (auto& staticGo : staticObjects) {
+		auto& staticRigidbody = staticGo->GetRigidbody();
+		XMMATRIX xf = staticRigidbody.GetTransformMatrix();
+		spe::AABB aabb = staticRigidbody.GetFixture()->GetShape()->GetAABB(xf);
+		pushAABB(aabb.lowerBound, aabb.upperBound, DirectX::Colors::DarkRed);
+	}
+
+	// Contact DynamicToStatic
+	for (auto& dynamicGo : dynamicObjects) {
+		auto& dynamicRigidbody = dynamicGo->GetRigidbody();
+		XMMATRIX xf = dynamicRigidbody.GetTransformMatrix();
+		spe::AABB aabb = dynamicRigidbody.GetFixture()->GetShape()->GetAABB(xf);
+		pushAABB(aabb.lowerBound, aabb.upperBound, DirectX::Colors::DarkRed);
+	}
 
 	//---------------------------
 	CreatePoint(XMFLOAT3(0.f, 0.f, 0.f), DirectX::Colors::Black);
@@ -933,7 +982,7 @@ void Renderer::UpdateInstanceData(const GameTimer& gt, Scene* scene)
 	worldFrustum.Transform(worldFrustum, invView);
 
 	auto currInstanceBuffer = currFrameResource_->instanceBuffer_.get();
-	auto& renderItems = scene->GetRenderItems(RenderLayer::Instance);
+	auto& renderItems = scene->GetRenderItems(RenderLayer::RENDER_INSTANCE);
 	for (auto& e : renderItems) {
 		const auto& instanceData = e->instances_;
 

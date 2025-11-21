@@ -53,7 +53,7 @@ class LayeredObjectManager
 private:
     MemoryPool<T> pool;
     std::vector<T*> allObjects_;
-    std::vector<T*> objectLayer_[(uint32_t)Layer::Count];
+    std::vector<T*> objectLayer_[(uint32_t)Layer::COUNT];
     size_t poolSize_;
 public:
     LayeredObjectManager(size_t poolSize) : poolSize_(poolSize), pool(poolSize) {}
@@ -61,7 +61,8 @@ public:
 
     size_t Size() { return poolSize_; }
     std::vector<T*> GetAllObjects() { return allObjects_; }
-    std::vector<T*> GetLayeredObjects(const Layer layer) { return objectLayer_[(uint32_t)layer]; }
+    std::vector<T*>* GetAllLayeredObjects() { return objectLayer_; }
+    std::vector<T*>& GetLayeredObjects(const Layer layer) { return objectLayer_[(uint32_t)layer]; }
 
     template<typename... Args>
     T* CreateObject(Args&&... args)

@@ -4,14 +4,14 @@
 #include "SkinnedData.h"
 
 
-enum class RenderLayer : uint8_t
+enum class RenderLayer
 {
-    Opaque = 0,
-    Transparent,
-    AlphaTested,
-    Skinned,
-    Instance,
-    Count
+    RENDER_OPAQUE = 0,
+    RENDER_TRANSPARENT,
+    RENDER_ALPHATESTED,
+    RENDER_SKINNED,
+    RENDER_INSTANCE,
+    COUNT
 };
 
 

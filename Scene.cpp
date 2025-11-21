@@ -13,7 +13,7 @@ Scene::~Scene()
 
 void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
-	player_ = make_unique<Player>(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 5.0f));
+	player_ = make_unique<Player>(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 5.0f, -10.0f));
 	mainCamera_ = player_->GetCamera();
 
 	LoadScene(device, cmdList);
@@ -28,7 +28,7 @@ void Scene::KeyInput(const KeyInputManager& keyInput, float dt)
 	if (keyInput.WasKeyPressed('O') && player_) {
 		auto ball = AddBallObject(player_->GetPosition());
 		XMFLOAT3 force;
-		XMStoreFloat3(&force, 8000.0f * player_->GetLook());
+		XMStoreFloat3(&force, 4000.0f * player_->GetLook());
 		ball->GetRigidbody().AddForce(force);
 	}
 }
@@ -37,10 +37,8 @@ void Scene::Update(const GameTimer& gt)
 {
 	float dt = gt.DeltaTime();
 	
-	
-	gamePhysics.Update(dt, gameObejctManager_.GetAllObjects(), 
-		gameObejctManager_.GetLayeredObjects(spe::RigidbodyType::Dynamic),
-		gameObejctManager_.GetLayeredObjects(spe::RigidbodyType::Kinematic),
+	gamePhysics.Update(dt, gameObejctManager_.GetAllObjects(),
+		gameObejctManager_.GetAllLayeredObjects(),
 		player_.get());
 	
 	
@@ -321,11 +319,11 @@ void Scene::BuildGameObjects()
 	BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 4.0f, 0.0f),
 		renderItems, RigidbodyType::Static);
 	*/
-	renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
+	renderItems = { BuildRenderItem((uint8_t)RenderLayer::RENDER_OPAQUE,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["grid"], materials_["tile0"].get(),
 		XMMatrixIdentity(), XMMatrixScaling(15.0f, 15.0f, 1.0f)) };
 	BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
-		renderItems, spe::RigidbodyType::Static);
+		renderItems, spe::RigidbodyType::STATIC);
 	
 	// build wall
 	/*
@@ -359,12 +357,12 @@ void Scene::BuildGameObjects()
 	}
 	*/
 	
-	renderItems = { BuildRenderItem((uint8_t)RenderLayer::Skinned,
+	renderItems = { BuildRenderItem((uint8_t)RenderLayer::RENDER_SKINNED,
 		meshes_["skinnedGeo"].get(), meshes_["skinnedGeo"].get()->subMeshes_["0"], materials_["soldier"].get(),
 		XMMatrixIdentity(), XMMatrixIdentity(),
 		skinnedModelInsts_["Vanguard"].get(), 0),
 
-		BuildRenderItem((uint8_t)RenderLayer::Skinned,
+		BuildRenderItem((uint8_t)RenderLayer::RENDER_SKINNED,
 		meshes_["skinnedGeo"].get(), meshes_["skinnedGeo"].get()->subMeshes_["1"], materials_["soldier"].get(),
 		XMMatrixIdentity(), XMMatrixIdentity(),
 		skinnedModelInsts_["Vanguard"].get(), 0) };
@@ -422,20 +420,19 @@ GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate
 	XMMATRIX world = S * R * T;
 	
 	GameObject* gameObject = gameObejctManager_.CreateObject(scale, rotate, transform, rigidbodyType);
+	
+	auto& rigidbody = gameObject->GetRigidbody();
 	for (RenderItem* ri : rItems) {
-		if (!ri) continue;
+		if (ri == nullptr) continue;
+
 		XMStoreFloat4x4(&ri->world_, world);
 		gameObject->AddRenderItem(ri);
-	}
 
-	auto rItem = gameObject->GetRenderItems()[0];
-	if (rItem) {
-		BoundingOrientedBox bb = {};
-		bb.Center = rItem->boundingBox_.Center;
-		bb.Extents = rItem->boundingBox_.Extents;
-		BoundingSphere bs;
-		bs.Center = bb.Center;
-		bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bb.Extents)));
+		spe::BoxShape* box = new spe::BoxShape(ri->boundingBox_.Center, ri->boundingBox_.Extents);
+		spe::Fixture* fixture = new spe::Fixture(box);
+		fixture->SetFriction(0.4f);
+		fixture->SetRestitution(0.4f);
+		rigidbody.AddFixture(fixture);
 	}
 	
 	return gameObject;
@@ -447,7 +444,7 @@ RenderItem* Scene::BuildRenderItem(const uint8_t renderLayer,
 	SkinnedModelInstance* skinnedModelInstance, const int32_t skinnedCBIndex)
 {
 	auto renderItem = make_unique<RenderItem>(mesh, submesh, material, world, texTransform);
-	if (renderLayer == (uint8_t)RenderLayer::Skinned) {
+	if (renderLayer == (uint8_t)RenderLayer::RENDER_SKINNED) {
 		renderItem->isSkinningObject = true;
 		renderItem->skinnedModelInst_ = skinnedModelInstance;
 		renderItem->skinnedCBIndex_ = skinnedCBIndex;
@@ -470,9 +467,9 @@ GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
 	XMMATRIX world = T;
 
 	GameObject* gameObject = gameObejctManager_.CreateObject(
-		XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), pos, spe::RigidbodyType::Dynamic);
+		XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), pos, spe::RigidbodyType::DYNAMIC);
 	
-	auto renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
+	auto renderItems = { BuildRenderItem((uint8_t)RenderLayer::RENDER_OPAQUE,
 			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["sphere"], materials_["bricks0"].get(),
 			XMMatrixIdentity(), XMMatrixIdentity()) };
 
@@ -485,8 +482,7 @@ GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
 	auto& rigidbody = gameObject->GetRigidbody();
 	rigidbody.SetLinearDamping(0.01f);
 
-	spe::SphereShape* sphereShape = new spe::SphereShape;
-	sphereShape->SetRadius(0.5f);
+	spe::SphereShape* sphereShape = new spe::SphereShape(XMFLOAT3(0.f, 0.f, 0.f), 0.5f);
 
 	spe::Fixture* fixture = new spe::Fixture(sphereShape);
 	rigidbody.AddFixture(fixture);

@@ -1,4 +1,5 @@
 #include "RigidBody.h"
+#include "GameObject.h"
 
 namespace spe { ; 
 
@@ -44,7 +45,7 @@ void Rigidbody::CreateFixture(Shape* shape)
     Fixture* fixture = new Fixture(shape);
 
     numFixtures_ = 1;
-    fixtures_ = fixture;
+    fixture_ = fixture;
 }
 
 void Rigidbody::CalculateMatrix()
@@ -67,7 +68,7 @@ void Rigidbody::CalculateMatrix()
 void Rigidbody::Integrate(float dt)
 {
     // Static인 경우 물체는 움직이지 않는다.
-    if (type_ == RigidbodyType::Static) {
+    if (type_ == RigidbodyType::STATIC) {
         return;
     }
 
@@ -122,9 +123,15 @@ void Rigidbody::Integrate(float dt)
 
 void Rigidbody::AddFixture(Fixture* fixture)
 {
+    fixture->SetRigidbody(this);
     // 우선 fixture의 수를 rigidbody당 1개로 제한
     numFixtures_ = 1;
-    fixtures_ = fixture;
+    fixture_ = fixture;
+}
+
+GameObject* Rigidbody::GetGameObject() const
+{
+    return gameObject_;
 }
 
 RigidbodyType Rigidbody::GetType()const
@@ -182,6 +189,29 @@ float Rigidbody::GetAngularDamping() const
     return angularDamping_;
 }
 
+Fixture* Rigidbody::GetFixture()
+{
+    return fixture_;
+}
+
+XMMATRIX Rigidbody::GetTransformMatrix() const
+{
+    XMVECTOR rotQuat = XMLoadFloat4(&orientation_);
+    XMVECTOR posVec = XMLoadFloat3(&position_);
+
+    return XMMatrixRotationQuaternion(rotQuat) * XMMatrixTranslationFromVector(posVec);
+}
+
+XMFLOAT4X4 Rigidbody::GetTransformMatrixf() const
+{
+    XMVECTOR rotQuat = XMLoadFloat4(&orientation_);
+    XMVECTOR posVec = XMLoadFloat3(&position_);
+
+    XMFLOAT4X4 out;
+    XMStoreFloat4x4(&out, XMMatrixRotationQuaternion(rotQuat) * XMMatrixTranslationFromVector(posVec));
+    return out;
+}
+
 bool Rigidbody::isGrounded()const
 {
     return isGrounded_;
@@ -190,6 +220,11 @@ bool Rigidbody::isGrounded()const
 bool Rigidbody::isAwake()const
 {
     return isAwake_;
+}
+
+void Rigidbody::SetGameObject(GameObject* gameObject)
+{
+    gameObject_ = gameObject;
 }
 
 void Rigidbody::SetMass(const float mass)

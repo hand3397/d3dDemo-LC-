@@ -1,5 +1,6 @@
 #pragma once
 #include "d3dUtil.h"
+#include "Collision.h"
 
 namespace spe {; 
 
@@ -21,8 +22,6 @@ int32_t operator|(ShapeType type1, ShapeType type2);
 
 struct ConvexInfo
 {
-	~ConvexInfo();
-
 	XMFLOAT3* points = nullptr;
 	XMFLOAT3* axes = nullptr;
 
@@ -44,8 +43,9 @@ class Shape
 {
 public:
 	virtual ~Shape() = default;
-	virtual ConvexInfo GetConvexInfo(const XMMATRIX& transform) const = 0;
 
+	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const = 0;
+	virtual AABB GetAABB(const XMMATRIX& transform) const = 0;
 	ShapeType GetType() const;
 
 	void SetType(ShapeType type);
@@ -58,7 +58,11 @@ protected:
 class SphereShape : public Shape
 {
 public:
-	virtual ConvexInfo GetConvexInfo(const XMMATRIX& transform) const;
+	SphereShape(const XMFLOAT3& center, float radius);
+
+	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const;
+	virtual AABB GetAABB(const XMMATRIX& transform) const override;
+
 	void SetRadius(const float& radius);
 protected:
 	float radius_;
@@ -67,7 +71,11 @@ protected:
 class BoxShape : public Shape
 {
 public:
-	virtual ConvexInfo GetConvexInfo(const XMMATRIX& transform) const;
+	BoxShape(const XMFLOAT3& center, const XMFLOAT3& halfSize);
+
+	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const;
+	virtual AABB GetAABB(const XMMATRIX& transform) const override;
+	
 	void SetHalfSize(const XMFLOAT3& halfSize);
 protected:
 	XMFLOAT3 halfSize_;

@@ -1,14 +1,14 @@
 #include "Player.h"
 
 Player::Player(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position) : 
-    GameObject(scale, rotate, position, spe::RigidbodyType::Kinematic), fsm_(this)
+    GameObject(scale, rotate, position, spe::RigidbodyType::KINEMATIC), fsm_(this)
 {
     SetAnimation({ "Idle" });
     fsm_.Change(IdleState::Instance());
 
-    camera_.SetMode(CameraMode::TPS);
-    SetCameraOffset(XMFLOAT3(0.0f, 2.0f, 0.0f));
-    SetCameraAngle(XMConvertToRadians(30), 0.0f, 0.0f);
+    camera_.SetMode(CameraMode::FPS);
+    SetCameraOffset(XMFLOAT3(0.0f, 0.0f, 0.0f));
+    //SetCameraAngle(XMConvertToRadians(30), 0.0f, 0.0f);
 
     XMFLOAT3 maxPos = { 0.3f, 1.7f, 0.3f };
     XMFLOAT3 minPos = { -0.3f, 0.0f, -0.3f };

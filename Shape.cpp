@@ -22,18 +22,30 @@ void Shape::SetCenter(const XMFLOAT3& center)
     center_ = center;
 }
 
-ConvexInfo SphereShape::GetConvexInfo(const XMMATRIX& transform) const
+SphereShape::SphereShape(const XMFLOAT3& center, float radius) :
+    radius_(radius)
 {
-    ConvexInfo sphere;
-    sphere.type = ShapeType::SPHERE;
+    SetCenter(center);
+    SetType(ShapeType::SPHERE);
+}
 
-    XMStoreFloat3(&sphere.center,
-        XMVector3Transform(
-            XMVectorSetW(XMLoadFloat3(&center_), 1.0f),
-            transform));
-    sphere.radius = radius_;
+void SphereShape::GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const
+{
+    out.type = ShapeType::SPHERE;
 
-    return sphere;
+    XMStoreFloat3(&out.center, XMVector3TransformCoord(
+        XMLoadFloat3(&center_), transform));
+    out.radius = radius_;
+
+    out.numAxes = 0;
+    out.numPoints = 0;
+}
+
+AABB SphereShape::GetAABB(const XMMATRIX& transform) const
+{
+    XMVECTOR center = XMVector3TransformCoord(XMLoadFloat3(&center_), transform);
+    XMVECTOR r = XMVectorReplicate(radius_);
+    return AABB(center - r, center + r); // XMVECTOR 기반 생성자 추가하면 효율 최고
 }
 
 void SphereShape::SetRadius(const float& radius)
@@ -41,60 +53,71 @@ void SphereShape::SetRadius(const float& radius)
     radius_ = radius;
 }
 
-ConvexInfo BoxShape::GetConvexInfo(const XMMATRIX& transform) const
+BoxShape::BoxShape(const XMFLOAT3& center, const XMFLOAT3& halfSize) :
+    halfSize_(halfSize)
 {
-    ConvexInfo box;
-    box.type = ShapeType::BOX;
+    SetCenter(center);
+    SetType(ShapeType::BOX);
+}
 
-    XMStoreFloat3(&box.center,
-        XMVector3Transform(
-            XMVectorSetW(XMLoadFloat3(&center_), 1.0f),
-            transform));
-    box.halfSize = halfSize_;
+void BoxShape::GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const
+{
+    out.type = ShapeType::BOX;
 
-    box.numPoints = 8;
-    box.points = new XMFLOAT3[8];
-    box.points[0] = XMFLOAT3(center_.x - halfSize_.x, center_.y - halfSize_.y, center_.z - halfSize_.z);
-    box.points[1] = XMFLOAT3(center_.x + halfSize_.x, center_.y - halfSize_.y, center_.z - halfSize_.z);
-    box.points[2] = XMFLOAT3(center_.x - halfSize_.x, center_.y + halfSize_.y, center_.z - halfSize_.z);
-    box.points[3] = XMFLOAT3(center_.x + halfSize_.x, center_.y + halfSize_.y, center_.z - halfSize_.z);
-    box.points[4] = XMFLOAT3(center_.x - halfSize_.x, center_.y - halfSize_.y, center_.z + halfSize_.z);
-    box.points[5] = XMFLOAT3(center_.x + halfSize_.x, center_.y - halfSize_.y, center_.z + halfSize_.z);
-    box.points[6] = XMFLOAT3(center_.x - halfSize_.x, center_.y + halfSize_.y, center_.z + halfSize_.z);
-    box.points[7] = XMFLOAT3(center_.x + halfSize_.x, center_.y + halfSize_.y, center_.z + halfSize_.z);
+    XMStoreFloat3(&out.center,
+        XMVector3TransformCoord(XMLoadFloat3(&center_), transform));
+    out.halfSize = halfSize_;
+
+    out.numPoints = 8;
+    out.points = new XMFLOAT3[8];
+    out.points[0] = XMFLOAT3(center_.x - halfSize_.x, center_.y - halfSize_.y, center_.z - halfSize_.z);
+    out.points[1] = XMFLOAT3(center_.x + halfSize_.x, center_.y - halfSize_.y, center_.z - halfSize_.z);
+    out.points[2] = XMFLOAT3(center_.x - halfSize_.x, center_.y + halfSize_.y, center_.z - halfSize_.z);
+    out.points[3] = XMFLOAT3(center_.x + halfSize_.x, center_.y + halfSize_.y, center_.z - halfSize_.z);
+    out.points[4] = XMFLOAT3(center_.x - halfSize_.x, center_.y - halfSize_.y, center_.z + halfSize_.z);
+    out.points[5] = XMFLOAT3(center_.x + halfSize_.x, center_.y - halfSize_.y, center_.z + halfSize_.z);
+    out.points[6] = XMFLOAT3(center_.x - halfSize_.x, center_.y + halfSize_.y, center_.z + halfSize_.z);
+    out.points[7] = XMFLOAT3(center_.x + halfSize_.x, center_.y + halfSize_.y, center_.z + halfSize_.z);
 
     for (int i = 0; i < 8; i++) {
-        XMStoreFloat3(&box.points[i],
-            XMVector3Transform(
-                XMVectorSetW(XMLoadFloat3(&box.points[i]), 1.0f),
-                transform));
+        XMStoreFloat3(&out.points[i],
+            XMVector3TransformCoord(XMLoadFloat3(&out.points[i]), transform));
     }
 
-    box.axes = new XMFLOAT3[3];
+    out.axes = new XMFLOAT3[3];
     XMVECTOR axesPoints[4] = {
-        XMLoadFloat3(&box.points[0]),
-        XMLoadFloat3(&box.points[1]),
-        XMLoadFloat3(&box.points[2]),
-        XMLoadFloat3(&box.points[3])
+        XMLoadFloat3(&out.points[0]),
+        XMLoadFloat3(&out.points[1]),
+        XMLoadFloat3(&out.points[2]),
+        XMLoadFloat3(&out.points[4])
     };
-    XMStoreFloat3(&box.axes[0], XMVector3NormalizeEst(axesPoints[1] - axesPoints[0]));
-    XMStoreFloat3(&box.axes[1], XMVector3NormalizeEst(axesPoints[2] - axesPoints[0]));
-    XMStoreFloat3(&box.axes[2], XMVector3NormalizeEst(axesPoints[3] - axesPoints[0]));
+    out.numAxes = 3;
+    XMStoreFloat3(&out.axes[0], XMVector3NormalizeEst(axesPoints[1] - axesPoints[0]));
+    XMStoreFloat3(&out.axes[1], XMVector3NormalizeEst(axesPoints[2] - axesPoints[0]));
+    XMStoreFloat3(&out.axes[2], XMVector3NormalizeEst(axesPoints[3] - axesPoints[0]));
+}
 
-    return box;
+AABB BoxShape::GetAABB(const XMMATRIX& transform) const
+{
+    XMVECTOR centerVec = XMVector3TransformCoord(XMLoadFloat3(&center_), transform);
+
+    // 회전행렬의 절댓값 추출
+    // XMMATRIX의 0,1,2행은 각각 X,Y,Z 축 벡터
+    XMMATRIX absRot;
+    absRot.r[0] = XMVectorAbs(transform.r[0]);
+    absRot.r[1] = XMVectorAbs(transform.r[1]);
+    absRot.r[2] = XMVectorAbs(transform.r[2]);
+    absRot.r[3] = XMVectorZero();
+
+    // worldHalf = |R| * localHalf
+    XMVECTOR halfSizeVec = XMVector3Transform(XMLoadFloat3(&halfSize_), absRot);
+
+    return AABB(centerVec - halfSizeVec, centerVec + halfSizeVec);
 }
 
 void BoxShape::SetHalfSize(const XMFLOAT3& halfSize)
 {
     halfSize_ = halfSize;
-}
-
-ConvexInfo::~ConvexInfo()
-{
-    if (points)
-        delete[] points;
-    if (axes)
-        delete[] axes;
 }
 
 XMFLOAT3 ConvexInfo::GetFarthestPoint(const XMVECTOR& dir) const

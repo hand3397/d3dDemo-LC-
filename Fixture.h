@@ -3,17 +3,26 @@
 
 namespace spe {; 
 
+class Rigidbody;
+
 class Fixture
 {
 public:
     Fixture(Shape* shape);
 
+    Rigidbody* GetRigidbody()const;
     Shape* GetShape();
     ShapeType GetShapeType()const;
-    float GetFriction();
-    float GetRestitution();
+    float GetFriction()const;
+    float GetRestitution()const;
+
+    void SetRigidbody(Rigidbody* rigidbody);
+    void SetFriction(float friction);
+    void SetRestitution(float restitution);
 
 protected:
+    Rigidbody* rigidbody_;
+
     ShapeType shapeType_;
     Shape* shape_;
 

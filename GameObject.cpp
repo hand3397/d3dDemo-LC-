@@ -7,11 +7,12 @@ GameObject::GameObject(const spe::RigidbodyType rigidbodyType) :
 }
 
 GameObject::GameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position,
-    const spe::RigidbodyType rigidbodyType = spe::RigidbodyType::Static) :
+    const spe::RigidbodyType rigidbodyType = spe::RigidbodyType::STATIC) :
     scale_(scale), position_(position)
 {
     XMStoreFloat4(&rotateQuat_, XMQuaternionRotationRollPitchYaw(rotate.x, rotate.y, rotate.z));
     rigidbody_ = spe::Rigidbody(rigidbodyType, rotateQuat_, position);
+    rigidbody_.SetGameObject(this);
 }
 
 void GameObject::OnSpawn()

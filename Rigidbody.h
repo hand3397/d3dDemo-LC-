@@ -2,14 +2,16 @@
 #include "Fixture.h"
 #include "Shape.h"
 
+class GameObject;
+
 namespace spe {;
 
 enum class RigidbodyType
 {
-    Static = 0,
-    Dynamic,
-    Kinematic,
-    Count,
+    STATIC = 0,
+    DYNAMIC,
+    KINEMATIC,
+    COUNT,
 };
 
 class Rigidbody
@@ -29,6 +31,7 @@ public:
 
     void AddFixture(Fixture* fixture);
 
+    GameObject* GetGameObject()const;
     RigidbodyType GetType()const;
     float GetMass()const;
     float GetInvMass()const;
@@ -40,9 +43,13 @@ public:
     XMFLOAT3 GetAngularAcceleration()const;
     float GetLinearDamping()const;
     float GetAngularDamping()const;
+    Fixture* GetFixture();
+    XMMATRIX GetTransformMatrix()const;
+    XMFLOAT4X4 GetTransformMatrixf()const;
     bool isGrounded()const;
     bool isAwake()const;
 
+    void SetGameObject(GameObject* gameObject);
     void SetMass(const float mass);
     void SetPosition(const XMFLOAT3& position);
     void SetLinearVelocity(const XMFLOAT3& linearVelocity);
@@ -57,7 +64,9 @@ public:
 
 public:
 
-    RigidbodyType type_ = RigidbodyType::Static;
+    RigidbodyType type_ = RigidbodyType::STATIC;
+
+    GameObject* gameObject_ = nullptr;
 
     float mass_ = 1.0f;
     float inverseMass_ = 1.0f; // 1.0f / mass
@@ -85,7 +94,7 @@ public:
     bool isAwake_ = false;
 
     // fixture
-    Fixture* fixtures_ = nullptr;
+    Fixture* fixture_ = nullptr;
     uint32_t numFixtures_ = 0;
 };
 
