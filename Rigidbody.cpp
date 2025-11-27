@@ -12,6 +12,11 @@ Rigidbody::Rigidbody(RigidbodyType type, const XMFLOAT4& rotateQuat, const XMFLO
     type_(type), orientation_(rotateQuat), position_(position)
 {
     CalculateMatrix();
+
+    if (type == RigidbodyType::STATIC) {
+        // invMass = 0 -> 질량을 무한대로 설정
+        SetMass(0.0f);
+    }
 }
 
 void Rigidbody::AddForce(const XMFLOAT3& force)
@@ -26,6 +31,13 @@ void Rigidbody::AddTorque(const XMFLOAT3& torque)
     torque_.x += torque.x;
     torque_.y += torque.y;
     torque_.z += torque.z;
+}
+
+void Rigidbody::AddLinearAcc(const XMFLOAT3& linearAcc)
+{
+    linearAcceleration_.x += linearAcc.x;
+    linearAcceleration_.y += linearAcc.y;
+    linearAcceleration_.z += linearAcc.z;
 }
 
 void Rigidbody::ClearForces()
@@ -179,6 +191,26 @@ XMFLOAT3 Rigidbody::GetAngularAcceleration()const
     return angularAcceleration_;
 }
 
+XMFLOAT3X3 Rigidbody::GetInverseInertiaTensorWorld() const
+{
+    return inverseInertiaTensorWorld_;
+}
+
+XMFLOAT3X3 Rigidbody::GetInverseInertiaTensor() const
+{
+    return inverseInertiaTensor_;
+}
+
+XMMATRIX Rigidbody::GetTransformMatrix() const
+{
+    return XMLoadFloat4x4(&transformMatrix_);
+}
+
+XMFLOAT4X4 Rigidbody::GetTransformMatrixf() const
+{
+    return transformMatrix_;
+}
+
 float Rigidbody::GetLinearDamping() const
 {
     return linearDamping_;
@@ -194,24 +226,6 @@ Fixture* Rigidbody::GetFixture()
     return fixture_;
 }
 
-XMMATRIX Rigidbody::GetTransformMatrix() const
-{
-    XMVECTOR rotQuat = XMLoadFloat4(&orientation_);
-    XMVECTOR posVec = XMLoadFloat3(&position_);
-
-    return XMMatrixRotationQuaternion(rotQuat) * XMMatrixTranslationFromVector(posVec);
-}
-
-XMFLOAT4X4 Rigidbody::GetTransformMatrixf() const
-{
-    XMVECTOR rotQuat = XMLoadFloat4(&orientation_);
-    XMVECTOR posVec = XMLoadFloat3(&position_);
-
-    XMFLOAT4X4 out;
-    XMStoreFloat4x4(&out, XMMatrixRotationQuaternion(rotQuat) * XMMatrixTranslationFromVector(posVec));
-    return out;
-}
-
 bool Rigidbody::isGrounded()const
 {
     return isGrounded_;
@@ -220,6 +234,11 @@ bool Rigidbody::isGrounded()const
 bool Rigidbody::isAwake()const
 {
     return isAwake_;
+}
+
+int32_t Rigidbody::GetIslandId() const
+{
+    return islandId_;
 }
 
 void Rigidbody::SetGameObject(GameObject* gameObject)
@@ -284,6 +303,28 @@ void Rigidbody::SetSleep()
 void Rigidbody::SetAwake()
 {
     isAwake_ = true;
+}
+
+void Rigidbody::SetIslandId(int32_t id)
+{
+    islandId_ = id;
+}
+
+void Rigidbody::ComputeInertiaTensor()
+{
+    if (type_ == RigidbodyType::STATIC) {
+        inverseInertiaTensor_ = XMFLOAT3X3(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        inverseInertiaTensorWorld_ = XMFLOAT3X3(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        return;
+    }
+
+    XMMATRIX localInertiaTensor;
+
+    // 첫 fixture만 inertiaTensor를 구하는데 사용됨.
+    if (fixture_ != nullptr) {
+        localInertiaTensor = fixture_->GetShape()->ComputeLocalInertia(mass_);
+        XMStoreFloat3x3(&inverseInertiaTensor_, XMMatrixInverse(nullptr, localInertiaTensor));
+    }
 }
 
 } // namespace spe

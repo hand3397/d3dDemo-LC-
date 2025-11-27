@@ -45,7 +45,22 @@ AABB SphereShape::GetAABB(const XMMATRIX& transform) const
 {
     XMVECTOR center = XMVector3TransformCoord(XMLoadFloat3(&center_), transform);
     XMVECTOR r = XMVectorReplicate(radius_);
-    return AABB(center - r, center + r); // XMVECTOR 기반 생성자 추가하면 효율 최고
+    return AABB(center - r, center + r);
+}
+
+XMMATRIX SphereShape::ComputeLocalInertia(float mass) const
+{
+    float v = (2.0f / 5.0f) * mass * radius_ * radius_;
+    return XMMatrixSet(
+        v, 0, 0, 0,
+        0, v, 0, 0,
+        0, 0, v, 0,
+        0, 0, 0, 1);
+}
+
+XMFLOAT3 Shape::GetSenter() const
+{
+    return center_;
 }
 
 void SphereShape::SetRadius(const float& radius)
@@ -115,6 +130,21 @@ AABB BoxShape::GetAABB(const XMMATRIX& transform) const
     return AABB(centerVec - halfSizeVec, centerVec + halfSizeVec);
 }
 
+XMMATRIX BoxShape::ComputeLocalInertia(float mass) const
+{
+    float hx = halfSize_.x, hy = halfSize_.y, hz = halfSize_.z;
+    float Ixx = (1.0f / 12.0f) * mass * ((2 * hy) * (2 * hy) + (2 * hz) * (2 * hz));
+    float Iyy = (1.0f / 12.0f) * mass * ((2 * hx) * (2 * hx) + (2 * hz) * (2 * hz));
+    float Izz = (1.0f / 12.0f) * mass * ((2 * hx) * (2 * hx) + (2 * hy) * (2 * hy));
+
+    // DirectXMath matrix (3×3 부분만 사용)
+    return XMMatrixSet(
+        Ixx, 0, 0, 0,
+        0, Iyy, 0, 0,
+        0, 0, Izz, 0,
+        0, 0, 0, 1);
+}
+
 void BoxShape::SetHalfSize(const XMFLOAT3& halfSize)
 {
     halfSize_ = halfSize;
@@ -127,7 +157,7 @@ XMFLOAT3 ConvexInfo::GetFarthestPoint(const XMVECTOR& dir) const
 
     switch (type) {
     case ShapeType::SPHERE: {
-        XMStoreFloat3(&out, center + radius * XMVector3NormalizeEst(dir));
+        XMStoreFloat3(&out, center + radius * dir);
     }
         break;
     case ShapeType::BOX: {

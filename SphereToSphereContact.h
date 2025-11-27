@@ -10,8 +10,8 @@ public:
     static Contact* Create(Fixture* fixtureA, Fixture* fixtureB);
 
 protected:
-    virtual void findCollisionPoints(const ConvexInfo& sphereA, const ConvexInfo& sphereB, CollisionInfo& collisionInfo,
-        ResultEPA& resultEPA, Simplex& simplexArray) override;
+    virtual void FindCollisionPoints(const ConvexInfo& sphereA, const ConvexInfo& sphereB,
+        CollisionInfo& collisionInfo, ResultEPA& resultEPA, Polytope& simplexArray) override;
 };
 
 } // namespace spe

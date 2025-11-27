@@ -10,7 +10,8 @@ Contact* BoxToBoxContact::Create(Fixture* fixtureA, Fixture* fixtureB)
     return new BoxToBoxContact(fixtureA, fixtureB);
 }
 
-void BoxToBoxContact::findCollisionPoints(const ConvexInfo& sphereA, const ConvexInfo& boxB, CollisionInfo& collisionInfo, ResultEPA& resultEPA, Simplex& simplexArray)
+void BoxToBoxContact::FindCollisionPoints(const ConvexInfo& boxA, const ConvexInfo& boxB,
+	CollisionInfo& collisionInfo, ResultEPA& resultEPA, Polytope& simplexArray)
 {
 
 }

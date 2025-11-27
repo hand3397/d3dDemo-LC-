@@ -3,6 +3,21 @@
 
 namespace spe {; 
 
+static inline float VecDot(const XMVECTOR& a, const XMVECTOR& b) noexcept
+{
+    return XMVectorGetX(XMVector3Dot(a, b));
+}
+
+static inline float Vec3Length(const XMVECTOR& a) noexcept
+{
+    return XMVectorGetX(XMVector3Length(a));
+}
+
+static inline float Vec3LengthSq(const XMVECTOR& a) noexcept
+{
+    return XMVectorGetX(XMVector3LengthSq(a));
+}
+
 struct AABB
 {
     AABB() = default;

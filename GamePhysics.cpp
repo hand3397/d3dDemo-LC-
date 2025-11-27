@@ -1,4 +1,5 @@
 #include "GamePhysics.h"
+#include "Island.h"
 
 namespace spe {;
 
@@ -51,19 +52,17 @@ void GamePhysics::Update(float dt,
     if (contact != nullptr) {
         contact->Update();
         if (contact->IsTouching()) {
-            Manifold manifold = contact->GetManifold();
-            XMVECTOR pos = XMLoadFloat3(&contact->GetFixtureA()->GetRigidbody()->GetPosition());
-            pos += (-XMLoadFloat3(&manifold.points[0].normal) * (manifold.points[0].seperation + 0.001f));
-            XMFLOAT3 pos3f;
-            XMStoreFloat3(&pos3f, pos);
-            contact->GetFixtureA()->GetRigidbody()->SetPosition(pos3f);
-            XMFLOAT3 vel = contact->GetFixtureA()->GetRigidbody()->GetLinearVelocity();
-            if (vel.y < 0.0f)
-                vel.y = -vel.y;
-            XMStoreFloat3(&vel, XMLoadFloat3(&vel) * 0.8f);
-            contact->GetFixtureA()->GetRigidbody()->SetLinearVelocity(vel);
-            contact->GetFixtureA()->GetRigidbody()->CalculateMatrix();
-            contact->GetFixtureA()->GetRigidbody()->GetGameObject()->Update(dt);
+            Island island(2, 1);
+            Rigidbody* bodyA = contact->GetFixtureA()->GetRigidbody();
+            Rigidbody* bodyB = contact->GetFixtureB()->GetRigidbody();
+            island.Add(contact);
+            island.Add(bodyA);
+            island.Add(bodyB);
+            island.Solve(dt);
+            island.Clear();
+
+            bodyA->GetGameObject()->Update(dt);
+            bodyB->GetGameObject()->Update(dt);
         }
     }
 
@@ -81,10 +80,10 @@ void GamePhysics::OnGravity(vector<GameObject*>& dynamicGameObjects,
 {
     for (auto& go : dynamicGameObjects)
         if (!go->GetRigidbody().isGrounded_)
-            go->GetRigidbody().AddForce(XMFLOAT3(0.f, gravity_ * 5.f, 0.f));
+            go->GetRigidbody().AddLinearAcc(XMFLOAT3(0.f, gravity_, 0.f));
     for (auto& go : kinematicGameObjects)
         if (!go->GetRigidbody().isGrounded_)
-            go->GetRigidbody().AddForce(XMFLOAT3(0.f, gravity_ * 5.f, 0.f));
+            go->GetRigidbody().AddLinearAcc(XMFLOAT3(0.f, gravity_, 0.f));
 }
 
 }

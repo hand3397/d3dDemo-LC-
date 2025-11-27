@@ -10,8 +10,8 @@ Contact* SphereToSphereContact::Create(Fixture* fixtureA, Fixture* fixtureB)
 	return new SphereToSphereContact(fixtureA, fixtureB);
 }
 
-void SphereToSphereContact::findCollisionPoints(const ConvexInfo& sphereA, const ConvexInfo& sphereB, 
-	CollisionInfo& collisionInfo, ResultEPA& resultEPA, Simplex& simplexArray)
+void SphereToSphereContact::FindCollisionPoints(const ConvexInfo& sphereA, const ConvexInfo& sphereB,
+	CollisionInfo& collisionInfo, ResultEPA& resultEPA, Polytope& simplexArray)
 {
 	XMStoreFloat3(&collisionInfo.normal[0], resultEPA.normal);
 	collisionInfo.seperation[0] = resultEPA.dist;

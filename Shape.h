@@ -4,11 +4,6 @@
 
 namespace spe {; 
 
-static inline float VecDot(const XMVECTOR& a, const XMVECTOR& b) noexcept
-{
-	return XMVectorGetX(XMVector3Dot(a, b));
-}
-
 enum class ShapeType
 {
 	SPHERE = (1 << 0),
@@ -47,6 +42,8 @@ public:
 	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const = 0;
 	virtual AABB GetAABB(const XMMATRIX& transform) const = 0;
 	ShapeType GetType() const;
+	virtual XMMATRIX ComputeLocalInertia(float mass) const = 0;
+	XMFLOAT3 GetSenter()const;
 
 	void SetType(ShapeType type);
 	void SetCenter(const XMFLOAT3& center);
@@ -62,6 +59,7 @@ public:
 
 	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const;
 	virtual AABB GetAABB(const XMMATRIX& transform) const override;
+	virtual XMMATRIX ComputeLocalInertia(float mass) const override;
 
 	void SetRadius(const float& radius);
 protected:
@@ -75,7 +73,8 @@ public:
 
 	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const;
 	virtual AABB GetAABB(const XMMATRIX& transform) const override;
-	
+	virtual XMMATRIX ComputeLocalInertia(float mass) const override;
+
 	void SetHalfSize(const XMFLOAT3& halfSize);
 protected:
 	XMFLOAT3 halfSize_;

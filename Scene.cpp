@@ -27,9 +27,9 @@ void Scene::KeyInput(const KeyInputManager& keyInput, float dt)
 
 	if (keyInput.WasKeyPressed('O') && player_) {
 		auto ball = AddBallObject(player_->GetPosition());
-		XMFLOAT3 force;
-		XMStoreFloat3(&force, 4000.0f * player_->GetLook());
-		ball->GetRigidbody().AddForce(force);
+		XMFLOAT3 newVelocity;
+		XMStoreFloat3(&newVelocity, 10.0f * player_->GetLook());
+		ball->GetRigidbody().SetLinearVelocity(newVelocity);
 	}
 }
 
@@ -157,7 +157,7 @@ void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
 	GeometryGenerator::MeshData wall = geoGen.CreateOnBox(1.0f, 3.0f, 0.1f, 1);
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(150.0f, 150.0f, 60, 40);
-	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
+	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(1.0f, 20, 20);
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
 
 	//
@@ -322,9 +322,10 @@ void Scene::BuildGameObjects()
 	renderItems = { BuildRenderItem((uint8_t)RenderLayer::RENDER_OPAQUE,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["grid"], materials_["tile0"].get(),
 		XMMatrixIdentity(), XMMatrixScaling(15.0f, 15.0f, 1.0f)) };
-	BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
+	GameObject* go = BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
 		renderItems, spe::RigidbodyType::STATIC);
-	
+	go->GetRigidbody().GetFixture()->SetFriction(0.2f);
+
 	// build wall
 	/*
 	renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
@@ -430,7 +431,7 @@ GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate
 
 		spe::BoxShape* box = new spe::BoxShape(ri->boundingBox_.Center, ri->boundingBox_.Extents);
 		spe::Fixture* fixture = new spe::Fixture(box);
-		fixture->SetFriction(0.4f);
+		fixture->SetFriction(0.01f);
 		fixture->SetRestitution(0.4f);
 		rigidbody.AddFixture(fixture);
 	}
@@ -481,11 +482,14 @@ GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
 
 	auto& rigidbody = gameObject->GetRigidbody();
 	rigidbody.SetLinearDamping(0.01f);
+	rigidbody.SetMass(40.0f);
 
-	spe::SphereShape* sphereShape = new spe::SphereShape(XMFLOAT3(0.f, 0.f, 0.f), 0.5f);
+	spe::SphereShape* sphereShape = new spe::SphereShape(XMFLOAT3(0.f, 0.f, 0.f), 1.0f);
 
 	spe::Fixture* fixture = new spe::Fixture(sphereShape);
+	fixture->SetFriction(0.4f);
 	rigidbody.AddFixture(fixture);
+	rigidbody.ComputeInertiaTensor();
 
 	return gameObject;
 }

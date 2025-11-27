@@ -10,6 +10,7 @@ namespace spe {;
 class Contact;
 
 extern const float EPS_FLOAT;
+const uint32_t MAX_NUM_SUPPORTS = 100;
 
 using ContactMemberFunction = Contact * (*)(Fixture*, Fixture*);
 
@@ -20,35 +21,41 @@ struct SupportPoint
 	XMVECTOR diff;
 };
 
-struct Simplex
+struct Polytope
 {
-public:
-	Simplex() {}
+	SupportPoint supports[MAX_NUM_SUPPORTS];
+	uint32_t numSupports = 0;
 
-	Simplex& operator=(std::initializer_list<SupportPoint> list)
+	Polytope() : numSupports(0) {}
+
+	Polytope(initializer_list<SupportPoint> list)
 	{
-		size_ = 0;
-		for (const SupportPoint& point : list)
-			points_[size_++] = point;
+		numSupports = list.size();
+		std::copy(list.begin(), list.begin() + numSupports, supports);
+	}
+};
 
-		return *this;
+struct FaceArray
+{
+	uint32_t numFaces;
+	uint32_t maxNumFaces;
+	uint32_t* faces;
+	XMFLOAT4* normals;
+
+	FaceArray()
+	{
+		numFaces = 0;
+		maxNumFaces = 64;
+
+		faces = new uint32_t[maxNumFaces * 3];
+		normals = new XMFLOAT4[maxNumFaces];
 	}
 
-	void push_front(const SupportPoint& point)
+	~FaceArray()
 	{
-		points_ = { point, points_[0], points_[1], points_[2] };
-		size_ = (size_ + 1 < 4 ? size_ + 1 : 4);
+		delete[] faces;
+		delete[] normals;
 	}
-
-	SupportPoint& operator[](int i) { return points_[i]; }
-	size_t size() const { return size_; }
-
-	auto begin() const { return points_.begin(); }
-	auto end() const { return points_.end() - (4 - size_); }
-
-private:
-	std::array<SupportPoint, 4> points_;
-	int size_ = 0;
 };
 
 struct ResultEPA
@@ -75,40 +82,40 @@ public:
 	void Update();
 	void Evaluate(Manifold& manifold, const XMMATRIX& transformA, const XMMATRIX& transformB);
 
-	void generateManifolds(CollisionInfo& collisionInfo, Manifold& manifold, Fixture* fixtureA, Fixture* fixtureB);
+	void GenerateManifolds(CollisionInfo& collisionInfo, Manifold& manifold, Fixture* fixtureA, Fixture* fixtureB);
 
 	bool IsTouching()const;
 	float GetFriction() const;
 	float GetRestitution() const;
-	std::tuple<std::vector<XMVECTOR>, std::vector<float>, uint32_t> GetFaceNormals(
-		const std::vector<SupportPoint>& polytope,
-		const std::vector<uint32_t>& faces);
+	int32_t GetFaceNormals(const Polytope& polytope, FaceArray& faceArray);
 	SupportPoint GetSupportPoint(const ConvexInfo& convexA, const ConvexInfo& convexB, XMVECTOR& dir);
 	Fixture* GetFixtureA() const;
 	Fixture* GetFixtureB() const;
 	Manifold& GetManifold();
 
-	ResultEPA GetEPA(Simplex& simplex, const ConvexInfo& convexA, const ConvexInfo& convexB);
+	ResultEPA GetEPA(Polytope& simplex, const ConvexInfo& convexA, const ConvexInfo& convexB);
 
 protected:
+	static const uint32_t MAX_GJK_ITERATION;
+
 	// contact를 이루는 두 fixture A, B의 shape type에 따라 다른 contact를 생성한다.
 	// ex) A.type = sphere, B.type = box -> Create SphereToBoxContact : Contact
 	const static ContactMemberFunction createContactFunctions_[32];
 
-	bool LineSimplex(Simplex& simplex, XMVECTOR& dir);
-	bool TriangleSimplex(Simplex& simplex, XMVECTOR& dir);
-	bool TetrahedronSimplex(Simplex& simplex, XMVECTOR& dir);
-	bool NextSimplex(Simplex& simplex, XMVECTOR& dir);
+	bool LineSimplex(Polytope& simplex, XMVECTOR& dir);
+	bool TriangleSimplex(Polytope& simplex, XMVECTOR& dir);
+	bool TetrahedronSimplex(Polytope& simplex, XMVECTOR& dir);
+	bool NextSimplex(Polytope& simplex, XMVECTOR& dir);
 
-	bool GetGJK(Simplex& simplex, const ConvexInfo& convexA, const ConvexInfo& convexB);
+	bool GetGJK(Polytope& simplex, const ConvexInfo& convexA, const ConvexInfo& convexB);
 
-	bool SameDirection(const XMVECTOR& direction, const XMVECTOR& ao) const;
-	void AddIfUniqueEdge(std::vector<std::pair<uint32_t, uint32_t>>& edges,
-		const std::vector<uint32_t>& faces, uint32_t a, uint32_t b);
+	bool IsSimilarDirection(const XMVECTOR& a, const XMVECTOR& b) const;
+	bool IsSameDirection(const XMVECTOR& a, const XMVECTOR& b) const;
+	void AddIfUniqueEdge(vector<pair<uint32_t, uint32_t>>& uniqueEdges, const uint32_t* faces, uint32_t a, uint32_t b);
 
-	virtual void findCollisionPoints(const ConvexInfo& convexA, const ConvexInfo& convexB, CollisionInfo& collisionInfo,
-		ResultEPA& resultEPA, Simplex& simplexArray) = 0;
-	bool IsDuplicatedPoint(const vector<SupportPoint>& polytope, const XMVECTOR& supportPoint);
+	virtual void FindCollisionPoints(const ConvexInfo& convexA, const ConvexInfo& convexB, CollisionInfo& collisionInfo,
+		ResultEPA& resultEPA, Polytope& simplexArray) = 0;
+	bool IsDuplicatedPoint(const Polytope& polytope, const XMVECTOR& supportPoint)const;
 
 	/*
 	void computeContactPolygon(ContactPolygon& contactPolygon, Face& refFace, Face& incFace);
@@ -124,12 +131,11 @@ protected:
 	void setCapsuleFace(Face& face, const ConvexInfo& capsule, const XMFLOAT3& normal);
 
 	bool isCollideToHemisphere(const ConvexInfo& capsule, const XMFLOAT3& dir);
-
-	void addFaceInFaceArray(FaceArray& faceArray, int32_t idx1, int32_t idx2, int32_t idx3);
-	void mergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray);
-	void sizeUpFaceArray(FaceArray& faceArray, int32_t newMaxCount);
 	*/
-	void freeConvexInfo(ConvexInfo& convexA, ConvexInfo& convexB);
+
+	void MergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray);
+	void SizeUpFaceArray(FaceArray& faceArray, uint32_t newMaxCount);
+	void FreeConvexInfo(ConvexInfo& convexA, ConvexInfo& convexB);
 	
 	float friction_;
 	float restitution_;
@@ -139,6 +145,7 @@ protected:
 
 	Manifold manifold_;
 
+	// flag
 	bool isTouching_ = false;
 };
 
