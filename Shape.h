@@ -31,7 +31,7 @@ struct ConvexInfo
 
 	ShapeType type;
 
-	XMFLOAT3 GetFarthestPoint(const XMVECTOR& dir) const;
+	XMVECTOR GetFarthestPoint(const XMVECTOR& dir) const;
 };
 
 class Shape
@@ -43,7 +43,7 @@ public:
 	virtual AABB GetAABB(const XMMATRIX& transform) const = 0;
 	ShapeType GetType() const;
 	virtual XMMATRIX ComputeLocalInertia(float mass) const = 0;
-	XMFLOAT3 GetSenter()const;
+	XMFLOAT3 GetCenter()const;
 
 	void SetType(ShapeType type);
 	void SetCenter(const XMFLOAT3& center);

@@ -134,7 +134,7 @@ void Contact::GenerateManifolds(CollisionInfo& collisionInfo, Manifold& manifold
         manifold.points[i].pointA = collisionInfo.pointA[i];
         manifold.points[i].pointB = collisionInfo.pointB[i];
         manifold.points[i].normal = collisionInfo.normal[i];
-        manifold.points[i].seperation = collisionInfo.seperation[i] + EPS_FLOAT;
+        manifold.points[i].seperation = collisionInfo.seperation[i];
     }
 }
 
@@ -168,7 +168,7 @@ void Fixture::SetRestitution(float restitution)
     restitution_ = restitution;
 }
 
-int32_t Contact::GetFaceNormals(const Polytope& polytope, FaceArray& faceArray)
+int32_t Contact::GetFaceNormals(const Polytope& polytope, FaceArray& faceArray) const
 {
     XMVECTOR center = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
 
@@ -209,13 +209,16 @@ int32_t Contact::GetFaceNormals(const Polytope& polytope, FaceArray& faceArray)
     return minFace;
 }
 
-SupportPoint Contact::GetSupportPoint(const ConvexInfo& convexA, const ConvexInfo& convexB, XMVECTOR& dir)
+SupportPoint Contact::GetSupportPoint(const ConvexInfo& convexA, const ConvexInfo& convexB, const XMVECTOR& dir) const
 {
     XMVECTOR ddir = XMVector3Normalize(dir);
     SupportPoint support;
-    support.a = convexA.GetFarthestPoint(ddir);
-    support.b = convexB.GetFarthestPoint(-ddir);
-    support.diff = XMLoadFloat3(&support.a) - XMLoadFloat3(&support.b);
+    XMVECTOR pointA = convexA.GetFarthestPoint(ddir);
+    XMStoreFloat3(&support.a, pointA);
+    XMVECTOR pointB = convexB.GetFarthestPoint(-ddir);
+    XMStoreFloat3(&support.b, pointB);
+    support.diff = pointA - pointB;
+
     return support;
 }
 
@@ -234,7 +237,7 @@ Manifold& Contact::GetManifold()
     return manifold_;
 }
 
-ResultEPA Contact::GetEPA(Polytope& polytope, const ConvexInfo& convexA, const ConvexInfo& convexB)
+ResultEPA Contact::GetEPA(Polytope& polytope, const ConvexInfo& convexA, const ConvexInfo& convexB) const
 {
     // simplex(polytope)는 항상 4개의 점을 가진 원점을 내부에 포함한 사면체가 들어와야한다.
     uint32_t initFaces[12] = {
@@ -348,8 +351,8 @@ ResultEPA Contact::GetEPA(Polytope& polytope, const ConvexInfo& convexA, const C
 
 bool Contact::LineSimplex(Polytope& simplex, XMVECTOR& dir)
 {
-    SupportPoint a = simplex.supports[1]; // new Point
-    SupportPoint b = simplex.supports[0];
+    const SupportPoint& a = simplex.supports[1]; // new Point
+    const SupportPoint& b = simplex.supports[0];
 
     XMVECTOR ab = b.diff - a.diff;
     XMVECTOR ao = -a.diff;
@@ -367,9 +370,9 @@ bool Contact::LineSimplex(Polytope& simplex, XMVECTOR& dir)
 
 bool Contact::TriangleSimplex(Polytope& simplex, XMVECTOR& dir)
 {
-    SupportPoint a = simplex.supports[2]; // new Point
-    SupportPoint b = simplex.supports[1];
-    SupportPoint c = simplex.supports[0];
+    const SupportPoint& a = simplex.supports[2]; // new Point
+    const SupportPoint& b = simplex.supports[1];
+    const SupportPoint& c = simplex.supports[0];
 
     XMVECTOR ab = b.diff - a.diff;
     XMVECTOR ac = c.diff - a.diff;
@@ -378,14 +381,15 @@ bool Contact::TriangleSimplex(Polytope& simplex, XMVECTOR& dir)
     XMVECTOR abc = XMVector3Cross(ab, ac);
     // 원점이 선분 bc밖에 있는 경우는 Line단계에서 걸러진다.
 
-    XMVECTOR acNormal = XMVector3Cross(abc, ac);
+    // 삼각형의 법선 계산 (삼각형 평면 위에서 바깥쪽을 향함)
+    XMVECTOR abPerp = XMVector3Cross(ab, abc);
+    XMVECTOR acPerp = XMVector3Cross(abc, ac);
 
-    // 1. 원점이 AC 엣지 바깥쪽에 있는가?
-    if (IsSimilarDirection(acNormal, ao)) {
-
+    // 1. AC Edge 바깥쪽 체크
+    if (IsSimilarDirection(acPerp, ao)) {
         if (IsSimilarDirection(ac, ao)) {
-            // Region AC (선분 AC에 가장 가까움)
-            simplex = { a, c };
+            // AC 선분 영역: B를 제거하고 AC로 LineSimplex 처리와 동일
+            simplex = { c, a };
             dir = XMVector3Cross(XMVector3Cross(ac, ao), ac);
         }
         else {
@@ -395,23 +399,28 @@ bool Contact::TriangleSimplex(Polytope& simplex, XMVECTOR& dir)
             return false;    // Simplex 축소 후 계속 루프
         }
     }
-    else {
-        XMVECTOR abNormal = XMVector3Cross(ab, abc);
-
-        // 2. 원점이 AB 엣지 바깥쪽에 있는가?
-        if (IsSimilarDirection(abNormal, ao)) {
-            // Region AB (선분 AB에 가장 가까움)
-            return LineSimplex(simplex = { a, b }, dir);
+    // 2. AB Edge 바깥쪽 체크
+    else if (IsSimilarDirection(abPerp, ao)) {
+        if (XMVector3Greater(XMVector3Dot(ab, ao), XMVectorZero())) {
+            // AB 선분 영역: C를 제거
+            simplex = { b, a };
+            dir = XMVector3Cross(XMVector3Cross(ab, ao), ab);
         }
         else {
-            // 원점이 삼각형 abc 위에 존재하는지 아래 존재하는지에 따라 다음 support를 구할 direction의 방향을 결정한다.
-            if (IsSimilarDirection(abc, ao)) {
-                dir = abc;
-            }
-            else {
-                simplex = { a, c, b };
-                dir = -abc;
-            }
+            // A 점 영역
+            simplex = { a };
+            dir = ao;
+        }
+    }
+    // 3.삼각형 내부 (위 또는 아래)
+    else {
+        // 원점이 삼각형의 위/아래 중 어디에 있는지 확인하여 방향 설정
+        if (IsSimilarDirection(abc, ao)) {
+            dir = abc;
+        }
+        else {
+            simplex = { b, c, a };
+            dir = -abc;
         }
     }
 
@@ -420,10 +429,10 @@ bool Contact::TriangleSimplex(Polytope& simplex, XMVECTOR& dir)
 
 bool Contact::TetrahedronSimplex(Polytope& simplex, XMVECTOR& dir)
 {
-    SupportPoint a = simplex.supports[3]; // new Point
-    SupportPoint b = simplex.supports[2];
-    SupportPoint c = simplex.supports[1];
-    SupportPoint d = simplex.supports[0];
+    const SupportPoint& a = simplex.supports[3]; // new Point
+    const SupportPoint& b = simplex.supports[2];
+    const SupportPoint& c = simplex.supports[1];
+    const SupportPoint& d = simplex.supports[0];
 
     XMVECTOR ab = b.diff - a.diff;
     XMVECTOR ac = c.diff - a.diff;
@@ -437,17 +446,17 @@ bool Contact::TetrahedronSimplex(Polytope& simplex, XMVECTOR& dir)
 
     // 원점이 삼각형 abc 밖에 존재함 -> d를 다시 선정한다.
     if (IsSimilarDirection(abc, ao)) {
-        return TriangleSimplex(simplex = { a, b, c }, dir);
+        return TriangleSimplex(simplex = { c, b, a }, dir);
     }
 
     // 원점이 삼각형 acd 밖에 존재함 -> b를 다시 선정한다.
     if (IsSimilarDirection(acd, ao)) {
-        return TriangleSimplex(simplex = { a, c, d }, dir);
+        return TriangleSimplex(simplex = { d, c, a }, dir);
     }
 
     // 원점이 삼각형 adb 밖에 존재함 -> c를 다시 선정한다.
     if (IsSimilarDirection(adb, ao)) {
-        return TriangleSimplex(simplex = { a, d, b }, dir);
+        return TriangleSimplex(simplex = { d, b, a }, dir);
     }
 
     // 원점이 사면체 abcd안에 존재한다.
@@ -478,10 +487,10 @@ bool Contact::GetGJK(Polytope& simplex, const ConvexInfo& convexA, const ConvexI
     // 첫 번째 support point 구하기
     XMVECTOR centerAB = XMLoadFloat3(&convexB.center) - XMLoadFloat3(&convexA.center);
     if (Vec3LengthSq(centerAB) < 1e-6f) {
-        direction = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+        direction = XMVector3Normalize(XMVectorSet(0.1f, 0.9f, 0.3f, 0.0f));
     }
     else {
-        direction = XMVector3NormalizeEst(centerAB);
+        direction = XMVector3Normalize(centerAB);
     }
 
     SupportPoint support = GetSupportPoint(convexA, convexB, direction);
@@ -493,14 +502,14 @@ bool Contact::GetGJK(Polytope& simplex, const ConvexInfo& convexA, const ConvexI
     }
 
     // New direction is towards the origin
-    direction = XMVector3NormalizeEst(-simplex.supports[0].diff);
+    direction = XMVector3Normalize(-simplex.supports[0].diff);
 
     uint32_t iter = 0;
     while (iter++ < MAX_GJK_ITERATION) {
         support = GetSupportPoint(convexA, convexB, direction);
 
-        // support와 direction의 내적 값이 0보다 작으면 두점 사이에 원점이 포함 되지 않는다. 
-        if (VecDot(support.diff, direction) < EPS_FLOAT) {
+        // support와 direction의 내적 값이 0보다 작으면 두점 사이에 원점이 포함될 수 없다. 
+        if (VecDot(support.diff, direction) < EPS_FLOAT || IsDuplicatedPoint(simplex, support.diff)) {
             return false; // no collision
         }
 
@@ -526,7 +535,7 @@ bool Contact::IsSameDirection(const XMVECTOR& a, const XMVECTOR& b) const
     return XMVectorGetX(XMVector3Length(XMVector3Cross(a, b))) < EPS_FLOAT;
 }
 
-void Contact::AddIfUniqueEdge(vector<pair<uint32_t, uint32_t>>& uniqueEdges, const uint32_t* faces, uint32_t a, uint32_t b)
+void Contact::AddIfUniqueEdge(vector<pair<uint32_t, uint32_t>>& uniqueEdges, const uint32_t* faces, uint32_t a, uint32_t b) const
 {
     auto reverse = std::find(                       //      0--<--3
         uniqueEdges.begin(),                        //     / \ B /   A: 2-0
@@ -555,7 +564,7 @@ bool Contact::IsDuplicatedPoint(const Polytope& polytope, const XMVECTOR& suppor
     return false;
 }
 
-void Contact::MergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray)
+void Contact::MergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray) const
 {
     uint32_t faceArrayCount = faceArray.numFaces;
     uint32_t newFaceArrayCount = newFaceArray.numFaces;
@@ -576,7 +585,7 @@ void Contact::MergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray)
     faceArray.numFaces = newCount;
 }
 
-void Contact::SizeUpFaceArray(FaceArray& faceArray, uint32_t newMaxNumFaces)
+void Contact::SizeUpFaceArray(FaceArray& faceArray, uint32_t newMaxNumFaces) const
 {
     if (newMaxNumFaces <= faceArray.maxNumFaces)
         return;
@@ -590,12 +599,12 @@ void Contact::SizeUpFaceArray(FaceArray& faceArray, uint32_t newMaxNumFaces)
     delete[] faceArray.faces;
     delete[] faceArray.normals;
 
-    faceArray.numFaces = newMaxNumFaces;
+    faceArray.maxNumFaces = newMaxNumFaces;
     faceArray.faces = newFaces;
     faceArray.normals = newNormals;
 }
 
-void Contact::FreeConvexInfo(ConvexInfo& convexA, ConvexInfo& convexB)
+void Contact::FreeConvexInfo(ConvexInfo& convexA, ConvexInfo& convexB) const
 {
     delete[] convexA.axes;
     delete[] convexB.axes;

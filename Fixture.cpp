@@ -9,6 +9,14 @@ Fixture::Fixture(Shape* shape)
     shapeType_ = shape->GetType();
 }
 
+Fixture::~Fixture()
+{
+    if (shape_ != nullptr) {
+        delete shape_;
+        shape_ = nullptr;
+    }
+}
+
 Rigidbody* Fixture::GetRigidbody() const
 {
     return rigidbody_;

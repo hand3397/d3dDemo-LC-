@@ -117,11 +117,11 @@
     <ClCompile Include="BoxToBoxContact.cpp">
       <Filter>소스 파일\Physics\Contacts</Filter>
     </ClCompile>
-    <ClCompile Include="Island.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
     <ClCompile Include="ContactSolver.cpp">
-      <Filter>소스 파일</Filter>
+      <Filter>소스 파일\Physics</Filter>
+    </ClCompile>
+    <ClCompile Include="Island.cpp">
+      <Filter>소스 파일\Physics</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -216,10 +216,10 @@
       <Filter>헤더 파일\Physics\Contacts</Filter>
     </ClInclude>
     <ClInclude Include="Island.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>헤더 파일\Physics</Filter>
     </ClInclude>
     <ClInclude Include="ContactSolver.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>헤더 파일\Physics</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

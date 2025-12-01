@@ -64,7 +64,6 @@ void Island::Solve(float duration)
         if (positions_[i].isNormalStop && positions_[i].isTangentStop && positions_[i].isNormal &&
             XMVectorGetX(XMVector3LengthEst(XMLoadFloat3(&velocities_[i].linearVelocity))) < STOP_LINEAR_VELOCITY &&
             XMVectorGetX(XMVector3LengthEst(XMLoadFloat3(&velocities_[i].angularVelocity))) < STOP_ANGULAR_VELOCITY) {
-            
             velocities_[i].linearVelocity = XMFLOAT3(0.0f, 0.0f, 0.0f);
             velocities_[i].angularVelocity = XMFLOAT3(0.0f, 0.0f, 0.0f);
             body->SetSleep();

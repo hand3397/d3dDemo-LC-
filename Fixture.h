@@ -9,6 +9,7 @@ class Fixture
 {
 public:
     Fixture(Shape* shape);
+    ~Fixture();
 
     Rigidbody* GetRigidbody()const;
     Shape* GetShape();
@@ -21,10 +22,10 @@ public:
     void SetRestitution(float restitution);
 
 protected:
-    Rigidbody* rigidbody_;
+    Rigidbody* rigidbody_ = nullptr;
 
     ShapeType shapeType_;
-    Shape* shape_;
+    Shape* shape_ = nullptr;
 
     //float density_ = 1.0f;
     float friction_ = 0.f;

@@ -19,6 +19,14 @@ Rigidbody::Rigidbody(RigidbodyType type, const XMFLOAT4& rotateQuat, const XMFLO
     }
 }
 
+Rigidbody::~Rigidbody()
+{
+    if (fixture_ != nullptr) {
+        delete fixture_;
+        fixture_ = nullptr;
+    }
+}
+
 void Rigidbody::AddForce(const XMFLOAT3& force)
 {
     force_.x += force.x;

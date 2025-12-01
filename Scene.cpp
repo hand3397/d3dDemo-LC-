@@ -28,7 +28,7 @@ void Scene::KeyInput(const KeyInputManager& keyInput, float dt)
 	if (keyInput.WasKeyPressed('O') && player_) {
 		auto ball = AddBallObject(player_->GetPosition());
 		XMFLOAT3 newVelocity;
-		XMStoreFloat3(&newVelocity, 10.0f * player_->GetLook());
+		XMStoreFloat3(&newVelocity, 50.0f * player_->GetLook());
 		ball->GetRigidbody().SetLinearVelocity(newVelocity);
 	}
 }

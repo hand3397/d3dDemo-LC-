@@ -6,7 +6,7 @@ const float ContactSolver::NORMAL_STOP_VELOCITY = 0.0001f;
 const float ContactSolver::TANGENT_STOP_VELOCITY = 0.0001f;
 const float ContactSolver::NORMAL_SLEEP_VELOCITY = 1.0f;
 const float ContactSolver::TANGENT_SLEEP_VELOCITY = 1.0f;
-const float ContactSolver::POSITION_SOLVE_ALPHA = 0.3f;
+const float ContactSolver::POSITION_SOLVE_ALPHA = 0.2f;
 
 ContactSolver::ContactSolver(float duration, Contact** contacts, 
 	PositionBuffer* positions, VelocityBuffer* velocities, 
@@ -33,9 +33,9 @@ ContactSolver::ContactSolver(float duration, Contact** contacts,
 		contactConstraints_[i].points = manifold.points;
 		contactConstraints_[i].numPoints = manifold.pointsCount;
 		XMStoreFloat3(&contactConstraints_[i].worldCenterA,
-			XMVector3TransformCoord(XMLoadFloat3(&shapeA->GetSenter()), bodyA->GetTransformMatrix()));
+			XMVector3TransformCoord(XMLoadFloat3(&shapeA->GetCenter()), bodyA->GetTransformMatrix()));
 		XMStoreFloat3(&contactConstraints_[i].worldCenterB,
-			XMVector3TransformCoord(XMLoadFloat3(&shapeB->GetSenter()), bodyB->GetTransformMatrix()));
+			XMVector3TransformCoord(XMLoadFloat3(&shapeB->GetCenter()), bodyB->GetTransformMatrix()));
 		contactConstraints_[i].invInertiaA = bodyA->GetInverseInertiaTensorWorld();
 		contactConstraints_[i].invInertiaB = bodyB->GetInverseInertiaTensorWorld();
 		contactConstraints_[i].bodyIdA = bodyA->GetIslandId();
@@ -206,7 +206,7 @@ void ContactSolver::solveVelocityConstraints()
 
 void ContactSolver::solvePositionConstraints()
 {
-	const float kSlop = 0.001f; // 허용 관통 오차
+	const float kSlop = 0.01f; // 허용 관통 오차
 	const float alpha = POSITION_SOLVE_ALPHA;
 
 	for (int i = 0; i < numContacts_; ++i) {
@@ -251,7 +251,44 @@ void ContactSolver::solvePositionConstraints()
 
 void ContactSolver::checkSleepContact()
 {
-	return;
+	for (uint32_t i = 0; i < numContacts_; i++) {
+		Contact* contact = contacts_[i];
+		const ContactConstraint& contactConstraint = contactConstraints_[i];
+		uint32_t pointCount = contactConstraint.numPoints;
+		int32_t indexA = contactConstraint.bodyIdA;
+		int32_t indexB = contactConstraint.bodyIdB;
+
+		XMVECTOR linearVelocityA = XMLoadFloat3(&velocities_[indexA].linearVelocity);
+		XMVECTOR linearVelocityB = XMLoadFloat3(&velocities_[indexB].linearVelocity);
+		XMVECTOR angularVelocityA = XMLoadFloat3(&velocities_[indexA].angularVelocity);
+		XMVECTOR angularVelocityB = XMLoadFloat3(&velocities_[indexB].angularVelocity);
+		XMVECTOR upVector = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+		for (int32_t j = 0; j < pointCount; ++j) {
+			const ManifoldPoint& manifoldPoint = contactConstraint.points[j];
+
+			XMVECTOR relativeVelocity = linearVelocityA - linearVelocityB;
+
+			if (Vec3LengthSq(relativeVelocity) > 1.0f) {
+				positions_[indexA].isNormalStop = false;
+				positions_[indexB].isNormalStop = false;
+			}
+
+			XMVECTOR relativeAngularVelocity = angularVelocityA - angularVelocityB;
+			if (Vec3LengthSq(relativeAngularVelocity) > 1.0f) {
+				positions_[indexA].isTangentStop = false;
+				positions_[indexB].isTangentStop = false;
+			}
+
+			float normalDotUpVector = VecDot(XMLoadFloat3(&manifoldPoint.normal), upVector);
+			if (normalDotUpVector < -0.3f) {
+				positions_[indexA].isNormal = true;
+			}
+			if (normalDotUpVector > 0.3f) {
+				positions_[indexB].isNormal = true;
+			}
+		}
+	}
 }
 
 

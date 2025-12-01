@@ -19,6 +19,7 @@ class Rigidbody
 public:
     Rigidbody();
     Rigidbody(RigidbodyType type, const XMFLOAT4& rotateQuat, const XMFLOAT3& position);
+    ~Rigidbody();
 
     void AddForce(const XMFLOAT3& force);
     void AddTorque(const XMFLOAT3& torque);
@@ -78,23 +79,23 @@ public:
     float mass_ = 1.0f;
     float inverseMass_ = 1.0f; // 1.0f / mass
 
-    XMFLOAT3 position_ = { 0.0f, 0.0f, 0.0f };
-    XMFLOAT3 linearVelocity_ = { 0.0f, 0.0f, 0.0f };
-    XMFLOAT3 linearAcceleration_ = { 0.0f, 0.0f, 0.0f };
-    XMFLOAT3 force_ = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT3 position_              = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT3 linearVelocity_        = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT3 linearAcceleration_    = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT3 force_                 = { 0.0f, 0.0f, 0.0f };
 
-    XMFLOAT4 orientation_ = { 0.0f, 0.0f, 0.0f, 1.0f };
-    XMFLOAT3 angularVelocity_ = { 0.0f, 0.0f, 0.0f };
-    XMFLOAT3 angularAcceleration_ = { 0.0f,0.0f, 0.0f };
-    XMFLOAT3 torque_ = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT4 orientation_           = { 0.0f, 0.0f, 0.0f, 1.0f };
+    XMFLOAT3 angularVelocity_       = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT3 angularAcceleration_   = { 0.0f,0.0f, 0.0f };
+    XMFLOAT3 torque_                = { 0.0f, 0.0f, 0.0f };
 
-    XMFLOAT3X3 inverseInertiaTensorWorld_;
-    XMFLOAT3X3 inverseInertiaTensor_ = XMFLOAT3X3(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    XMFLOAT3X3 inverseInertiaTensorWorld_   = XMFLOAT3X3(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    XMFLOAT3X3 inverseInertiaTensor_        = XMFLOAT3X3(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
     XMFLOAT4X4 transformMatrix_;
 
     // drag [0.f, 1.0f]
-    float linearDamping_ = 0.1f;
-    float angularDamping_ = 0.1f;
+    float linearDamping_ = 0.001f;
+    float angularDamping_ = 0.001f;
 
     // flag
     bool isGrounded_ = false;

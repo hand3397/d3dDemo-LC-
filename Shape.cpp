@@ -58,7 +58,7 @@ XMMATRIX SphereShape::ComputeLocalInertia(float mass) const
         0, 0, 0, 1);
 }
 
-XMFLOAT3 Shape::GetSenter() const
+XMFLOAT3 Shape::GetCenter() const
 {
     return center_;
 }
@@ -107,9 +107,9 @@ void BoxShape::GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const
         XMLoadFloat3(&out.points[4])
     };
     out.numAxes = 3;
-    XMStoreFloat3(&out.axes[0], XMVector3NormalizeEst(axesPoints[1] - axesPoints[0]));
-    XMStoreFloat3(&out.axes[1], XMVector3NormalizeEst(axesPoints[2] - axesPoints[0]));
-    XMStoreFloat3(&out.axes[2], XMVector3NormalizeEst(axesPoints[3] - axesPoints[0]));
+    XMStoreFloat3(&out.axes[0], XMVector3Normalize(axesPoints[1] - axesPoints[0]));
+    XMStoreFloat3(&out.axes[1], XMVector3Normalize(axesPoints[2] - axesPoints[0]));
+    XMStoreFloat3(&out.axes[2], XMVector3Normalize(axesPoints[3] - axesPoints[0]));
 }
 
 AABB BoxShape::GetAABB(const XMMATRIX& transform) const
@@ -150,14 +150,13 @@ void BoxShape::SetHalfSize(const XMFLOAT3& halfSize)
     halfSize_ = halfSize;
 }
 
-XMFLOAT3 ConvexInfo::GetFarthestPoint(const XMVECTOR& dir) const
+XMVECTOR ConvexInfo::GetFarthestPoint(const XMVECTOR& dir) const
 {
-    XMFLOAT3 out;
     XMVECTOR center = XMLoadFloat3(&this->center);
 
     switch (type) {
     case ShapeType::SPHERE: {
-        XMStoreFloat3(&out, center + radius * dir);
+       return (center + radius * dir);
     }
         break;
     case ShapeType::BOX: {
@@ -165,7 +164,7 @@ XMFLOAT3 ConvexInfo::GetFarthestPoint(const XMVECTOR& dir) const
         center += axesVec[0] * ((VecDot(axesVec[0], dir) > 0 ? 1.0f : -1.0f) * halfSize.x);
         center += axesVec[1] * ((VecDot(axesVec[1], dir) > 0 ? 1.0f : -1.0f) * halfSize.y);
         center += axesVec[2] * ((VecDot(axesVec[2], dir) > 0 ? 1.0f : -1.0f) * halfSize.z);
-        XMStoreFloat3(&out, center);
+        return center;
     }
         break;
     case ShapeType::GROUND:
@@ -175,8 +174,6 @@ XMFLOAT3 ConvexInfo::GetFarthestPoint(const XMVECTOR& dir) const
     case ShapeType::CAPSULE:
         break;
     }
-
-    return out;
 }
 
 }

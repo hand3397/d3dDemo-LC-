@@ -87,13 +87,13 @@ public:
 	bool IsTouching()const;
 	float GetFriction() const;
 	float GetRestitution() const;
-	int32_t GetFaceNormals(const Polytope& polytope, FaceArray& faceArray);
-	SupportPoint GetSupportPoint(const ConvexInfo& convexA, const ConvexInfo& convexB, XMVECTOR& dir);
+	int32_t GetFaceNormals(const Polytope& polytope, FaceArray& faceArray) const;
+	SupportPoint GetSupportPoint(const ConvexInfo& convexA, const ConvexInfo& convexB, const XMVECTOR& dir) const;
 	Fixture* GetFixtureA() const;
 	Fixture* GetFixtureB() const;
 	Manifold& GetManifold();
 
-	ResultEPA GetEPA(Polytope& simplex, const ConvexInfo& convexA, const ConvexInfo& convexB);
+	ResultEPA GetEPA(Polytope& simplex, const ConvexInfo& convexA, const ConvexInfo& convexB) const;
 
 protected:
 	static const uint32_t MAX_GJK_ITERATION;
@@ -111,7 +111,7 @@ protected:
 
 	bool IsSimilarDirection(const XMVECTOR& a, const XMVECTOR& b) const;
 	bool IsSameDirection(const XMVECTOR& a, const XMVECTOR& b) const;
-	void AddIfUniqueEdge(vector<pair<uint32_t, uint32_t>>& uniqueEdges, const uint32_t* faces, uint32_t a, uint32_t b);
+	void AddIfUniqueEdge(vector<pair<uint32_t, uint32_t>>& uniqueEdges, const uint32_t* faces, uint32_t a, uint32_t b) const;
 
 	virtual void FindCollisionPoints(const ConvexInfo& convexA, const ConvexInfo& convexB, CollisionInfo& collisionInfo,
 		ResultEPA& resultEPA, Polytope& simplexArray) = 0;
@@ -133,9 +133,9 @@ protected:
 	bool isCollideToHemisphere(const ConvexInfo& capsule, const XMFLOAT3& dir);
 	*/
 
-	void MergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray);
-	void SizeUpFaceArray(FaceArray& faceArray, uint32_t newMaxCount);
-	void FreeConvexInfo(ConvexInfo& convexA, ConvexInfo& convexB);
+	void MergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray) const;
+	void SizeUpFaceArray(FaceArray& faceArray, uint32_t newMaxCount) const;
+	void FreeConvexInfo(ConvexInfo& convexA, ConvexInfo& convexB) const;
 	
 	float friction_;
 	float restitution_;
