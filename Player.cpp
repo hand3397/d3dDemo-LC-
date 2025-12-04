@@ -22,6 +22,8 @@ Player::Player(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& po
     bs.Center = bb.Center;
     bs.Radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&maxPos) - XMLoadFloat3(&bs.Center)));
 
+    rigidbody_.SetLinearDamping(0.2f);
+
     isObserver_ = true;
 }
 

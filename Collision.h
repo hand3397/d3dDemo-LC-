@@ -32,21 +32,29 @@ struct AABB
         XMStoreFloat3(&upperBound, XMVectorMax(lb, ub));
     }
 
-	void combine(const AABB& aabb)
-	{
-		XMVECTOR minv = XMVectorMin(XMLoadFloat3(&lowerBound), XMLoadFloat3(&aabb.lowerBound));
-		XMVECTOR maxv = XMVectorMax(XMLoadFloat3(&upperBound), XMLoadFloat3(&aabb.upperBound));
-		XMStoreFloat3(&lowerBound, minv);
-		XMStoreFloat3(&upperBound, maxv);
-	}
+    float GetSurface() const
+    {
+        XMFLOAT3 len;
+        XMStoreFloat3(&len, XMLoadFloat3(&upperBound) - XMLoadFloat3(&lowerBound));
 
-	void combine(const AABB& aabb1, const AABB& aabb2)
-	{
-		XMVECTOR minv = XMVectorMin(XMLoadFloat3(&aabb1.lowerBound), XMLoadFloat3(&aabb2.lowerBound));
-		XMVECTOR maxv = XMVectorMax(XMLoadFloat3(&aabb1.upperBound), XMLoadFloat3(&aabb2.upperBound));
-		XMStoreFloat3(&lowerBound, minv);
-		XMStoreFloat3(&upperBound, maxv);
-	}
+        return (len.x * len.y + len.y * len.z + len.z * len.x) * 2.0f;
+    }
+
+    void Combine(const AABB& aabb)
+    {
+        XMVECTOR minv = XMVectorMin(XMLoadFloat3(&lowerBound), XMLoadFloat3(&aabb.lowerBound));
+        XMVECTOR maxv = XMVectorMax(XMLoadFloat3(&upperBound), XMLoadFloat3(&aabb.upperBound));
+        XMStoreFloat3(&lowerBound, minv);
+        XMStoreFloat3(&upperBound, maxv);
+    }
+
+    void Combine(const AABB& aabb1, const AABB& aabb2)
+    {
+        XMVECTOR minV = XMVectorMin(XMLoadFloat3(&aabb1.lowerBound), XMLoadFloat3(&aabb2.lowerBound));
+        XMVECTOR maxV = XMVectorMax(XMLoadFloat3(&aabb1.upperBound), XMLoadFloat3(&aabb2.upperBound));
+        XMStoreFloat3(&lowerBound, minV);
+        XMStoreFloat3(&upperBound, maxV);
+    }
 
     bool Contains(const AABB& other) const
     {
@@ -79,8 +87,8 @@ struct AABB
         return XMVector3EqualInt(XMVectorAndInt(cmp1, cmp2), XMVectorTrueInt());
     }
 
-	XMFLOAT3 lowerBound;
-	XMFLOAT3 upperBound;
+    XMFLOAT3 lowerBound;
+    XMFLOAT3 upperBound;
 };
 
 struct ManifoldPoint
