@@ -1,8 +1,9 @@
 #include "DynamicTree.h"
+#include "BroadPhase.h"
 
 namespace spe {;
 
-DynamicTree::DynamicTree(uint32_t nodeCapacity = 16) :
+DynamicTree::DynamicTree(uint32_t nodeCapacity) :
 	root_(NULL_NODE), numNodes_(0), nodeCapacity_(nodeCapacity), freeNode_(0)
 {
 	nodes_.resize(nodeCapacity_);
@@ -126,7 +127,7 @@ void DynamicTree::InsertLeaf(int32_t leaf)
 	int32_t index = root_;
 
 	// 루트부터 내려가며 최적의 위치를 찾는다
-	while (nodes_[index].isLeaf() == false) {
+	while (nodes_[index].IsLeaf() == false) {
 		int32_t child1 = nodes_[index].child1;
 		int32_t child2 = nodes_[index].child2;
 
@@ -139,7 +140,7 @@ void DynamicTree::InsertLeaf(int32_t leaf)
 		float inheritedCost = 2.0f * (combinedArea - area);
 
 		float cost1;
-		if (nodes_[child1].isLeaf()) {
+		if (nodes_[child1].IsLeaf()) {
 			// child가 leaf라면: leaf와 leaf를 묶어서 새로운 내부 노드를 만드는 비용
 			cost1 = GetInsertionCostForLeaf(leafAABB, child1, inheritedCost);
 		}
@@ -149,7 +150,7 @@ void DynamicTree::InsertLeaf(int32_t leaf)
 		}
 
 		float cost2;
-		if (nodes_[child2].isLeaf()) {
+		if (nodes_[child2].IsLeaf()) {
 			cost2 = GetInsertionCostForLeaf(leafAABB, child2, inheritedCost);
 		}
 		else {
@@ -270,7 +271,7 @@ int32_t DynamicTree::Balance(int32_t iA)
 	// 추후에 aabb의 표면적을 가장 적게 늘리는 방향으로 변경해야한다.
 	AABBNode* A = &nodes_[iA];
 
-	if (A->isLeaf() || A->height < 2) {
+	if (A->IsLeaf() || A->height < 2) {
 		return iA;
 	}
 

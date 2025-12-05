@@ -1,5 +1,6 @@
 #include "RigidBody.h"
 #include "GameObject.h"
+#include "Contact.h"
 
 namespace spe { ; 
 
@@ -249,6 +250,11 @@ int32_t Rigidbody::GetIslandId() const
     return islandId_;
 }
 
+ContactLink* Rigidbody::GetContactLink()
+{
+    return contactLink_;
+}
+
 void Rigidbody::SetGameObject(GameObject* gameObject)
 {
     gameObject_ = gameObject;
@@ -316,6 +322,11 @@ void Rigidbody::SetAwake()
 void Rigidbody::SetIslandId(int32_t id)
 {
     islandId_ = id;
+}
+
+void Rigidbody::SetContactLink(ContactLink* contactLink)
+{
+    contactLink_ = contactLink;
 }
 
 void Rigidbody::ComputeInertiaTensor()

@@ -79,10 +79,10 @@ void GamePhysics::OnGravity(vector<GameObject*>& dynamicGameObjects,
     vector<GameObject*>& kinematicGameObjects, Player* player)
 {
     for (auto& go : dynamicGameObjects)
-        if (!go->GetRigidbody().isGrounded_)
+        if (!go->GetRigidbody().isAwake())
             go->GetRigidbody().AddLinearAcc(XMFLOAT3(0.f, gravity_, 0.f));
     for (auto& go : kinematicGameObjects)
-        if (!go->GetRigidbody().isGrounded_)
+        if (!go->GetRigidbody().isAwake())
             go->GetRigidbody().AddLinearAcc(XMFLOAT3(0.f, gravity_, 0.f));
 }
 

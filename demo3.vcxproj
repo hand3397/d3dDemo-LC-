@@ -128,10 +128,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BoxToBoxContact.cpp" />
+    <ClCompile Include="BroadPhase.cpp" />
     <ClCompile Include="Camera.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Contact.cpp" />
+    <ClCompile Include="ContactManager.cpp" />
     <ClCompile Include="ContactSolver.cpp" />
     <ClCompile Include="d3dApp.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -192,9 +194,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BoxToBoxContact.h" />
+    <ClInclude Include="BroadPhase.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Collision.h" />
     <ClInclude Include="Contact.h" />
+    <ClInclude Include="ContactManager.h" />
     <ClInclude Include="ContactSolver.h" />
     <ClInclude Include="d3dApp.h" />
     <ClInclude Include="d3dUtil.h" />

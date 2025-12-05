@@ -68,6 +68,11 @@ Contact::Contact(Fixture* fixtureA, Fixture* fixtureB) :
 {
     friction_ = std::sqrt(fixtureA_->GetFriction() * fixtureB_->GetFriction());
     restitution_ = std::max(fixtureA_->GetRestitution(), fixtureB_->GetRestitution());
+
+    linkA.contact = this;
+    linkB.contact = this;
+    linkA.other = fixtureB_->GetRigidbody();
+    linkB.other = fixtureA_->GetRigidbody();
 }
 
 void Contact::Update()
@@ -347,6 +352,16 @@ ResultEPA Contact::GetEPA(Polytope& polytope, const ConvexInfo& convexA, const C
     result.dist = minDistance;
 
     return result;
+}
+
+ContactLink* Contact::GetContactLinkA()
+{
+    return &linkA;
+}
+
+ContactLink* Contact::GetContactLinkB()
+{
+    return &linkB;
 }
 
 bool Contact::LineSimplex(Polytope& simplex, XMVECTOR& dir)

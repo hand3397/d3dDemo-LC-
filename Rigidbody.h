@@ -6,6 +6,8 @@ class GameObject;
 
 namespace spe {;
 
+struct ContactLink;
+
 enum class RigidbodyType
 {
     STATIC = 0,
@@ -53,6 +55,7 @@ public:
     bool isGrounded()const;
     bool isAwake()const;
     int32_t GetIslandId()const;
+    ContactLink* GetContactLink();
 
     void SetGameObject(GameObject* gameObject);
     void SetMass(const float mass);
@@ -67,11 +70,12 @@ public:
     void SetSleep();
     void SetAwake();
     void SetIslandId(int32_t id);
+    void SetContactLink(ContactLink* contactLink);
 
     void ComputeInertiaTensor();
 
-public:
-
+protected:
+    friend class GameObject;
     RigidbodyType type_ = RigidbodyType::STATIC;
 
     GameObject* gameObject_ = nullptr;
@@ -107,6 +111,8 @@ public:
 
     // id
     int32_t islandId_ = -1;
+
+    ContactLink* contactLink_ = nullptr;
 };
 
 }

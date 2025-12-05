@@ -126,6 +126,12 @@
     <ClCompile Include="DynamicTree.cpp">
       <Filter>소스 파일\Physics</Filter>
     </ClCompile>
+    <ClCompile Include="BroadPhase.cpp">
+      <Filter>소스 파일\Physics</Filter>
+    </ClCompile>
+    <ClCompile Include="ContactManager.cpp">
+      <Filter>소스 파일\Physics</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dApp.h">
@@ -225,6 +231,12 @@
       <Filter>헤더 파일\Physics</Filter>
     </ClInclude>
     <ClInclude Include="DynamicTree.h">
+      <Filter>헤더 파일\Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="BroadPhase.h">
+      <Filter>헤더 파일\Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="ContactManager.h">
       <Filter>헤더 파일\Physics</Filter>
     </ClInclude>
   </ItemGroup>

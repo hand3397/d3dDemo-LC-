@@ -3,11 +3,13 @@
 
 namespace spe {;
 
+class BroadPhase;
+
 constexpr int32_t NULL_NODE = -1;;
 
 struct AABBNode
 {
-    bool isLeaf()const { return (child1 == NULL_NODE); }
+    bool IsLeaf()const { return (child1 == NULL_NODE); }
 
     AABB aabb;
     void* data = nullptr;
@@ -28,7 +30,7 @@ struct AABBNode
 class DynamicTree
 {
 public:
-    DynamicTree(uint32_t nodeCapacity);
+    DynamicTree(uint32_t nodeCapacity = 16);
     ~DynamicTree();
 
     // 주어진 aabb와 userData로 node에 값 초기화, node 삽입
@@ -76,7 +78,7 @@ void DynamicTree::Query(T* callback, const AABB& aabb) const
 
     int stack[64];
     int* sp = stack;
-    *sp++ = m_root;
+    *sp++ = root_;
 
     while (sp > stack) {
         int nodeId = *(--sp);

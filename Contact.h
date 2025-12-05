@@ -73,6 +73,17 @@ struct CollisionInfo
 	int32_t size;
 };
 
+struct ContactLink
+{
+	Rigidbody* other;  // 연결된 반대쪽 Body
+	Contact* contact;  // 두 Body 간의 Contact 정보
+	ContactLink* prev; // 이전 충돌 정보
+	ContactLink* next; // 다음 충돌 정보
+
+	ContactLink() : 
+		other(nullptr), contact(nullptr), prev(nullptr), next(nullptr) {}
+};
+
 class Contact
 {
 public:
@@ -94,6 +105,9 @@ public:
 	Manifold& GetManifold();
 
 	ResultEPA GetEPA(Polytope& simplex, const ConvexInfo& convexA, const ConvexInfo& convexB) const;
+
+	ContactLink* GetContactLinkA();
+	ContactLink* GetContactLinkB();
 
 protected:
 	static const uint32_t MAX_GJK_ITERATION;
@@ -147,6 +161,9 @@ protected:
 
 	// flag
 	bool isTouching_ = false;
+
+	ContactLink linkA;
+	ContactLink linkB;
 };
 
 }	// namespace spe
