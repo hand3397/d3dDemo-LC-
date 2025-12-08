@@ -73,6 +73,8 @@ Contact::Contact(Fixture* fixtureA, Fixture* fixtureB) :
     linkB.contact = this;
     linkA.other = fixtureB_->GetRigidbody();
     linkB.other = fixtureA_->GetRigidbody();
+
+    SetFlag(ContactFlag::TOUCHING);
 }
 
 void Contact::Update()
@@ -85,13 +87,20 @@ void Contact::Update()
     // Evaluate
     manifold_.pointsCount = 0;
     Evaluate(manifold_, transformA, transformB);
-    isTouching_ = manifold_.pointsCount > 0;
 
     for (uint32_t i = 0; i < manifold_.pointsCount; ++i) {
         ManifoldPoint& manifoldPoint = manifold_.points[i];
 
         manifoldPoint.normalImpulse = 0.0f;
         manifoldPoint.tangentImpulse = 0.0f;
+    }
+
+    // is Touching
+    if (manifold_.pointsCount > 0) {
+        SetFlag(ContactFlag::TOUCHING);
+    }
+    else {
+        ClearFlag(ContactFlag::TOUCHING);
     }
 }
 
@@ -143,9 +152,9 @@ void Contact::GenerateManifolds(CollisionInfo& collisionInfo, Manifold& manifold
     }
 }
 
-bool Contact::IsTouching() const
+bool Contact::HasFlag(ContactFlag flag) const
 {
-    return isTouching_;
+    return (flags_ & static_cast<uint32_t>(flag)) != 0;
 }
 
 float Contact::GetFriction() const
@@ -362,6 +371,36 @@ ContactLink* Contact::GetContactLinkA()
 ContactLink* Contact::GetContactLinkB()
 {
     return &linkB;
+}
+
+Contact* Contact::GetNext()
+{
+    return next_;
+}
+
+Contact* Contact::GetPrev()
+{
+    return prev_;
+}
+
+void Contact::SetFlag(ContactFlag flag)
+{
+    flags_ |= static_cast<uint32_t>(flag);
+}
+
+void Contact::ClearFlag(ContactFlag flag)
+{
+    flags_ &= ~static_cast<uint32_t>(flag);
+}
+
+void Contact::SetNext(Contact* contact)
+{
+    next_ = contact;
+}
+
+void Contact::SetPrev(Contact* contact)
+{
+    prev_ = contact;
 }
 
 bool Contact::LineSimplex(Polytope& simplex, XMVECTOR& dir)

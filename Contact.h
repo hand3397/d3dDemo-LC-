@@ -84,6 +84,13 @@ struct ContactLink
 		other(nullptr), contact(nullptr), prev(nullptr), next(nullptr) {}
 };
 
+enum class ContactFlag : uint32_t
+{
+	ISLAND = (1 << 0),
+	TOUCHING = (1 << 1),
+	SENSOR = (1 << 2),
+};
+
 class Contact
 {
 public:
@@ -95,7 +102,7 @@ public:
 
 	void GenerateManifolds(CollisionInfo& collisionInfo, Manifold& manifold, Fixture* fixtureA, Fixture* fixtureB);
 
-	bool IsTouching()const;
+	bool HasFlag(ContactFlag flag) const;
 	float GetFriction() const;
 	float GetRestitution() const;
 	int32_t GetFaceNormals(const Polytope& polytope, FaceArray& faceArray) const;
@@ -103,11 +110,16 @@ public:
 	Fixture* GetFixtureA() const;
 	Fixture* GetFixtureB() const;
 	Manifold& GetManifold();
-
 	ResultEPA GetEPA(Polytope& simplex, const ConvexInfo& convexA, const ConvexInfo& convexB) const;
-
 	ContactLink* GetContactLinkA();
 	ContactLink* GetContactLinkB();
+	Contact* GetNext();
+	Contact* GetPrev();
+
+	void SetFlag(ContactFlag flag);
+	void ClearFlag(ContactFlag flag);	// ÇØ´ç flag¸¸ ²ô±â
+	void SetNext(Contact* contact);
+	void SetPrev(Contact* contact);
 
 protected:
 	static const uint32_t MAX_GJK_ITERATION;
@@ -159,8 +171,10 @@ protected:
 
 	Manifold manifold_;
 
-	// flag
-	bool isTouching_ = false;
+	uint32_t flags_ = 0;
+
+	Contact* next_ = nullptr;
+	Contact* prev_ = nullptr;
 
 	ContactLink linkA;
 	ContactLink linkB;

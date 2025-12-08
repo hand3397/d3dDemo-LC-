@@ -15,14 +15,14 @@ public:
 
     void AddPair(void* proxyUserDataA, void* proxyUserDataB);
     void FindNewContacts();
-    bool IsSameContact(ContactLink* link, Fixture* fixtureA, Fixture* fixtureB, int32_t indexA, int32_t indexB);
+    bool IsSameContact(ContactLink* link, Fixture* fixtureA, Fixture* fixtureB);
     void Collide();
 
 private:
-    BroadPhase broadPhase;
+    BroadPhase broadPhase_;
 
-    Contact* contacts;
-    uint32_t numContacts;
+    Contact* contacts_;
+    uint32_t numContacts_;
 };
 
 }
