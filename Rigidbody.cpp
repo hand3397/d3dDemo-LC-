@@ -7,6 +7,8 @@ namespace spe { ;
 Rigidbody::Rigidbody()
 {
     CalculateMatrix();
+
+    SetFlag(RigidbodyFlag::AWAKE);
 }
 
 Rigidbody::Rigidbody(RigidbodyType type, const XMFLOAT4& rotateQuat, const XMFLOAT3& position) :
@@ -18,6 +20,8 @@ Rigidbody::Rigidbody(RigidbodyType type, const XMFLOAT4& rotateQuat, const XMFLO
         // invMass = 0 -> 질량을 무한대로 설정
         SetMass(0.0f);
     }
+
+    SetFlag(RigidbodyFlag::AWAKE);
 }
 
 Rigidbody::~Rigidbody()
@@ -47,6 +51,13 @@ void Rigidbody::AddLinearAcc(const XMFLOAT3& linearAcc)
     linearAcceleration_.x += linearAcc.x;
     linearAcceleration_.y += linearAcc.y;
     linearAcceleration_.z += linearAcc.z;
+}
+
+void Rigidbody::AddLinearVelocity(const XMFLOAT3& linearVelocity)
+{
+    linearVelocity_.x += linearVelocity.x;
+    linearVelocity_.y += linearVelocity.y;
+    linearVelocity_.z += linearVelocity.z;
 }
 
 void Rigidbody::ClearForces()
@@ -119,8 +130,8 @@ void Rigidbody::Integrate(float dt)
     XMStoreFloat3(&angularVelocity_, angularVelocityVec);
 
     // set sweep (previous Transform)
-    //m_sweep.p = m_xf.position;
-    //m_sweep.q = m_xf.orientation;
+    sweep_.position = position_;
+    sweep_.orientation = orientation_;
 
     // set position
     XMVECTOR positionVec = XMLoadFloat3(&position_);
@@ -140,6 +151,21 @@ void Rigidbody::Integrate(float dt)
 
     ClearForces();
     ClearAcclerations();
+}
+
+void Rigidbody::SynchronizeFixture(BroadPhase* broadPhase)
+{
+    if (fixture_ == nullptr)
+        return;
+
+    XMVECTOR quat = XMVector4Normalize(XMLoadFloat4(&sweep_.orientation));
+
+    XMMATRIX r = XMMatrixRotationQuaternion(quat);
+    XMMATRIX t = XMMatrixTranslationFromVector(XMLoadFloat3(&sweep_.position));
+    XMMATRIX xf1 = r * t;
+
+    // fixture의 이동을 broadPhase 와 동기화 -> dynamicTree의 node 이동
+    fixture_->Synchronize(broadPhase, xf1, XMLoadFloat4x4(&transformMatrix_));
 }
 
 void Rigidbody::AddFixture(Fixture* fixture)
@@ -235,16 +261,6 @@ Fixture* Rigidbody::GetFixture()
     return fixture_;
 }
 
-bool Rigidbody::isGrounded()const
-{
-    return isGrounded_;
-}
-
-bool Rigidbody::isAwake()const
-{
-    return isAwake_;
-}
-
 int32_t Rigidbody::GetIslandId() const
 {
     return islandId_;
@@ -253,6 +269,21 @@ int32_t Rigidbody::GetIslandId() const
 ContactLink* Rigidbody::GetContactLink()
 {
     return contactLink_;
+}
+
+bool Rigidbody::HasFlag(RigidbodyFlag flag) const
+{
+    return (flags_ & static_cast<uint32_t>(flag)) != 0;
+}
+
+Rigidbody* Rigidbody::GetNext() const
+{
+    return next_;
+}
+
+Rigidbody* Rigidbody::GetPrev() const
+{
+    return prev_;
 }
 
 void Rigidbody::SetGameObject(GameObject* gameObject)
@@ -309,14 +340,14 @@ void Rigidbody::SetAngularDamping(const float angularDamping)
     angularDamping_ = angularDamping;
 }
 
-void Rigidbody::SetSleep()
+void Rigidbody::SetFlag(RigidbodyFlag flag)
 {
-    isAwake_ = false;
+    flags_ |= static_cast<uint32_t>(flag);
 }
 
-void Rigidbody::SetAwake()
+void Rigidbody::ClearFlag(RigidbodyFlag flag)
 {
-    isAwake_ = true;
+    flags_ &= ~static_cast<uint32_t>(flag);
 }
 
 void Rigidbody::SetIslandId(int32_t id)
@@ -327,6 +358,16 @@ void Rigidbody::SetIslandId(int32_t id)
 void Rigidbody::SetContactLink(ContactLink* contactLink)
 {
     contactLink_ = contactLink;
+}
+
+void Rigidbody::SetNext(Rigidbody* next)
+{
+    next_ = next;
+}
+
+void Rigidbody::SetPrev(Rigidbody* prev)
+{
+    prev_ = prev;
 }
 
 void Rigidbody::ComputeInertiaTensor()

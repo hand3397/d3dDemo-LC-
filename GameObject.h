@@ -32,8 +32,9 @@ public:
     void SetRotate(const XMFLOAT3& rotate);
     void SetRotateQuat(const XMFLOAT4& rotateQuat);
 
-    spe::Rigidbody& GetRigidbody();
+    spe::Rigidbody* GetRigidbody();
     spe::RigidbodyType GetType()const;
+    const spe::AABB GetAABB()const; // debug box
 
 protected:
 

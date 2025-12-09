@@ -5,8 +5,9 @@
 #include "Player.h"
 #include "ModelLoader.h"
 #include "GeometryGenerator.h"
-#include "GamePhysics.h"
+#include "PhysicsWorld.h"
 #include "ObjectManager.h"
+#include "Rigidbody.h"
 
 class Scene
 {
@@ -81,9 +82,9 @@ private:
     unordered_map<string, unique_ptr<Texture>> textures_;
     unordered_map<string, unique_ptr<SkinnedData>> skinnedData_;
 
-    uint32_t numInstances = 0;
+    uint32_t numInstances_ = 0;
 
     unordered_map<string, unique_ptr<SkinnedModelInstance>> skinnedModelInsts_;
 
-    spe::GamePhysics gamePhysics;
+    spe::PhysicsWorld physicsWorld_;
 };

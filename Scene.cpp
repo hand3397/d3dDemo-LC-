@@ -1,6 +1,7 @@
 #include "Scene.h"
 
-Scene::Scene() : gameObejctManager_(MAX_NUM_OBJECTS)
+Scene::Scene() : 
+	gameObejctManager_(MAX_NUM_OBJECTS), physicsWorld_(spe::PhysicsWorld(this))
 {
 }
 
@@ -18,6 +19,9 @@ void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 
 	LoadScene(device, cmdList);
 	BuildScene(device, cmdList);
+
+	// 현재 scene에 빌드된 rigidbody를 전부 등록한다.
+	physicsWorld_.InitSceneObjects();
 }
 
 void Scene::KeyInput(const KeyInputManager& keyInput, float dt)
@@ -29,7 +33,7 @@ void Scene::KeyInput(const KeyInputManager& keyInput, float dt)
 		auto ball = AddBallObject(player_->GetPosition());
 		XMFLOAT3 newVelocity;
 		XMStoreFloat3(&newVelocity, 50.0f * player_->GetLook());
-		ball->GetRigidbody().SetLinearVelocity(newVelocity);
+		ball->GetRigidbody()->SetLinearVelocity(newVelocity);
 	}
 }
 
@@ -37,15 +41,13 @@ void Scene::Update(const GameTimer& gt)
 {
 	float dt = gt.DeltaTime();
 	
-	gamePhysics.Update(dt, gameObejctManager_.GetAllObjects(),
-		gameObejctManager_.GetAllLayeredObjects(),
-		player_.get());
+	physicsWorld_.Update(dt);
 	
-	
-	if (player_)
+	if (player_) {
+		player_->GetRigidbody()->Integrate(dt);
 		player_->Update(dt);
-	
-	
+	}
+		
 	AnimateMaterials(dt);
 }
 
@@ -61,7 +63,7 @@ Camera* Scene::GetCamera()
 
 const uint32_t Scene::GetNumInstances() const
 {
-	return numInstances;
+	return numInstances_;
 }
 
 const size_t Scene::MaxNumGameObjects() const
@@ -324,7 +326,7 @@ void Scene::BuildGameObjects()
 		XMMatrixIdentity(), XMMatrixScaling(15.0f, 15.0f, 1.0f)) };
 	GameObject* go = BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
 		renderItems, spe::RigidbodyType::STATIC);
-	go->GetRigidbody().GetFixture()->SetFriction(0.2f);
+	go->GetRigidbody()->GetFixture()->SetFriction(0.2f);
 
 	// build wall
 	/*
@@ -422,7 +424,7 @@ GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate
 	
 	GameObject* gameObject = gameObejctManager_.CreateObject(scale, rotate, transform, rigidbodyType);
 	
-	auto& rigidbody = gameObject->GetRigidbody();
+	auto rigidbody = gameObject->GetRigidbody();
 	for (RenderItem* ri : rItems) {
 		if (ri == nullptr) continue;
 
@@ -433,7 +435,7 @@ GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate
 		spe::Fixture* fixture = new spe::Fixture(box);
 		fixture->SetFriction(0.01f);
 		fixture->SetRestitution(0.4f);
-		rigidbody.AddFixture(fixture);
+		rigidbody->AddFixture(fixture);
 	}
 	
 	return gameObject;
@@ -480,16 +482,18 @@ GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
 		gameObject->AddRenderItem(ri);
 	}
 
-	auto& rigidbody = gameObject->GetRigidbody();
-	rigidbody.SetLinearDamping(0.01f);
-	rigidbody.SetMass(40.0f);
+	auto rigidbody = gameObject->GetRigidbody();
+	rigidbody->SetLinearDamping(0.01f);
+	rigidbody->SetMass(40.0f);
 
 	spe::SphereShape* sphereShape = new spe::SphereShape(XMFLOAT3(0.f, 0.f, 0.f), 1.0f);
 
 	spe::Fixture* fixture = new spe::Fixture(sphereShape);
 	fixture->SetFriction(0.4f);
-	rigidbody.AddFixture(fixture);
-	rigidbody.ComputeInertiaTensor();
+	rigidbody->AddFixture(fixture);
+	rigidbody->ComputeInertiaTensor();
+
+	physicsWorld_.AddRigidbody(rigidbody);
 
 	return gameObject;
 }

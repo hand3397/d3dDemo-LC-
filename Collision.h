@@ -18,6 +18,13 @@ static inline float Vec3LengthSq(const XMVECTOR& a) noexcept
     return XMVectorGetX(XMVector3LengthSq(a));
 }
 
+struct Sweep
+{
+    XMFLOAT3 position = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT4 orientation = { 0.0f, 0.0f, 0.0f, 1.0f };
+    float alpha;
+};
+
 struct AABB
 {
     AABB() = default;

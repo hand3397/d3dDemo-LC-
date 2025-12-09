@@ -75,14 +75,20 @@ void GameObject::SetRotateQuat(const XMFLOAT4& rotateQuat)
     rigidbody_.orientation_ = rotateQuat_;
 }
 
-spe::Rigidbody& GameObject::GetRigidbody()
+spe::Rigidbody* GameObject::GetRigidbody()
 {
-    return rigidbody_;
+    return &rigidbody_;
 }
 
 spe::RigidbodyType GameObject::GetType()const
 {
     return rigidbody_.GetType();
+}
+
+const spe::AABB GameObject::GetAABB() const
+{
+    XMMATRIX xf = rigidbody_.GetTransformMatrix();
+    return rigidbody_.fixture_->GetShape()->GetAABB(xf);
 }
 
 void GameObject::UpdateTransformFromRigidbody()
@@ -95,8 +101,8 @@ void GameObject::UpdateTransformFromRigidbody()
 void GameObject::UpdateRenderItem()
 {
     // update RenderItem
-    for (auto& ri : renderItems_)
-        if (ri) {
+    for (auto ri : renderItems_)
+        if (ri != nullptr) {
             XMStoreFloat4x4(&ri->world_,
                 XMMatrixAffineTransformation(
                     XMLoadFloat3(&scale_),

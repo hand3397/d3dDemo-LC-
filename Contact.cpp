@@ -563,7 +563,7 @@ bool Contact::GetGJK(Polytope& simplex, const ConvexInfo& convexA, const ConvexI
         support = GetSupportPoint(convexA, convexB, direction);
 
         // support와 direction의 내적 값이 0보다 작으면 두점 사이에 원점이 포함될 수 없다. 
-        if (VecDot(support.diff, direction) < EPS_FLOAT || IsDuplicatedPoint(simplex, support.diff)) {
+        if (VecDot(support.diff, direction) < -EPS_FLOAT || IsDuplicatedPoint(simplex, support.diff)) {
             return false; // no collision
         }
 

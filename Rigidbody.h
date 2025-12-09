@@ -7,6 +7,7 @@ class GameObject;
 namespace spe {;
 
 struct ContactLink;
+class BroadPhase;
 
 enum class RigidbodyType
 {
@@ -14,6 +15,13 @@ enum class RigidbodyType
     DYNAMIC,
     KINEMATIC,
     COUNT,
+};
+
+enum class RigidbodyFlag : uint32_t
+{
+    ISLAND = (1 << 0),
+    AWAKE = (1 << 1),
+    GROUND = (1 << 2),
 };
 
 class Rigidbody
@@ -26,12 +34,14 @@ public:
     void AddForce(const XMFLOAT3& force);
     void AddTorque(const XMFLOAT3& torque);
     void AddLinearAcc(const XMFLOAT3& linearAcc);
+    void AddLinearVelocity(const XMFLOAT3& linearVelocity);
     void ClearForces();
     void ClearAcclerations();
     void CreateFixture(Shape* shape);
     void CalculateMatrix();
 
     void Integrate(float dt);
+    void SynchronizeFixture(BroadPhase* broadPhase);
 
     void AddFixture(Fixture* fixture);
 
@@ -52,10 +62,11 @@ public:
     float GetLinearDamping()const;
     float GetAngularDamping()const;
     Fixture* GetFixture();
-    bool isGrounded()const;
-    bool isAwake()const;
     int32_t GetIslandId()const;
     ContactLink* GetContactLink();
+    bool HasFlag(RigidbodyFlag flag)const;
+    Rigidbody* GetNext() const;
+    Rigidbody* GetPrev() const;
 
     void SetGameObject(GameObject* gameObject);
     void SetMass(const float mass);
@@ -67,10 +78,12 @@ public:
     void SetAngularAccelration(const XMFLOAT3& angularAcceleration);
     void SetLinearDamping(const float linearDamping);
     void SetAngularDamping(const float angularDamping);
-    void SetSleep();
-    void SetAwake();
+    void SetFlag(RigidbodyFlag flag);
+    void ClearFlag(RigidbodyFlag flag);
     void SetIslandId(int32_t id);
     void SetContactLink(ContactLink* contactLink);
+    void SetNext(Rigidbody* next);
+    void SetPrev(Rigidbody* prev);
 
     void ComputeInertiaTensor();
 
@@ -93,6 +106,8 @@ protected:
     XMFLOAT3 angularAcceleration_   = { 0.0f,0.0f, 0.0f };
     XMFLOAT3 torque_                = { 0.0f, 0.0f, 0.0f };
 
+    Sweep sweep_; // 이전 프레임 위치 기록용
+
     XMFLOAT3X3 inverseInertiaTensorWorld_   = XMFLOAT3X3(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
     XMFLOAT3X3 inverseInertiaTensor_        = XMFLOAT3X3(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
     XMFLOAT4X4 transformMatrix_;
@@ -101,9 +116,7 @@ protected:
     float linearDamping_ = 0.001f;
     float angularDamping_ = 0.001f;
 
-    // flag
-    bool isGrounded_ = false;
-    bool isAwake_ = false;
+    uint32_t flags_ = 0;
 
     // fixture
     Fixture* fixture_ = nullptr;
@@ -113,6 +126,10 @@ protected:
     int32_t islandId_ = -1;
 
     ContactLink* contactLink_ = nullptr;
+
+    // physicsWorld
+    Rigidbody* next_ = nullptr;
+    Rigidbody* prev_ = nullptr;
 };
 
 }

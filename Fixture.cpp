@@ -17,6 +17,10 @@ Fixture::~Fixture()
         delete shape_;
         shape_ = nullptr;
     }
+    if (proxy_ != nullptr) {
+        delete proxy_;
+        proxy_ = nullptr;
+    }
 }
 
 void Fixture::CreateProxy(BroadPhase* broadPhase)

@@ -155,7 +155,7 @@
     <ClCompile Include="GameObject.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="GamePhysics.cpp" />
+    <ClCompile Include="PhysicsWorld.cpp" />
     <ClCompile Include="GameTimer.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -208,7 +208,7 @@
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="FSM.h" />
     <ClInclude Include="GameObject.h" />
-    <ClInclude Include="GamePhysics.h" />
+    <ClInclude Include="PhysicsWorld.h" />
     <ClInclude Include="GameTimer.h" />
     <ClInclude Include="GeometryGenerator.h" />
     <ClInclude Include="Island.h" />

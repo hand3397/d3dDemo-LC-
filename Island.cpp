@@ -1,5 +1,6 @@
 #include "Island.h"
 #include "ContactSolver.h"
+#include "PhysicsWorld.h"
 
 namespace spe {;
 
@@ -66,10 +67,11 @@ void Island::Solve(float duration)
             XMVectorGetX(XMVector3LengthEst(XMLoadFloat3(&velocities_[i].angularVelocity))) < STOP_ANGULAR_VELOCITY) {
             velocities_[i].linearVelocity = XMFLOAT3(0.0f, 0.0f, 0.0f);
             velocities_[i].angularVelocity = XMFLOAT3(0.0f, 0.0f, 0.0f);
-            body->SetSleep();
+            body->ClearFlag(RigidbodyFlag::AWAKE);
+            body->ClearAcclerations();
         }
         else {
-            body->SetAwake();
+            body->SetFlag(RigidbodyFlag::AWAKE);
         }
 
         //body->updateSweep();
@@ -90,6 +92,10 @@ void Island::Solve(float duration)
 
 void Island::Destroy()
 {
+    delete[] bodies_;
+    bodies_ = nullptr;
+    delete[] contacts_;
+    contacts_ = nullptr;
 }
 
 void Island::Add(Rigidbody* body)
@@ -105,12 +111,18 @@ void Island::Add(Contact* contact)
 
 void Island::Clear()
 {
-    delete[] bodies_;
-    bodies_ = nullptr;
-    delete[] contacts_;
-    contacts_ = nullptr;
     numBodies_ = 0;
     numContacts_ = 0;
+}
+
+uint32_t Island::numBodies() const
+{
+    return numBodies_;
+}
+
+Rigidbody** Island::GetBodies()
+{
+    return bodies_;
 }
 
 }

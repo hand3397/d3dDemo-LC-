@@ -35,6 +35,8 @@ public:
 	void Add(Contact* contact);
 	void Clear();
 
+	uint32_t numBodies()const;
+	Rigidbody** GetBodies();
 private:
 	static const uint32_t VELOCITY_ITERATION;
 	static const uint32_t POSITION_ITERATION;

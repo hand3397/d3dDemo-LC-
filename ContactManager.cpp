@@ -120,6 +120,21 @@ void ContactManager::Collide()
     }
 }
 
+Contact* ContactManager::GetContacts()
+{
+    return contacts_;
+}
+
+uint32_t ContactManager::numContacts() const
+{
+    return numContacts_;
+}
+
+BroadPhase* ContactManager::GetBroadPhase()
+{
+    return &broadPhase_;
+}
+
 } // namespace spe;
 
 

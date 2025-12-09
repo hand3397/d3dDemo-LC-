@@ -664,19 +664,18 @@ void Renderer::UpdateDebugMesh(Scene* scene)
 	}
 	*/
 
-	for (auto& staticGo : staticObjects) {
-		auto& staticRigidbody = staticGo->GetRigidbody();
-		XMMATRIX xf = staticRigidbody.GetTransformMatrix();
-		spe::AABB aabb = staticRigidbody.GetFixture()->GetShape()->GetAABB(xf);
+	for (auto& go : staticObjects) {
+		spe::AABB aabb = go->GetAABB();
 		pushAABB(aabb.lowerBound, aabb.upperBound, DirectX::Colors::DarkRed);
 	}
 
 	// Contact DynamicToStatic
-	for (auto& dynamicGo : dynamicObjects) {
-		auto& dynamicRigidbody = dynamicGo->GetRigidbody();
-		XMMATRIX xf = dynamicRigidbody.GetTransformMatrix();
-		spe::AABB aabb = dynamicRigidbody.GetFixture()->GetShape()->GetAABB(xf);
-		pushAABB(aabb.lowerBound, aabb.upperBound, DirectX::Colors::DarkRed);
+	for (GameObject* go : dynamicObjects) {
+		spe::AABB aabb = go->GetAABB();
+		if (go->GetRigidbody()->HasFlag(spe::RigidbodyFlag::AWAKE))
+			pushAABB(aabb.lowerBound, aabb.upperBound, DirectX::Colors::DarkRed);
+		else
+			pushAABB(aabb.lowerBound, aabb.upperBound, DirectX::Colors::DarkBlue);
 	}
 
 	//---------------------------

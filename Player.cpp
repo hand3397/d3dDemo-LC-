@@ -87,10 +87,10 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
     //keyboard input
     if (isObserver_) {
         if (keyInput.IsKeyDown(VK_SPACE)) {
-            rigidbody_.AddForce(XMFLOAT3(0.f, 20000.0f * dt, 0.f));
+            rigidbody_.AddLinearVelocity(XMFLOAT3(0.f, 300.0f * dt, 0.f));
         }
         if (keyInput.IsKeyDown(VK_LCONTROL)) {
-            rigidbody_.AddForce(XMFLOAT3(0.f, -20000.0f * dt, 0.f));
+            rigidbody_.AddLinearVelocity(XMFLOAT3(0.f, -300.0f * dt, 0.f));
         }
     }
     else {
@@ -124,14 +124,14 @@ void Player::KeyInput(const KeyInputManager& keyInput, float dt)
     
     XMVECTOR look = this->GetLookXZ();
     XMVECTOR right = this->GetRightXZ();
-    XMVECTOR moveForceVec = XMVector3Normalize(look * moveDir_.z + right * moveDir_.x);
-    XMFLOAT3 moveForce;
-    XMStoreFloat3(&moveForce, 20000.0f * moveForceVec * dt);
+    XMVECTOR moveVec = XMVector3Normalize(look * moveDir_.z + right * moveDir_.x);
+    XMFLOAT3 moveVelocity;
+    XMStoreFloat3(&moveVelocity, 300.0f * moveVec * dt);
     
     if (!isObserver_ && wasJump_)
-        moveForce.y += 500000.0f * dt;
+        moveVelocity.y += 500.0f * dt;
 
-    rigidbody_.AddForce(moveForce);
+    rigidbody_.AddLinearVelocity(moveVelocity);
 }
 
 void Player::Update(float dt)

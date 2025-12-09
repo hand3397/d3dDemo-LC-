@@ -18,6 +18,11 @@ public:
     bool IsSameContact(ContactLink* link, Fixture* fixtureA, Fixture* fixtureB);
     void Collide();
 
+    Contact* GetContacts();
+    uint32_t numContacts()const;
+
+    BroadPhase* GetBroadPhase();
+
 private:
     BroadPhase broadPhase_;
 
