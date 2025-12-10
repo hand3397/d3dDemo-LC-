@@ -98,7 +98,7 @@ public:
 
 	Contact(Fixture* fixtureA, Fixture* fixtureB);
 	void Update();
-	void Evaluate(Manifold& manifold, const XMMATRIX& transformA, const XMMATRIX& transformB);
+	virtual void Evaluate(Manifold& manifold, const XMMATRIX& transformA, const XMMATRIX& transformB);
 
 	void GenerateManifolds(CollisionInfo& collisionInfo, Manifold& manifold, Fixture* fixtureA, Fixture* fixtureB);
 

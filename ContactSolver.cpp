@@ -149,41 +149,53 @@ void ContactSolver::solveVelocityConstraints()
 			// 접선 방향 충격량 계산
 			XMVECTOR tangentVelocity = relativeVelocity - (normalSpeed * normalVec);
 			XMVECTOR tangentVec = XMVector3Normalize(tangentVelocity);
+			// 접선 방향 속력
 			float tangentSpeed = VecDot(tangentVec, tangentVelocity);
 
 			if (tangentSpeed > TANGENT_STOP_VELOCITY) {
-				float oldTangentImpulse = manifoldPoint.tangentImpulse;
-
-				float newTangentImpulse = tangentSpeed * (manifoldPoint.seperation / seperationSum);
-
+				// 유효질량 계산
 				float inverseMasses = (contactConstraint.invMassA + contactConstraint.invMassB);
-
 				XMMATRIX invInertiaMatA = XMLoadFloat3x3(&contactConstraint.invInertiaA);
 				XMMATRIX invInertiaMatB = XMLoadFloat3x3(&contactConstraint.invInertiaB);
+
 				XMVECTOR torqueArmA = XMVector3Cross(tangentVec, rA);
 				XMVECTOR torqueArmB = XMVector3Cross(tangentVec, rB);
-				float tangentEffectiveMassA =
-					VecDot(torqueArmA, XMVector3Transform(torqueArmA, invInertiaMatA));
-				float tangentEffectiveMassB =
-					VecDot(torqueArmB, XMVector3Transform(torqueArmB, invInertiaMatB));
-				newTangentImpulse /= (inverseMasses + tangentEffectiveMassA + tangentEffectiveMassB);
-				newTangentImpulse += oldTangentImpulse;
+				
+				float tangentEffectiveMassA = VecDot(torqueArmA, XMVector3Transform(torqueArmA, invInertiaMatA));
+				float tangentEffectiveMassB = VecDot(torqueArmB, XMVector3Transform(torqueArmB, invInertiaMatB));
+				
+				float kTangent = inverseMasses + tangentEffectiveMassA + tangentEffectiveMassB;
+				
+				// 유효질량이 0이면 계산 물가
+				if (kTangent > 0.0f) {
+					// 4. 마찰 충격량 계산 (Sequential Impulse)
+					// impulse = -velocity / K
+					float impulseToStop = -tangentSpeed / kTangent;
 
-				float maxFriction = contactConstraint.friction * manifoldPoint.normalImpulse;
-				newTangentImpulse = std::clamp(newTangentImpulse, -maxFriction, maxFriction);
+					// 기존 누적 충격량 저장
+					float oldTangentImpulse = manifoldPoint.tangentImpulse;
 
-				manifoldPoint.tangentImpulse = newTangentImpulse;
+					// 새로운 누적 충격량 계산
+					float newTangentImpulse = oldTangentImpulse + impulseToStop;
 
-				float appliedTangentImpulse = newTangentImpulse - oldTangentImpulse;
+					// 5. 쿨롱 마찰(Coulomb Friction) 클램핑
+					// 최대 마찰력 = 마찰계수 * 수직항력(Normal Impulse)
+					float maxFriction = contactConstraint.friction * manifoldPoint.normalImpulse;
+					newTangentImpulse = std::clamp(newTangentImpulse, -maxFriction, maxFriction);
 
-				linearVelocityBufferA += contactConstraint.invMassA * appliedTangentImpulse * tangentVec;
-				linearVelocityBufferB -= contactConstraint.invMassB * appliedTangentImpulse * tangentVec;
+					// 실제 이번 프레임에 적용할 충격량(Delta)
+					float appliedTangentImpulse = newTangentImpulse - oldTangentImpulse;
 
-				angularVelocityBufferA +=
-					XMVector3Transform(XMVector3Cross(rA, appliedTangentImpulse * tangentVec), invInertiaMatA);
+					// 누적치 업데이트
+					manifoldPoint.tangentImpulse = newTangentImpulse;
 
-				angularVelocityBufferB -=
-					XMVector3Transform(XMVector3Cross(rB, appliedTangentImpulse * tangentVec), invInertiaMatB);
+					// 6. 속도 버퍼에 충격량 적용
+					linearVelocityBufferA -= contactConstraint.invMassA * appliedTangentImpulse * tangentVec;
+					linearVelocityBufferB += contactConstraint.invMassB * appliedTangentImpulse * tangentVec;
+
+					angularVelocityBufferA -= XMVector3Transform(XMVector3Cross(rA, appliedTangentImpulse * tangentVec), invInertiaMatA);
+					angularVelocityBufferB += XMVector3Transform(XMVector3Cross(rB, appliedTangentImpulse * tangentVec), invInertiaMatB);
+				}
 			}
 		}
 

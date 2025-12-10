@@ -117,24 +117,23 @@ void Contact::Evaluate(Manifold& manifold, const XMMATRIX& transformA, const XMM
     CollisionInfo collisionInfo;
     collisionInfo.size = 0;
 
-    // std::cout << "GJK start\n";
+    // 구vs구 충돌의 경우 GJK -> EPA를 사용하지 않아도 단순계산으로 빠르게 충돌여부를 판단할 수 있기 때문에 예외처리를 한다.
     bool isCollide = GetGJK(simplex, convexA, convexB);
 
-    if (isCollide) {
-        // std::cout << "EPA start\n";
-        ResultEPA resultEPA = GetEPA(simplex, convexA, convexB);
-
-        if (resultEPA.dist == -1.0f) {
-            FreeConvexInfo(convexA, convexB);
-            return;
-        }
-
-        // std::cout << "CLIPPING start\n";
-        FindCollisionPoints(convexA, convexB, collisionInfo, resultEPA, simplex);
-
-        // std::cout << "createManifold start\n";
-        GenerateManifolds(collisionInfo, manifold, fixtureA_, fixtureB_);
+    if (!isCollide) {
+        FreeConvexInfo(convexA, convexB);
+        return;
     }
+
+    ResultEPA resultEPA = GetEPA(simplex, convexA, convexB);
+
+    if (resultEPA.dist == -1.0f) {
+        FreeConvexInfo(convexA, convexB);
+        return;
+    }
+
+    FindCollisionPoints(convexA, convexB, collisionInfo, resultEPA, simplex);
+    GenerateManifolds(collisionInfo, manifold, fixtureA_, fixtureB_);
 
     FreeConvexInfo(convexA, convexB);
 }

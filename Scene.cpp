@@ -483,7 +483,8 @@ GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
 	}
 
 	auto rigidbody = gameObject->GetRigidbody();
-	rigidbody->SetLinearDamping(0.01f);
+	rigidbody->SetLinearDamping(0.005f);
+	rigidbody->SetAngularDamping(0.005f);
 	rigidbody->SetMass(40.0f);
 
 	spe::SphereShape* sphereShape = new spe::SphereShape(XMFLOAT3(0.f, 0.f, 0.f), 1.0f);
