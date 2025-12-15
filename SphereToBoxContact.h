@@ -11,7 +11,7 @@ public:
 
 protected:
     virtual void FindCollisionPoints(const ConvexInfo& sphereA, const ConvexInfo& boxB,
-        CollisionInfo& collisionInfo, ResultEPA& resultEPA, Polytope& simplexArray) override;
+        CollisionInfo& collisionInfo, ResultEPA& resultEPA, Polytope* simplexArray) override;
 };
 
 }

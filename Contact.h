@@ -10,6 +10,7 @@ namespace spe {;
 class Contact;
 
 extern const float EPS_FLOAT;
+extern const float EPS_FLOAT_SQ;
 const uint32_t MAX_NUM_SUPPORTS = 100;
 
 using ContactMemberFunction = Contact * (*)(Fixture*, Fixture*);
@@ -61,7 +62,22 @@ struct FaceArray
 struct ResultEPA
 {
 	XMVECTOR normal;
-	float dist;
+	float distance;
+};
+
+struct Face
+{
+	XMFLOAT3 normal;
+	XMFLOAT3 points[MAX_MANIFOLD_COUNT];
+	uint32_t numPoints = 0;
+	float distance;
+};
+
+struct ContactFace
+{
+	XMFLOAT3 points[MAX_MANIFOLD_COUNT];
+	XMFLOAT3 buffer[MAX_MANIFOLD_COUNT];
+	uint32_t numPoints = 0;
 };
 
 struct CollisionInfo
@@ -69,7 +85,7 @@ struct CollisionInfo
 	XMFLOAT3 normal[MAX_MANIFOLD_COUNT];
 	XMFLOAT3 pointA[MAX_MANIFOLD_COUNT];
 	XMFLOAT3 pointB[MAX_MANIFOLD_COUNT];
-	float seperation[MAX_MANIFOLD_COUNT];
+	float separation[MAX_MANIFOLD_COUNT];
 	int32_t size;
 };
 
@@ -140,25 +156,22 @@ protected:
 	void AddIfUniqueEdge(vector<pair<uint32_t, uint32_t>>& uniqueEdges, const uint32_t* faces, uint32_t a, uint32_t b) const;
 
 	virtual void FindCollisionPoints(const ConvexInfo& convexA, const ConvexInfo& convexB, CollisionInfo& collisionInfo,
-		ResultEPA& resultEPA, Polytope& simplexArray) = 0;
+		ResultEPA& resultEPA, Polytope* simplexArray) = 0;
 	bool IsDuplicatedPoint(const Polytope& polytope, const XMVECTOR& supportPoint)const;
 
-	/*
-	void computeContactPolygon(ContactPolygon& contactPolygon, Face& refFace, Face& incFace);
-	void clipPolygonAgainstPlane(ContactPolygon& contactPolygon, const XMFLOAT3& planeNormal, float planeDist);
+	void ComputeContactPolygon(ContactFace& contactFace, Face& refFace, Face& incFace);
+	void ClipPolygonAgainstPlane(ContactFace& contactFace, const XMVECTOR& planeNormal, float planeDist);
 
-	void buildManifoldFromPolygon(CollisionInfo& collisionInfo, const Face& refFace, const Face& incFace,
-		ContactPolygon& contactPolygon, EpaInfo& epaInfo);
-	void sortVerticesClockwise(XMFLOAT3* vertices, const XMFLOAT3& center, const XMFLOAT3& normal,
-		int32_t verticesSize);
+	void BuildManifoldFromPolygon(CollisionInfo& collisionInfo, const Face& refFace, const Face& incFace,
+		ContactFace& contactFace, ResultEPA& resultEPA);
+	void SortVerticesClockwise(XMFLOAT3* vertices, const XMVECTOR& center, const XMVECTOR& normal,
+		uint32_t verticesSize);
 
-	void setBoxFace(Face& face, const ConvexInfo& box, const XMFLOAT3& normal);
-	void setCylinderFace(Face& face, const ConvexInfo& cylinder, const XMFLOAT3& normal);
-	void setCapsuleFace(Face& face, const ConvexInfo& capsule, const XMFLOAT3& normal);
+	void SetBoxFace(Face& face, const ConvexInfo& box, const XMVECTOR& normal);
+	//void setCylinderFace(Face& face, const ConvexInfo& cylinder, const XMFLOAT3& normal);
+	//void setCapsuleFace(Face& face, const ConvexInfo& capsule, const XMFLOAT3& normal);
 
-	bool isCollideToHemisphere(const ConvexInfo& capsule, const XMFLOAT3& dir);
-	*/
-
+	//bool isCollideToHemisphere(const ConvexInfo& capsule, const XMFLOAT3& dir);
 	void MergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray) const;
 	void SizeUpFaceArray(FaceArray& faceArray, uint32_t newMaxCount) const;
 	void FreeConvexInfo(ConvexInfo& convexA, ConvexInfo& convexB) const;

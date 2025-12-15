@@ -31,7 +31,7 @@ ContactSolver::ContactSolver(float duration, Contact** contacts,
 
 		// contact data -> contact constraints
 		contactConstraints_[i].points = manifold.points;
-		contactConstraints_[i].numPoints = manifold.pointsCount;
+		contactConstraints_[i].numPoints = manifold.numPoints;
 		XMStoreFloat3(&contactConstraints_[i].worldCenterA,
 			XMVector3TransformCoord(XMLoadFloat3(&shapeA->GetCenter()), bodyA->GetTransformMatrix()));
 		XMStoreFloat3(&contactConstraints_[i].worldCenterB,
@@ -80,13 +80,13 @@ void ContactSolver::solveVelocityConstraints()
 		XMVECTOR angularVelocityBufferB = XMLoadFloat3(&velocities_[idxB].angularVelocityBuffer);
 
 		// 침투 깊이 합
-		float seperationSum = 0.0f;
+		float separationSum = 0.0f;
 
 		for (uint32_t j = 0; j < numPoints; ++j) {
-			seperationSum += contactConstraint.points[j].seperation;
+			separationSum += contactConstraint.points[j].separation;
 		}
 
-		if (seperationSum <= 0.0f) {
+		if (separationSum <= 0.0f) {
 			continue;
 		}
 
@@ -114,7 +114,7 @@ void ContactSolver::solveVelocityConstraints()
 
 				// normal방향 속도 변화량 계산
 				appliedNormalImpulse =
-					-(1.0f + contactConstraint.restitution) * normalSpeed * (manifoldPoint.seperation / seperationSum);
+					-(1.0f + contactConstraint.restitution) * normalSpeed * (manifoldPoint.separation / separationSum);
 
 				// 유효질량 계산 effective
 				float inverseMasses = (contactConstraint.invMassA + contactConstraint.invMassB);
@@ -242,15 +242,15 @@ void ContactSolver::solvePositionConstraints()
 			XMVECTOR movedPointB = XMLoadFloat3(&manifoldPoint.pointB) + positionBufferB;
 			
 			XMVECTOR normalVec = XMLoadFloat3(&manifoldPoint.normal);
-			float seperation = VecDot(normalVec, movedPointA - movedPointB);
+			float separation = VecDot(normalVec, movedPointA - movedPointB);
 
 			// 관통 해소된상태면 무시
-			if (seperation < kSlop) {
+			if (separation < kSlop) {
 				continue;
 			}
 
 			// 관통 깊이에 따른 보정량 계산 -> 겹침을 해소하는 방향으로 위치 이동
-			float correction = seperation * (alpha / numPoints);
+			float correction = separation * (alpha / numPoints);
 			XMVECTOR correctionVector = correction * normalVec;
 
 			positionBufferA -= correctionVector * ratioA;

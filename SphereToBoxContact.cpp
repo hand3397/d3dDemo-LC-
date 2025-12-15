@@ -11,13 +11,13 @@ Contact* SphereToBoxContact::Create(Fixture* fixtureA, Fixture* fixtureB)
 }
 
 void SphereToBoxContact::FindCollisionPoints(const ConvexInfo& sphereA, const ConvexInfo& boxB,
-	CollisionInfo& collisionInfo, ResultEPA& resultEPA, Polytope& simplexArray)
+	CollisionInfo& collisionInfo, ResultEPA& resultEPA, Polytope* simplexArray)
 {
 	XMStoreFloat3(&collisionInfo.normal[0], resultEPA.normal);
-	collisionInfo.seperation[0] = resultEPA.dist;
-	XMStoreFloat3(&collisionInfo.pointA[0], XMLoadFloat3(&sphereA.center) + (resultEPA.normal * sphereA.radius));
-	XMStoreFloat3(&collisionInfo.pointB[0], XMLoadFloat3(&collisionInfo.pointA[0])
-		- (XMLoadFloat3(&collisionInfo.normal[0]) * collisionInfo.seperation[0]));
+	collisionInfo.separation[0] = resultEPA.distance;
+	XMStoreFloat3(&collisionInfo.pointA[0], XMLoadFloat3(&sphereA.center) + sphereA.radius * resultEPA.normal);
+	XMStoreFloat3(&collisionInfo.pointB[0], 
+		XMLoadFloat3(&collisionInfo.pointA[0]) - XMLoadFloat3(&collisionInfo.normal[0]) * collisionInfo.separation[0]);
 	++collisionInfo.size;
 }
 

@@ -156,7 +156,7 @@ void Scene::BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
 	GeometryGenerator geoGen;
-	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
+	GeometryGenerator::MeshData box = geoGen.CreateBox(2.0f, 2.0f, 2.0f, 3);
 	GeometryGenerator::MeshData wall = geoGen.CreateOnBox(1.0f, 3.0f, 0.1f, 1);
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(150.0f, 150.0f, 60, 40);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(1.0f, 20, 20);
@@ -326,7 +326,7 @@ void Scene::BuildGameObjects()
 		XMMatrixIdentity(), XMMatrixScaling(15.0f, 15.0f, 1.0f)) };
 	GameObject* go = BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
 		renderItems, spe::RigidbodyType::STATIC);
-	go->GetRigidbody()->GetFixture()->SetFriction(0.2f);
+	go->GetRigidbody()->GetFixture()->SetFriction(1.0f);
 
 	// build wall
 	/*
@@ -409,6 +409,9 @@ void Scene::BuildGameObjects()
 			renderItems, RigidbodyType::Static);
 	}
 	*/
+
+	AddBoxObject(XMFLOAT3(0.0f, 1.5f, 10.f));
+	AddBoxObject(XMFLOAT3(0.0f, 10.0f, 10.f));
 }
 
 GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& transform, 
@@ -433,7 +436,7 @@ GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate
 
 		spe::BoxShape* box = new spe::BoxShape(ri->boundingBox_.Center, ri->boundingBox_.Extents);
 		spe::Fixture* fixture = new spe::Fixture(box);
-		fixture->SetFriction(0.01f);
+		fixture->SetFriction(0.4f);
 		fixture->SetRestitution(0.4f);
 		rigidbody->AddFixture(fixture);
 	}
@@ -463,6 +466,42 @@ RenderItem* Scene::BuildRenderItem(const uint8_t renderLayer,
 	return rItem;
 }
 
+GameObject* Scene::AddBoxObject(const XMFLOAT3& pos)
+{
+	XMFLOAT4 rotateQuat = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
+	XMMATRIX T = XMMatrixTranslation(pos.x, pos.y, pos.z);
+	XMMATRIX world = T;
+
+	GameObject* gameObject = gameObejctManager_.CreateObject(
+		XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), pos, spe::RigidbodyType::DYNAMIC);
+
+	auto renderItems = { BuildRenderItem((uint8_t)RenderLayer::RENDER_OPAQUE,
+			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["box"], materials_["stone0"].get(),
+			XMMatrixIdentity(), XMMatrixIdentity()) };
+
+	for (RenderItem* ri : renderItems) {
+		if (!ri) continue;
+		XMStoreFloat4x4(&ri->world_, world);
+		gameObject->AddRenderItem(ri);
+	}
+
+	auto rigidbody = gameObject->GetRigidbody();
+	rigidbody->SetLinearDamping(0.005f);
+	rigidbody->SetAngularDamping(0.005f);
+	rigidbody->SetMass(160.0f);
+
+	spe::BoxShape* boxShape = new spe::BoxShape(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(1.f, 1.f, 1.f));
+
+	spe::Fixture* fixture = new spe::Fixture(boxShape);
+	fixture->SetFriction(0.8f);
+	rigidbody->AddFixture(fixture);
+	rigidbody->ComputeInertiaTensor();
+
+	physicsWorld_.AddRigidbody(rigidbody);
+
+	return gameObject;
+}
+
 GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
 {
 	XMFLOAT4 rotateQuat = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -490,7 +529,7 @@ GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
 	spe::SphereShape* sphereShape = new spe::SphereShape(XMFLOAT3(0.f, 0.f, 0.f), 1.0f);
 
 	spe::Fixture* fixture = new spe::Fixture(sphereShape);
-	fixture->SetFriction(0.4f);
+	fixture->SetFriction(0.8f);
 	rigidbody->AddFixture(fixture);
 	rigidbody->ComputeInertiaTensor();
 

@@ -56,6 +56,7 @@ private:
         const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
         const XMMATRIX& world = XMMatrixIdentity(), const XMMATRIX& texTransform = XMMatrixIdentity(),
         SkinnedModelInstance* skinnedModelInstance = nullptr, const int32_t skinnedCBIndex = -1);
+    GameObject* AddBoxObject(const XMFLOAT3& pos);
     GameObject* AddBallObject(const XMFLOAT3& pos);
 
     void LoadScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);

@@ -10,7 +10,7 @@ public:
     static Contact* Create(Fixture* fixtureA, Fixture* fixtureB);
 protected:
     virtual void FindCollisionPoints(const ConvexInfo& boxA, const ConvexInfo& boxB,
-        CollisionInfo& collisionInfo, ResultEPA& resultEPA, Polytope& simplexArray) override;
+        CollisionInfo& collisionInfo, ResultEPA& resultEPA, Polytope* simplexArray) override;
 };
 
 }

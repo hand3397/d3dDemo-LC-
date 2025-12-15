@@ -24,10 +24,10 @@ struct ConvexInfo
 	int32_t numAxes;
 
 	XMFLOAT3 center;
-	XMFLOAT3 halfSize;
+	XMFLOAT3 halfSize; // local
 
 	float radius;
-	float height;
+	float height; //cylinder, capsule
 
 	ShapeType type;
 
@@ -37,6 +37,7 @@ struct ConvexInfo
 class Shape
 {
 public:
+	Shape() = default;
 	virtual ~Shape() = default;
 
 	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const = 0;
@@ -48,8 +49,8 @@ public:
 	void SetType(ShapeType type);
 	void SetCenter(const XMFLOAT3& center);
 protected:
-	XMFLOAT3 center_;
-	ShapeType type_;
+	XMFLOAT3 center_ = XMFLOAT3(0.0f, 0.0f, 0.0f);
+	ShapeType type_ = ShapeType::BOX;
 };
 
 class SphereShape : public Shape
@@ -57,7 +58,7 @@ class SphereShape : public Shape
 public:
 	SphereShape(const XMFLOAT3& center, float radius);
 
-	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const;
+	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const override;
 	virtual AABB GetAABB(const XMMATRIX& transform) const override;
 	virtual XMMATRIX ComputeLocalInertia(float mass) const override;
 
@@ -71,7 +72,7 @@ class BoxShape : public Shape
 public:
 	BoxShape(const XMFLOAT3& center, const XMFLOAT3& halfSize);
 
-	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const;
+	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const override;
 	virtual AABB GetAABB(const XMMATRIX& transform) const override;
 	virtual XMMATRIX ComputeLocalInertia(float mass) const override;
 

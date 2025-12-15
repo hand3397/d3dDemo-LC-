@@ -6,6 +6,7 @@
 namespace spe {;
 
 const float EPS_FLOAT = 1e-3f;
+const float EPS_FLOAT_SQ = 1e-6f;
 
 const uint32_t Contact::MAX_GJK_ITERATION = 64;
 
@@ -85,10 +86,10 @@ void Contact::Update()
     XMMATRIX transformB = bodyB->GetTransformMatrix();
 
     // Evaluate
-    manifold_.pointsCount = 0;
+    manifold_.numPoints = 0;
     Evaluate(manifold_, transformA, transformB);
 
-    for (uint32_t i = 0; i < manifold_.pointsCount; ++i) {
+    for (uint32_t i = 0; i < manifold_.numPoints; ++i) {
         ManifoldPoint& manifoldPoint = manifold_.points[i];
 
         manifoldPoint.normalImpulse = 0.0f;
@@ -96,7 +97,7 @@ void Contact::Update()
     }
 
     // is Touching
-    if (manifold_.pointsCount > 0) {
+    if (manifold_.numPoints > 0) {
         SetFlag(ContactFlag::TOUCHING);
     }
     else {
@@ -127,12 +128,16 @@ void Contact::Evaluate(Manifold& manifold, const XMMATRIX& transformA, const XMM
 
     ResultEPA resultEPA = GetEPA(simplex, convexA, convexB);
 
-    if (resultEPA.dist == -1.0f) {
+    if (resultEPA.distance == -1.0f) {
         FreeConvexInfo(convexA, convexB);
         return;
     }
 
-    FindCollisionPoints(convexA, convexB, collisionInfo, resultEPA, simplex);
+    if (shapeA->GetType() == ShapeType::BOX && shapeB->GetType() == ShapeType::BOX)
+        //if (fixtureA_->GetRigidbody()->GetType() == RigidbodyType::DYNAMIC && fixtureB_->GetRigidbody()->GetType() == RigidbodyType::DYNAMIC)
+            int a = 1;
+
+    FindCollisionPoints(convexA, convexB, collisionInfo, resultEPA, &simplex);
     GenerateManifolds(collisionInfo, manifold, fixtureA_, fixtureB_);
 
     FreeConvexInfo(convexA, convexB);
@@ -141,13 +146,13 @@ void Contact::Evaluate(Manifold& manifold, const XMMATRIX& transformA, const XMM
 void Contact::GenerateManifolds(CollisionInfo& collisionInfo, Manifold& manifold, Fixture* fixtureA, Fixture* fixtureB)
 {
     int32_t collisionInfoSize = collisionInfo.size;
-    manifold.pointsCount = collisionInfoSize;
+    manifold.numPoints = collisionInfoSize;
 
     for (int32_t i = 0; i < collisionInfoSize; ++i) {
         manifold.points[i].pointA = collisionInfo.pointA[i];
         manifold.points[i].pointB = collisionInfo.pointB[i];
         manifold.points[i].normal = collisionInfo.normal[i];
-        manifold.points[i].seperation = collisionInfo.seperation[i];
+        manifold.points[i].separation = collisionInfo.separation[i];
     }
 }
 
@@ -357,7 +362,7 @@ ResultEPA Contact::GetEPA(Polytope& polytope, const ConvexInfo& convexA, const C
 
     ResultEPA result;
     result.normal = minNormal;
-    result.dist = minDistance;
+    result.distance = minDistance;
 
     return result;
 }
@@ -543,7 +548,7 @@ bool Contact::GetGJK(Polytope& simplex, const ConvexInfo& convexA, const ConvexI
         direction = XMVector3Normalize(XMVectorSet(0.1f, 0.9f, 0.3f, 0.0f));
     }
     else {
-        direction = XMVector3Normalize(centerAB);
+        direction = XMVector3Normalize(centerAB + XMVectorSet(0.1f, 0.1f, 0.1f, 0.0f));
     }
 
     SupportPoint support = GetSupportPoint(convexA, convexB, direction);
@@ -590,11 +595,8 @@ bool Contact::IsSameDirection(const XMVECTOR& a, const XMVECTOR& b) const
 
 void Contact::AddIfUniqueEdge(vector<pair<uint32_t, uint32_t>>& uniqueEdges, const uint32_t* faces, uint32_t a, uint32_t b) const
 {
-    auto reverse = std::find(                       //      0--<--3
-        uniqueEdges.begin(),                        //     / \ B /   A: 2-0
-        uniqueEdges.end(),                          //    / A \ /    B: 0-2
-        std::make_pair(faces[b], faces[a])          //   1-->--2
-    );
+    auto reverse = std::find(uniqueEdges.begin(), uniqueEdges.end(),
+        std::make_pair(faces[b], faces[a]));
 
     if (reverse != uniqueEdges.end()) {
         uniqueEdges.erase(reverse);
@@ -615,6 +617,200 @@ bool Contact::IsDuplicatedPoint(const Polytope& polytope, const XMVECTOR& suppor
             return true;
     }
     return false;
+}
+
+void Contact::ComputeContactPolygon(ContactFace& contactFace, Face& refFace, Face& incFace)
+{
+    if (refFace.numPoints == 0 || incFace.numPoints == 0)
+        return;
+
+    // incFace를 refFace에 대해 clipping한다.
+    // 1. incFace의 각 점을 refFace의 각 edge에 대해 clipping
+    // 2. incFace의 각 점을 refFace에 대해 clipping
+    memcpy(contactFace.points, incFace.points, sizeof(XMFLOAT3) * incFace.numPoints);
+    contactFace.numPoints = incFace.numPoints;
+
+    int numPoints = refFace.numPoints;
+    XMVECTOR refFaceNormal = XMLoadFloat3(&refFace.normal);
+    for (uint32_t i = 0; i < numPoints; ++i) {
+        XMVECTOR start = XMLoadFloat3(&refFace.points[i]);
+        XMVECTOR end = XMLoadFloat3(&refFace.points[(i + 1) % numPoints]);
+
+        // edge
+        XMVECTOR edge = end - start;
+
+        // refFace.normal과 edge의 cross => 사이드 plane normal
+        XMVECTOR sideNormal = XMVector3Normalize(XMVector3Cross(refFaceNormal, edge));
+        float sideDist = VecDot(sideNormal, start);
+        ClipPolygonAgainstPlane(contactFace, sideNormal, sideDist);
+
+        if (contactFace.numPoints == 0)
+            break;
+    }
+
+    // incFace 평면에 대해서도 클리핑
+    //ClipPolygonAgainstPlane(contactFace, refFaceNormal, refFace.distance);
+}
+
+void Contact::ClipPolygonAgainstPlane(ContactFace& contactFace, const XMVECTOR& planeNormal, float planeDist)
+{
+    int32_t numPoints = contactFace.numPoints;
+    if (numPoints == 0)
+        return;
+
+    int32_t idx = 0;
+
+    for (size_t i = 0; i < numPoints; i++) {
+        const XMVECTOR curr = XMLoadFloat3(&contactFace.points[i]);
+        const XMVECTOR next = XMLoadFloat3(&contactFace.points[(i + 1) % numPoints]);
+
+        float distCurr = VecDot(planeNormal, curr) - planeDist;
+        float distNext = VecDot(planeNormal, next) - planeDist;
+        bool currInside = (distCurr >= -EPS_FLOAT);
+        bool nextInside = (distNext >= -EPS_FLOAT);
+
+        // CASE1: 둘 다 내부
+        if (currInside && nextInside) {
+            XMStoreFloat3(&contactFace.buffer[idx++], next);
+        }
+        // CASE2: 밖->안
+        else if (!currInside && nextInside) {
+            float t = distCurr / (distCurr - distNext);
+            XMVECTOR intersect = curr + t * (next - curr);
+            XMStoreFloat3(&contactFace.buffer[idx++], intersect);
+            XMStoreFloat3(&contactFace.buffer[idx++], next);
+        }
+        // CASE3: 안->밖
+        else if (currInside && !nextInside) {
+            float t = distCurr / (distCurr - distNext);
+            XMVECTOR intersect = curr + t * (next - curr);
+            XMStoreFloat3(&contactFace.buffer[idx++], intersect);
+        }
+        // CASE4: 둘 다 밖 => nothing
+    }
+
+    memcpy(contactFace.points, contactFace.buffer, sizeof(XMFLOAT3) * idx);
+    contactFace.numPoints = idx;
+}
+
+void Contact::BuildManifoldFromPolygon(CollisionInfo& collisionInfo, const Face& refFace, const Face& incFace, 
+    ContactFace& contactFace, ResultEPA& resultEPA)
+{
+    const uint32_t numPoints = contactFace.numPoints;
+    if (numPoints == 0) {
+        return;
+    }
+
+    // Preload SIMD values
+    const XMVECTOR refNormal = XMLoadFloat3(&refFace.normal);
+    const XMVECTOR normal = resultEPA.normal;
+
+    const float refPlaneDist = refFace.distance;
+
+    for (int32_t i = 0; i < numPoints; ++i) {
+        const XMVECTOR pointB = XMLoadFloat3(&contactFace.points[i]);
+
+        // signed distance from ref face plane
+        const float separation = VecDot(pointB, refNormal) - refPlaneDist;
+
+        // penetration depth (positive value)
+        const float penetration = -separation;
+
+        if (penetration <= EPS_FLOAT_SQ) {
+            continue; // 접촉 아님
+        }
+
+        // pointB를 normal방향으로 penetration만큼 밀어내 refFace위의 pointA를 만든다.
+        const XMVECTOR pointA = XMVectorMultiplyAdd(
+            normal,
+            XMVectorReplicate(penetration),
+            pointB
+        );
+
+        XMStoreFloat3(&collisionInfo.normal[collisionInfo.size], refNormal);
+        XMStoreFloat3(&collisionInfo.pointA[collisionInfo.size], pointA);
+        XMStoreFloat3(&collisionInfo.pointB[collisionInfo.size], pointB);
+        collisionInfo.separation[collisionInfo.size] = penetration;
+        ++collisionInfo.size;
+    }
+}
+
+void Contact::SortVerticesClockwise(XMFLOAT3* vertices, const XMVECTOR& center, const XMVECTOR& normal, uint32_t verticesSize)
+{
+    // 1. 법선 벡터 기준으로 평면의 두 축 정의
+    XMVECTOR u = XMVector3Normalize(XMVector3Cross(normal, XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f)));
+    if (XMVectorGetX(XMVector3LengthSq(u)) < EPS_FLOAT_SQ) {
+        // normal이 x축과 평행한 경우 y축 사용
+        u = XMVector3Normalize(XMVector3Cross(normal, XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)));
+    }
+    XMVECTOR v = XMVector3Normalize(XMVector3Cross(normal, u)); // 법선과 u의 외적
+
+    // 2. 각도 계산 및 정렬
+    auto static angleComparator = [&center, &u, &v](const XMFLOAT3& a, const XMFLOAT3& b) {
+        // a와 b를 u, v 축 기준으로 투영
+        XMVECTOR dA = XMLoadFloat3(&a) - center;
+        XMVECTOR dB = XMLoadFloat3(&b) - center;
+
+        float angleA = atan2(VecDot(dA, v), VecDot(dA, u));
+        float angleB = atan2(VecDot(dB, v), VecDot(dB, u));
+
+        return angleA > angleB; // 시계 방향 정렬
+        };
+
+    std::sort(vertices, vertices + verticesSize, angleComparator);
+}
+
+void Contact::SetBoxFace(Face& face, const ConvexInfo& box, const XMVECTOR& normal)
+{
+    const XMVECTOR axes[3] = { XMLoadFloat3(&box.axes[0]), XMLoadFloat3(&box.axes[1]) , XMLoadFloat3(&box.axes[2]) };
+    const float hs[3] = { box.halfSize.x, box.halfSize.y, box.halfSize.z };
+
+    // dot(±axis, normal) → sign만 비교하면 되므로 dot은 축당 1회
+    float vecDots[3] = { VecDot(axes[0], normal), VecDot(axes[1], normal), VecDot(axes[2], normal) };
+    
+    // 각 축에 대해 더 큰 절대값이 곧 해당 축에서 가장 평행한 face
+    float absVecDots[3] = { fabsf(vecDots[0]), fabsf(vecDots[1]), fabsf(vecDots[2])};
+    
+    int base = 0;
+    float maxA = absVecDots[0];
+    if (absVecDots[1] > maxA) {
+        base = 1; 
+        maxA = absVecDots[1];
+    }
+    if (absVecDots[2] > maxA) {
+        base = 2; 
+        maxA = absVecDots[2];
+    }
+
+    // base 축의 방향 sign
+    float sign = (vecDots[base] >= 0.0f) ? 1.0f : -1.0f;
+
+    // baseAxis = ± axes[base]
+    XMVECTOR baseAxis = axes[base] * sign;
+
+    // 법선 저장
+    XMStoreFloat3(&face.normal, baseAxis);
+
+    // index1 / index2 lookup
+    constexpr static const uint8_t NEXT1[3] = { 1, 2, 0 };
+    constexpr static const uint8_t NEXT2[3] = { 2, 0, 1 };
+
+    int i1 = NEXT1[base];
+    int i2 = NEXT2[base];
+
+    XMVECTOR h1 = axes[i1] * hs[i1];
+    XMVECTOR h2 = axes[i2] * hs[i2];
+
+    XMVECTOR basePoint = XMLoadFloat3(&box.center) + baseAxis * hs[base];
+    // 평면 정보 저장
+    face.distance = VecDot(basePoint, baseAxis);
+
+    // 정점 4개 생성 (고정 와인딩: CW)
+    face.numPoints = 4;
+    XMStoreFloat3(&face.points[0], basePoint - h1 - h2);
+    XMStoreFloat3(&face.points[1], basePoint + h1 - h2);
+    XMStoreFloat3(&face.points[2], basePoint + h1 + h2);
+    XMStoreFloat3(&face.points[3], basePoint - h1 + h2);
 }
 
 void Contact::MergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray) const

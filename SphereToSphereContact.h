@@ -13,7 +13,7 @@ public:
     virtual void Evaluate(Manifold& manifold, const XMMATRIX& transformA, const XMMATRIX& transformB) override;
 protected:
     virtual void FindCollisionPoints(const ConvexInfo& sphereA, const ConvexInfo& sphereB,
-        CollisionInfo& collisionInfo, ResultEPA& resultEPA, Polytope& simplexArray) override;
+        CollisionInfo& collisionInfo, ResultEPA& resultEPA, Polytope* simplexArray) override;
 
     // 구vs구 충돌 검사용
     bool IsCollide(const ConvexInfo& convexA, const ConvexInfo& convexB);

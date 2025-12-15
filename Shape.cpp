@@ -25,7 +25,7 @@ void Shape::SetCenter(const XMFLOAT3& center)
 SphereShape::SphereShape(const XMFLOAT3& center, float radius) :
     radius_(radius)
 {
-    SetCenter(center);
+    center_ = center;
     SetType(ShapeType::SPHERE);
 }
 
@@ -71,7 +71,7 @@ void SphereShape::SetRadius(const float& radius)
 BoxShape::BoxShape(const XMFLOAT3& center, const XMFLOAT3& halfSize) :
     halfSize_(halfSize)
 {
-    SetCenter(center);
+    center_ = center;
     SetType(ShapeType::BOX);
 }
 
@@ -79,37 +79,38 @@ void BoxShape::GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const
 {
     out.type = ShapeType::BOX;
 
-    XMStoreFloat3(&out.center,
-        XMVector3TransformCoord(XMLoadFloat3(&center_), transform));
+    // world center 계산
+    XMVECTOR worldCenter = XMVector3TransformCoord(XMLoadFloat3(&center_), transform);
+    XMStoreFloat3(&out.center, worldCenter);
+    
     out.halfSize = halfSize_;
+    
+    XMVECTOR axisX = transform.r[0];
+    XMVECTOR axisY = transform.r[1];
+    XMVECTOR axisZ = transform.r[2];
+    // world halfsize 계산
+    XMVECTOR halfX = axisX * halfSize_.x;
+    XMVECTOR halfY = axisY * halfSize_.y;
+    XMVECTOR halfZ = axisZ * halfSize_.z;
 
+    // 축 저장
+    out.numAxes = 3;
+    out.axes = new XMFLOAT3[3];
+    XMStoreFloat3(&out.axes[0], XMVector3Normalize(halfX));
+    XMStoreFloat3(&out.axes[1], XMVector3Normalize(halfY));
+    XMStoreFloat3(&out.axes[2], XMVector3Normalize(halfZ));
+
+    // 점 저장
     out.numPoints = 8;
     out.points = new XMFLOAT3[8];
-    out.points[0] = XMFLOAT3(center_.x - halfSize_.x, center_.y - halfSize_.y, center_.z - halfSize_.z);
-    out.points[1] = XMFLOAT3(center_.x + halfSize_.x, center_.y - halfSize_.y, center_.z - halfSize_.z);
-    out.points[2] = XMFLOAT3(center_.x - halfSize_.x, center_.y + halfSize_.y, center_.z - halfSize_.z);
-    out.points[3] = XMFLOAT3(center_.x + halfSize_.x, center_.y + halfSize_.y, center_.z - halfSize_.z);
-    out.points[4] = XMFLOAT3(center_.x - halfSize_.x, center_.y - halfSize_.y, center_.z + halfSize_.z);
-    out.points[5] = XMFLOAT3(center_.x + halfSize_.x, center_.y - halfSize_.y, center_.z + halfSize_.z);
-    out.points[6] = XMFLOAT3(center_.x - halfSize_.x, center_.y + halfSize_.y, center_.z + halfSize_.z);
-    out.points[7] = XMFLOAT3(center_.x + halfSize_.x, center_.y + halfSize_.y, center_.z + halfSize_.z);
-
-    for (int i = 0; i < 8; i++) {
-        XMStoreFloat3(&out.points[i],
-            XMVector3TransformCoord(XMLoadFloat3(&out.points[i]), transform));
-    }
-
-    out.axes = new XMFLOAT3[3];
-    XMVECTOR axesPoints[4] = {
-        XMLoadFloat3(&out.points[0]),
-        XMLoadFloat3(&out.points[1]),
-        XMLoadFloat3(&out.points[2]),
-        XMLoadFloat3(&out.points[4])
-    };
-    out.numAxes = 3;
-    XMStoreFloat3(&out.axes[0], XMVector3Normalize(axesPoints[1] - axesPoints[0]));
-    XMStoreFloat3(&out.axes[1], XMVector3Normalize(axesPoints[2] - axesPoints[0]));
-    XMStoreFloat3(&out.axes[2], XMVector3Normalize(axesPoints[3] - axesPoints[0]));
+    XMStoreFloat3(&out.points[0], worldCenter - halfX - halfY - halfZ); // (-X, -Y, -Z)
+    XMStoreFloat3(&out.points[1], worldCenter - halfX - halfY + halfZ); // (-X, -Y, +Z)
+    XMStoreFloat3(&out.points[2], worldCenter - halfX + halfY - halfZ); // (-X, +Y, -Z)
+    XMStoreFloat3(&out.points[3], worldCenter - halfX + halfY + halfZ); // (-X, +Y, +Z)
+    XMStoreFloat3(&out.points[4], worldCenter + halfX - halfY - halfZ); // (+X, -Y, -Z)
+    XMStoreFloat3(&out.points[5], worldCenter + halfX - halfY + halfZ); // (+X, -Y, +Z)
+    XMStoreFloat3(&out.points[6], worldCenter + halfX + halfY - halfZ); // (+X, +Y, -Z)
+    XMStoreFloat3(&out.points[7], worldCenter + halfX + halfY + halfZ); // (+X, +Y, +Z)
 }
 
 AABB BoxShape::GetAABB(const XMMATRIX& transform) const
