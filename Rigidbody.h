@@ -41,6 +41,7 @@ public:
     void CalculateMatrix();
 
     void Integrate(float dt);
+    void UpdateSweep();
     void SynchronizeFixture(BroadPhase* broadPhase);
 
     void AddFixture(Fixture* fixture);
@@ -113,8 +114,8 @@ protected:
     XMFLOAT4X4 transformMatrix_;
 
     // drag [0.f, 1.0f]
-    float linearDamping_ = 0.001f;
-    float angularDamping_ = 0.001f;
+    float linearDamping_ = 0.01f;
+    float angularDamping_ = 0.01f;
 
     uint32_t flags_ = 0;
 

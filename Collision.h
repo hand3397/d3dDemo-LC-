@@ -100,12 +100,12 @@ struct AABB
 
 struct ManifoldPoint
 {
-	float normalImpulse;  // 법선 방향 충격량
-	float tangentImpulse; // 접촉면 충격량
-	float separation;	  // 관통 깊이
-	XMFLOAT3 pointA;	  // 충돌 지점의 위치
-	XMFLOAT3 pointB;	  // 충돌 지점의 위치
-	XMFLOAT3 normal;	  // 법선 벡터
+	float normalImpulse  = 0.0f;    // 법선 방향 충격량
+	float tangentImpulse = 0.0f;    // 접촉면 충격량
+	float separation = 0.0f;	    // 관통 깊이
+	XMFLOAT3 pointA = XMFLOAT3(0.f, 0.f, 0.f);	  // 충돌 지점의 위치
+	XMFLOAT3 pointB = XMFLOAT3(0.f, 0.f, 0.f);	  // 충돌 지점의 위치
+	XMFLOAT3 normal = XMFLOAT3(0.f, 0.f, 0.f);	  // 법선 벡터
 };
 
 const int32_t MAX_MANIFOLD_COUNT = 40;

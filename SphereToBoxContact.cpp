@@ -15,9 +15,9 @@ void SphereToBoxContact::FindCollisionPoints(const ConvexInfo& sphereA, const Co
 {
 	XMStoreFloat3(&collisionInfo.normal[0], resultEPA.normal);
 	collisionInfo.separation[0] = resultEPA.distance;
-	XMStoreFloat3(&collisionInfo.pointA[0], XMLoadFloat3(&sphereA.center) + sphereA.radius * resultEPA.normal);
-	XMStoreFloat3(&collisionInfo.pointB[0], 
-		XMLoadFloat3(&collisionInfo.pointA[0]) - XMLoadFloat3(&collisionInfo.normal[0]) * collisionInfo.separation[0]);
+	XMVECTOR pointA = XMLoadFloat3(&sphereA.center) + sphereA.radius * resultEPA.normal;
+	XMStoreFloat3(&collisionInfo.pointA[0], pointA);
+	XMStoreFloat3(&collisionInfo.pointB[0], pointA - resultEPA.normal * collisionInfo.separation[0]);
 	++collisionInfo.size;
 }
 

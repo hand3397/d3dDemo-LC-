@@ -7,20 +7,18 @@ namespace spe { ;
 Rigidbody::Rigidbody()
 {
     CalculateMatrix();
-
     SetFlag(RigidbodyFlag::AWAKE);
 }
 
 Rigidbody::Rigidbody(RigidbodyType type, const XMFLOAT4& rotateQuat, const XMFLOAT3& position) :
     type_(type), orientation_(rotateQuat), position_(position)
 {
-    CalculateMatrix();
-
     if (type == RigidbodyType::STATIC) {
         // invMass = 0 -> 질량을 무한대로 설정
         SetMass(0.0f);
     }
 
+    CalculateMatrix();
     SetFlag(RigidbodyFlag::AWAKE);
 }
 
@@ -82,19 +80,17 @@ void Rigidbody::CreateFixture(Shape* shape)
 
 void Rigidbody::CalculateMatrix()
 {
-    XMVECTOR quat = XMVector4Normalize(XMLoadFloat4(&orientation_));
+    XMVECTOR q = XMVector4Normalize(XMLoadFloat4(&orientation_));
 
-    XMMATRIX r = XMMatrixRotationQuaternion(quat);
-    XMMATRIX t = XMMatrixTranslation(position_.x, position_.y, position_.z);
+    XMMATRIX R = XMMatrixRotationQuaternion(q);
+    XMMATRIX T = XMMatrixTranslation(position_.x, position_.y, position_.z);
 
-    XMStoreFloat4x4(&transformMatrix_, r * t);
+    XMStoreFloat4x4(&transformMatrix_, R * T);
 
-    XMFLOAT3X3 rot3x3;
-    XMStoreFloat3x3(&rot3x3, r);
-    XMMATRIX R = XMLoadFloat3x3(&rot3x3);
+    XMMATRIX invILocal = XMLoadFloat3x3(&inverseInertiaTensor_);
+    XMMATRIX invIWorld = R * invILocal * XMMatrixTranspose(R);
 
-    // inverseInertiaTensorWorld_ = R * inverseInertiaTensor_ * R^T
-    XMStoreFloat3x3(&inverseInertiaTensorWorld_, (R * XMLoadFloat3x3(&inverseInertiaTensor_)) * XMMatrixTranspose(R));
+    XMStoreFloat3x3(&inverseInertiaTensorWorld_, invIWorld);
 }
 
 void Rigidbody::Integrate(float dt)
@@ -104,12 +100,12 @@ void Rigidbody::Integrate(float dt)
         return;
     }
 
+    if (angularVelocity_.x <= 95.f && angularVelocity_.x >= 90.f)
+        int a = 1;
+
     // Set acceleration by F = ma
     XMVECTOR linearAccVec = XMLoadFloat3(&linearAcceleration_);
     linearAccVec += XMLoadFloat3(&force_) * inverseMass_;
-
-    // gravity
-    //addGravity();
 
     // set angular acceleration
     XMVECTOR angularAccVec = XMLoadFloat3(&angularAcceleration_);
@@ -138,12 +134,24 @@ void Rigidbody::Integrate(float dt)
     positionVec += (linearVelocityVec * dt);
     XMStoreFloat3(&position_, positionVec);
 
-    // set orientation
-    XMVECTOR angularVelocityQuat = XMVectorSetW(angularVelocityVec, 0.0f);                      // 각속도를 쿼터니언으로 변환
     XMVECTOR orientationVec = XMLoadFloat4(&orientation_);
-    orientationVec = XMVectorAdd(orientationVec,
-        XMVectorScale(XMQuaternionMultiply(angularVelocityQuat, orientationVec), 0.5f * dt));   // 쿼터니언 미분 공식
-    orientationVec = XMQuaternionNormalizeEst(orientationVec);                                  // 정규화하여 안정성 유지
+
+    float omegaMag = Vec3Length(angularVelocityVec);
+    if (omegaMag > EPS_FLOAT_SQ) // 회전이 있을 때만 계산
+    {
+        // 각속도 벡터 방향을 회전축, 크기*dt를 회전각으로 하는 쿼터니언 생성
+        // 이 쿼터니언(deltaQ)은 월드 좌표계 기준의 회전량입니다.
+        XMVECTOR deltaQ = XMQuaternionRotationAxis(angularVelocityVec, omegaMag * dt);
+
+        // 회전 적용: Q_new = deltaQ * Q_old
+        // DirectXMath의 곱셈 순서는 (Q2 * Q1)이 "Q1 회전 후 Q2 회전"을 의미하므로,
+        // 현재 방향(Q_old)에 월드 회전(deltaQ)을 추가하려면 왼쪽에 곱해야 합니다.
+        orientationVec = XMQuaternionMultiply(orientationVec, deltaQ);
+
+        // 정규화 (필수)
+        orientationVec = XMQuaternionNormalize(orientationVec);
+    }
+
     XMStoreFloat4(&orientation_, orientationVec);
 
     // Synchronize the transform matrix with the current position and orientation
@@ -151,6 +159,12 @@ void Rigidbody::Integrate(float dt)
 
     ClearForces();
     ClearAcclerations();
+}
+
+void Rigidbody::UpdateSweep()
+{
+    sweep_.position = position_;
+    sweep_.orientation = orientation_;
 }
 
 void Rigidbody::SynchronizeFixture(BroadPhase* broadPhase)
@@ -325,6 +339,7 @@ void Rigidbody::SetAngularVelocity(const XMFLOAT3& angularVelocity)
 {
     angularVelocity_ = angularVelocity;
 }
+
 void Rigidbody::SetAngularAccelration(const XMFLOAT3& angularAcceleration)
 {
     angularAcceleration_ = angularAcceleration;
@@ -378,13 +393,11 @@ void Rigidbody::ComputeInertiaTensor()
         return;
     }
 
-    XMMATRIX localInertiaTensor;
-
     // 첫 fixture만 inertiaTensor를 구하는데 사용됨.
     if (fixture_ != nullptr) {
-        localInertiaTensor = fixture_->GetShape()->ComputeLocalInertia(mass_);
-        XMStoreFloat3x3(&inverseInertiaTensor_, XMMatrixInverse(nullptr, localInertiaTensor));
+        XMStoreFloat3x3(&inverseInertiaTensor_, fixture_->GetShape()->ComputeLocalInvInertia(mass_));
     }
+    CalculateMatrix();
 }
 
 } // namespace spe

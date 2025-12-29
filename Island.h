@@ -42,7 +42,9 @@ private:
 	static const uint32_t POSITION_ITERATION;
 	static const float STOP_LINEAR_VELOCITY;
 	static const float STOP_ANGULAR_VELOCITY;
-
+	static const float STOP_LINEAR_VELOCITY_SQ;
+	static const float STOP_ANGULAR_VELOCITY_SQ;
+	
 	Rigidbody** bodies_;
 	Contact** contacts_;
 	PositionBuffer* positions_;

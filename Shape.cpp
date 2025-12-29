@@ -48,13 +48,14 @@ AABB SphereShape::GetAABB(const XMMATRIX& transform) const
     return AABB(center - r, center + r);
 }
 
-XMMATRIX SphereShape::ComputeLocalInertia(float mass) const
+XMMATRIX SphereShape::ComputeLocalInvInertia(float mass) const
 {
     float v = (2.0f / 5.0f) * mass * radius_ * radius_;
+    float invV = 1.0f / v;
     return XMMatrixSet(
-        v, 0, 0, 0,
-        0, v, 0, 0,
-        0, 0, v, 0,
+        invV, 0, 0, 0,
+        0, invV, 0, 0,
+        0, 0, invV, 0,
         0, 0, 0, 1);
 }
 
@@ -131,18 +132,18 @@ AABB BoxShape::GetAABB(const XMMATRIX& transform) const
     return AABB(centerVec - halfSizeVec, centerVec + halfSizeVec);
 }
 
-XMMATRIX BoxShape::ComputeLocalInertia(float mass) const
+XMMATRIX BoxShape::ComputeLocalInvInertia(float mass) const
 {
-    float hx = halfSize_.x, hy = halfSize_.y, hz = halfSize_.z;
-    float Ixx = (1.0f / 12.0f) * mass * ((2 * hy) * (2 * hy) + (2 * hz) * (2 * hz));
-    float Iyy = (1.0f / 12.0f) * mass * ((2 * hx) * (2 * hx) + (2 * hz) * (2 * hz));
-    float Izz = (1.0f / 12.0f) * mass * ((2 * hx) * (2 * hx) + (2 * hy) * (2 * hy));
+    float dx = halfSize_.x * 2.0f, dy = halfSize_.y * 2.0f, dz = halfSize_.z * 2.0f;
+    float Ixx = (1.0f / 12.0f) * mass * (dy * dy) + (dz * dz);
+    float Iyy = (1.0f / 12.0f) * mass * (dx * dx) + (dz * dz);
+    float Izz = (1.0f / 12.0f) * mass * (dx * dx) + (dy * dy);
 
     // DirectXMath matrix (3×3 부분만 사용)
     return XMMatrixSet(
-        Ixx, 0, 0, 0,
-        0, Iyy, 0, 0,
-        0, 0, Izz, 0,
+        (1.0f / Ixx), 0, 0, 0,
+        0, (1.0f / Iyy), 0, 0,
+        0, 0, (1.0f / Izz), 0,
         0, 0, 0, 1);
 }
 

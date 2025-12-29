@@ -43,7 +43,7 @@ public:
 	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const = 0;
 	virtual AABB GetAABB(const XMMATRIX& transform) const = 0;
 	ShapeType GetType() const;
-	virtual XMMATRIX ComputeLocalInertia(float mass) const = 0;
+	virtual XMMATRIX ComputeLocalInvInertia(float mass) const = 0;
 	XMFLOAT3 GetCenter()const;
 
 	void SetType(ShapeType type);
@@ -60,7 +60,7 @@ public:
 
 	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const override;
 	virtual AABB GetAABB(const XMMATRIX& transform) const override;
-	virtual XMMATRIX ComputeLocalInertia(float mass) const override;
+	virtual XMMATRIX ComputeLocalInvInertia(float mass) const override;
 
 	void SetRadius(const float& radius);
 protected:
@@ -74,7 +74,7 @@ public:
 
 	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const override;
 	virtual AABB GetAABB(const XMMATRIX& transform) const override;
-	virtual XMMATRIX ComputeLocalInertia(float mass) const override;
+	virtual XMMATRIX ComputeLocalInvInertia(float mass) const override;
 
 	void SetHalfSize(const XMFLOAT3& halfSize);
 protected:

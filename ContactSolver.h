@@ -24,11 +24,11 @@ class ContactSolver
 public:
 	// contactSolver의 contacts는 모두 동일한 island에 속한다.
 	ContactSolver(float duration, Contact** contacts, PositionBuffer* positions, VelocityBuffer* velocities, uint32_t numBodies, uint32_t numContacts);
-	void destroy();
+	void Destroy();
 
-	void solveVelocityConstraints();
-	void solvePositionConstraints();
-	void checkSleepContact();
+	void SolveVelocityConstraints();
+	void SolvePositionConstraints();
+	void CheckSleepContact();
 
 	static const float NORMAL_STOP_VELOCITY;
 	static const float TANGENT_STOP_VELOCITY;

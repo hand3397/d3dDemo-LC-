@@ -25,7 +25,7 @@ struct SupportPoint
 struct Polytope
 {
 	SupportPoint supports[MAX_NUM_SUPPORTS];
-	uint32_t numSupports = 0;
+	int32_t numSupports = 0;
 
 	Polytope() : numSupports(0) {}
 
@@ -67,7 +67,7 @@ struct ResultEPA
 
 struct Face
 {
-	XMFLOAT3 normal;
+	XMFLOAT3 normal; // 정규화 해야함
 	XMFLOAT3 points[MAX_MANIFOLD_COUNT];
 	uint32_t numPoints = 0;
 	float distance;
@@ -175,7 +175,7 @@ protected:
 	void MergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray) const;
 	void SizeUpFaceArray(FaceArray& faceArray, uint32_t newMaxCount) const;
 	void FreeConvexInfo(ConvexInfo& convexA, ConvexInfo& convexB) const;
-	
+
 	float friction_;
 	float restitution_;
 
