@@ -16,8 +16,6 @@ void BoxToBoxContact::FindCollisionPoints(const ConvexInfo& boxA, const ConvexIn
 	CollisionInfo& collisionInfo, ResultEPA& resultEPA, Polytope* simplexArray)
 {
 	// 1. 기준면(Reference Face) 선정을 위한 정렬도 검사
-	// 충돌 법선(resultEPA.normal)과 각 상자의 축들이 얼마나 평행한지(내적 절대값) 확인합니다.
-	// 내적값이 1에 가까울수록 해당 상자의 면이 충돌 평면과 평행하다는 뜻입니다.
 	auto GetMaxAbsDot = [](const ConvexInfo& box, const XMVECTOR& normal) -> float {
 		float maxDot = 0.0f;
 		for (int i = 0; i < 3; ++i) {
@@ -30,32 +28,42 @@ void BoxToBoxContact::FindCollisionPoints(const ConvexInfo& boxA, const ConvexIn
 	float dotA = GetMaxAbsDot(boxA, resultEPA.normal);
 	float dotB = GetMaxAbsDot(boxB, resultEPA.normal);
 
-	// boxB가 충돌 법선과 더 평행하다면(바닥 등), boxB를 Reference로 삼아야 더 안정적인 접촉점을 얻을 수 있습니다.
-	bool swapRef = dotB > dotA;
+	bool swapRef = dotB >= dotA;
 
-	Face refFace, incFace; 
+	// refFace와 incFace의 FaceNormal은 물체의 밖을 바라보는 방향이다.
+	Face refFace, incFace;
 	if (swapRef) {
-		// B가 Reference가 되므로, 법선 방향을 고려하여 설정
-		SetBoxFace(refFace, boxB, -resultEPA.normal); // Normal B->A
-		SetBoxFace(incFace, boxA, resultEPA.normal);  // Normal A->B
+		// [수정] B가 Reference(바닥)일 때
+		// 바닥의 '윗면'을 찾아야 하므로 EPA 법선(Down)의 반대인 Up 벡터(-resultEPA.normal)로 검색합니다.
+		SetBoxFace(refFace, boxB, -resultEPA.normal); // Correct: Finds Top Face (Normal Up)
+
+		// A(상자)는 '아랫면'을 찾아야 하므로 EPA 법선(Down) 그대로 검색합니다.
+		SetBoxFace(incFace, boxA, resultEPA.normal);  // Correct: Finds Bottom Face (Normal Down)
 	}
 	else {
-		// 기본 상태 (A가 Reference)
+		// A가 Reference일 때 (반대 상황)
+		SetBoxFace(refFace, boxA, -resultEPA.normal); // Search with Up -> Top of Box? (or opposite based on situation)
+		// A가 Reference라면 보통 A가 더 평행한 상황. 
+		// EPA가 A->B(Down)라면, A의 아랫면(Down)이 B의 윗면(Up)과 만남.
+		// A의 아랫면을 찾으려면 Down(+Normal)으로 찾아야 함?
+		// 기존 코드 로직상 swapRef가 아닐 때는 아래가 맞습니다.
 		SetBoxFace(refFace, boxA, resultEPA.normal);
 		SetBoxFace(incFace, boxB, -resultEPA.normal);
 	}
 
 	ContactFace contactFace;
 	ComputeContactPolygon(contactFace, refFace, incFace);
+
+	// Contact.cpp에서 수정한 BuildManifoldFromPolygon 사용
 	BuildManifoldFromPolygon(collisionInfo, refFace, incFace, contactFace, resultEPA);
 
-	// 2. 만약 Reference/Incident를 뒤집었다면, 결과 데이터도 다시 원래 순서(A, B)로 맞춰줘야 합니다.
 	if (swapRef) {
 		for (int i = 0; i < collisionInfo.size; ++i) {
-			// PointA와 PointB를 교체 (BuildManifold가 뒤집힌 기준으로 생성했으므로)
 			std::swap(collisionInfo.pointA[i], collisionInfo.pointB[i]);
 
-			// Reference 법선도 뒤집혔으므로 다시 반전 (B->A 벡터를 A->B로)
+			// Reference(B)의 법선(Up)을 반전시켜 A->B 방향(Down)으로 만듦
+			// 솔버는 A를 밀어내기 위해 -Impulse * Normal을 사용하므로
+			// Normal이 Down이어야 A가 Up으로 밀려남. (Correct)
 			collisionInfo.normal[i].x *= -1.0f;
 			collisionInfo.normal[i].y *= -1.0f;
 			collisionInfo.normal[i].z *= -1.0f;

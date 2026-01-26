@@ -94,7 +94,6 @@ namespace spe {
         Evaluate(manifold_, transformA, transformB);
 
         // [Warm Starting 2단계] 이전 프레임의 충격량을 현재 프레임으로 계승
-        // 충격량 0 초기화 코드 제거됨
 
         // 매칭 거리 허용치 (너무 크면 엉뚱한 점의 힘을 가져오므로 작게 설정)
         const float matchThresholdSq = 0.05f * 0.05f;
@@ -147,13 +146,15 @@ namespace spe {
 
         if (!isCollide) {
             FreeConvexInfo(convexA, convexB);
+            manifold.numPoints = 0;
             return;
         }
 
         ResultEPA resultEPA = GetEPA(simplex, convexA, convexB);
-
+        //resultEPA normal = (A -> B)
         if (resultEPA.distance == -1.0f) {
             FreeConvexInfo(convexA, convexB);
+            manifold.numPoints = 0;
             return;
         }
 
@@ -171,8 +172,10 @@ namespace spe {
         for (int32_t i = 0; i < collisionInfoSize; ++i) {
             manifold.points[i].pointA = collisionInfo.pointA[i];
             manifold.points[i].pointB = collisionInfo.pointB[i];
+            // pointB -> pointA 방향의 normalVector
             manifold.points[i].normal = collisionInfo.normal[i];
-            manifold.points[i].separation = collisionInfo.separation[i];
+            // 면 침투시 separation은 침투깊이의 크기만큼의 양수값
+            manifold.points[i].separation = collisionInfo.separation[i]; 
         }
     }
 
@@ -606,13 +609,23 @@ namespace spe {
 
     void Contact::ComputeContactPolygon(ContactFace& contactFace, Face& refFace, Face& incFace)
     {
+        // incFace를 refFace기준으로 잘라 두 물체의 실제 충돌 면인 contactFace를 추출하는 함수
         if (refFace.numPoints == 0 || incFace.numPoints == 0)
             return;
 
+        // contactFace에 incFace 붙여넣기
         memcpy(contactFace.points, incFace.points, sizeof(XMFLOAT3) * incFace.numPoints);
         contactFace.numPoints = incFace.numPoints;
 
+        // sideNormal 보정용 refFace center 구하기
         int numPoints = refFace.numPoints;
+        XMVECTOR refCenter = XMVectorZero();
+        for (uint32_t i = 0; i < numPoints; ++i) {
+            refCenter += XMLoadFloat3(&refFace.points[i]);
+        }
+        refCenter /= numPoints;
+
+        // contactFace를 refFace로 자르기
         XMVECTOR refFaceNormal = XMLoadFloat3(&refFace.normal);
         for (uint32_t i = 0; i < numPoints; ++i) {
             XMVECTOR start = XMLoadFloat3(&refFace.points[i]);
@@ -621,6 +634,11 @@ namespace spe {
             XMVECTOR edge = end - start;
 
             XMVECTOR sideNormal = XMVector3Normalize(XMVector3Cross(refFaceNormal, edge));
+
+            // sideNormal이 항상 밖을 향하도록 보정
+            if (VecDot(start - refCenter, sideNormal) < 0)
+                sideNormal *= -1.0f;
+
             float sideDist = VecDot(sideNormal, start);
             ClipPolygonAgainstPlane(contactFace, sideNormal, sideDist);
 
@@ -631,6 +649,8 @@ namespace spe {
 
     void Contact::ClipPolygonAgainstPlane(ContactFace& contactFace, const XMVECTOR& planeNormal, float planeDist)
     {
+        // contactFace를 평면으로 자르는 함수
+        // 점(planeNormal * planeDist)로 부터 planeNormal 방향의 점들을 탈락시킨다.
         int32_t numPoints = contactFace.numPoints;
         if (numPoints == 0)
             return;
@@ -643,25 +663,29 @@ namespace spe {
 
             float distCurr = VecDot(planeNormal, curr) - planeDist;
             float distNext = VecDot(planeNormal, next) - planeDist;
-            bool currInside = (distCurr >= -EPS_FLOAT);
-            bool nextInside = (distNext >= -EPS_FLOAT);
 
+            bool currInside = (distCurr <= EPS_FLOAT);
+            bool nextInside = (distNext <= EPS_FLOAT);
+
+            // 1. 둘 다 안쪽: 다음 점 추가
             if (currInside && nextInside) {
                 XMStoreFloat3(&contactFace.buffer[idx++], next);
             }
+            // 2. 안쪽 -> 바깥쪽: 교차점 추가 (다음 점은 버림)
+            else if (currInside && !nextInside) {
+                float t = distCurr / (distCurr - distNext);
+                XMVECTOR intersect = curr + t * (next - curr);
+                XMStoreFloat3(&contactFace.buffer[idx++], intersect);
+            }
+            // 3. 바깥쪽 -> 안쪽: 교차점 추가 후 다음 점 추가
             else if (!currInside && nextInside) {
                 float t = distCurr / (distCurr - distNext);
                 XMVECTOR intersect = curr + t * (next - curr);
                 XMStoreFloat3(&contactFace.buffer[idx++], intersect);
                 XMStoreFloat3(&contactFace.buffer[idx++], next);
             }
-            else if (currInside && !nextInside) {
-                float t = distCurr / (distCurr - distNext);
-                XMVECTOR intersect = curr + t * (next - curr);
-                XMStoreFloat3(&contactFace.buffer[idx++], intersect);
-            }
+            // 4. 둘 다 바깥쪽: 아무것도 추가 안 함
         }
-
         memcpy(contactFace.points, contactFace.buffer, sizeof(XMFLOAT3) * idx);
         contactFace.numPoints = idx;
     }
@@ -675,7 +699,10 @@ namespace spe {
         }
 
         const XMVECTOR refNormal = XMLoadFloat3(&refFace.normal);
-        const XMVECTOR normal = resultEPA.normal;
+
+        // [수정 핵심] 항상 Reference Face의 법선 방향으로 투영해야 올바른 표면 위치를 찾을 수 있습니다.
+        // refNormal은 Reference Body의 바깥쪽을 향하므로, 침투된 지점(Inc)에서 표면(Ref)으로 복구하는 올바른 방향입니다.
+        const XMVECTOR normal = refNormal;
 
         const float refPlaneDist = refFace.distance;
 
@@ -689,6 +716,7 @@ namespace spe {
                 continue;
             }
 
+            // 수정된 normal(refNormal)을 사용하여 투영
             const XMVECTOR pointA = XMVectorMultiplyAdd(
                 normal,
                 XMVectorReplicate(penetration),
@@ -696,8 +724,8 @@ namespace spe {
             );
 
             XMStoreFloat3(&collisionInfo.normal[collisionInfo.size], refNormal);
-            XMStoreFloat3(&collisionInfo.pointA[collisionInfo.size], pointA);
-            XMStoreFloat3(&collisionInfo.pointB[collisionInfo.size], pointB);
+            XMStoreFloat3(&collisionInfo.pointA[collisionInfo.size], pointA); // Ref Face 위의 점
+            XMStoreFloat3(&collisionInfo.pointB[collisionInfo.size], pointB); // Inc Face 위의 점 (침투된 상태)
             collisionInfo.separation[collisionInfo.size] = penetration;
             ++collisionInfo.size;
         }

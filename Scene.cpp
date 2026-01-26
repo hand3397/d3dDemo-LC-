@@ -16,6 +16,7 @@ void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
 	player_ = make_unique<Player>(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 5.0f, -10.0f));
 	mainCamera_ = player_->GetCamera();
+	mainCamera_->RotatePitch(0.4f);
 
 	LoadScene(device, cmdList);
 	BuildScene(device, cmdList);
@@ -410,13 +411,11 @@ void Scene::BuildGameObjects()
 	}
 	*/
 
-	
-	for (int x = 0; x < 5; x++) {
-		for (int z = 0; z < 5; z++) {
-			float dx = 0.5f * x;
-			float dz = 0.5f * z;
-			AddBoxObject(XMFLOAT3(dx, 1.0f + 5 * dx + 10 * dz, dz));
-		}
+	AddBoxObject(XMFLOAT3(0.f, 1.0f, 0.f));
+
+	for (int x = 1; x <= 5; x++) {
+		float dx = x * 1.0f;
+		AddBoxObject(XMFLOAT3(dx - 0.2f, 2.0f * dx + 1.2f, 0.f));
 	}
 	
 	//auto box = AddBoxObject(XMFLOAT3(0.f, 20.f, 10.f), XMFLOAT3(XMConvertToRadians(50.f), 0.f, XMConvertToRadians(50.f)));

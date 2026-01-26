@@ -3,10 +3,10 @@
 
 namespace spe {;
 
-const float ContactSolver::NORMAL_STOP_VELOCITY = 0.1f;
-const float ContactSolver::TANGENT_STOP_VELOCITY = 0.1f;
-const float ContactSolver::NORMAL_SLEEP_VELOCITY = 0.1f;
-const float ContactSolver::TANGENT_SLEEP_VELOCITY = 0.1f;
+const float ContactSolver::NORMAL_STOP_VELOCITY = 0.01f;
+const float ContactSolver::TANGENT_STOP_VELOCITY = 0.01f;
+const float ContactSolver::NORMAL_SLEEP_VELOCITY = 0.01f;
+const float ContactSolver::TANGENT_SLEEP_VELOCITY = 0.01f;
 const float ContactSolver::POSITION_SOLVE_ALPHA = 0.25f;
 
 ContactSolver::ContactSolver(float duration, Contact** contacts,
