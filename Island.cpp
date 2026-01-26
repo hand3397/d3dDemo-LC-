@@ -2,8 +2,7 @@
 #include "ContactSolver.h"
 #include "PhysicsWorld.h"
 
-namespace spe {
-    ;
+namespace spe {;
 
     const uint32_t Island::VELOCITY_ITERATION = 10;
     const uint32_t Island::POSITION_ITERATION = 10;
@@ -80,13 +79,12 @@ namespace spe {
                 body->SetFlag(RigidbodyFlag::AWAKE);
             }
 
-            //body->updateSweep();
+            body->UpdateSweep();
             XMFLOAT3 newPostion;
             XMStoreFloat3(&newPostion,
                 XMLoadFloat3(&positions_[i].position) + XMLoadFloat3(&positions_[i].positionBuffer));
             body->SetPosition(newPostion);
 
-            // [수정 반영] 계산된 최종 속도를 적용
             XMFLOAT3 finalLinVelF3, finalAngVelF3;
             XMStoreFloat3(&finalLinVelF3, finalLinVel);
             XMStoreFloat3(&finalAngVelF3, finalAngVel);

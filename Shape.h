@@ -8,7 +8,7 @@ enum class ShapeType
 {
 	SPHERE = (1 << 0),
 	BOX = (1 << 1),
-	GROUND = (1 << 2),
+	GROUND = (1 << 2),	// height map
 	CYLINDER = (1 << 3),
 	CAPSULE = (1 << 4),
 };
@@ -20,14 +20,14 @@ struct ConvexInfo
 	XMFLOAT3* points = nullptr;
 	XMFLOAT3* axes = nullptr;
 
-	int32_t numPoints;
-	int32_t numAxes;
+	int32_t numPoints = 0;
+	int32_t numAxes = 0;
 
-	XMFLOAT3 center;
-	XMFLOAT3 halfSize; // local
+	XMFLOAT3 center = XMFLOAT3(0.f, 0.f, 0.f);
+	XMFLOAT3 halfSize = XMFLOAT3(0.f, 0.f, 0.f);; // local
 
-	float radius;
-	float height; //cylinder, capsule
+	float radius = 0.f;
+	float height = 0.f; //cylinder, capsule
 
 	ShapeType type;
 
@@ -62,7 +62,7 @@ public:
 	virtual AABB GetAABB(const XMMATRIX& transform) const override;
 	virtual XMMATRIX ComputeLocalInvInertia(float mass) const override;
 
-	void SetRadius(const float& radius);
+	void SetRadius(float radius);
 protected:
 	float radius_;
 };
@@ -79,6 +79,22 @@ public:
 	void SetHalfSize(const XMFLOAT3& halfSize);
 protected:
 	XMFLOAT3 halfSize_;
+};
+
+class CylinderShape : public Shape
+{
+public:
+	CylinderShape(const XMFLOAT3& center, float radius, float height);
+
+	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const override;
+	virtual AABB GetAABB(const XMMATRIX& transform) const override;
+	virtual XMMATRIX ComputeLocalInvInertia(float mass) const override;
+
+	void SetRadius(float radius);
+	void SetHeight(float height);
+protected:
+	float radius_;
+	float height_;
 };
 
 }

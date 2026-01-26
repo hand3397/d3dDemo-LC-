@@ -28,7 +28,6 @@ void PhysicsWorld::Update(float dt)
             // body값을 fixture에 동기화
             body->SynchronizeFixture(broadPhase_);
         }
-        
         body = body->GetNext();
     }
 

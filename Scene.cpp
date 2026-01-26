@@ -160,7 +160,7 @@ void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 	GeometryGenerator::MeshData wall = geoGen.CreateOnBox(1.0f, 3.0f, 0.1f, 1);
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(150.0f, 150.0f, 150, 150);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(1.0f, 20, 20);
-	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
+	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(1.0f, 1.0f, 4.0f, 20, 5);
 
 	//
 	// We are concatenating all the geometry into one big vertex/index buffer.  So
@@ -410,17 +410,17 @@ void Scene::BuildGameObjects()
 	}
 	*/
 
-	/*
+	
 	for (int x = 0; x < 5; x++) {
 		for (int z = 0; z < 5; z++) {
-			float dx = 3.f * x;
-			float dz = 3.f * z;
-			AddBoxObject(XMFLOAT3(dx, 1.0f + dx + 3 * dz, dz));
+			float dx = 0.5f * x;
+			float dz = 0.5f * z;
+			AddBoxObject(XMFLOAT3(dx, 1.0f + 5 * dx + 10 * dz, dz));
 		}
 	}
-	*/
-	auto box = AddBoxObject(XMFLOAT3(0.f, 20.f, 10.f), XMFLOAT3(XMConvertToRadians(50.f), 0.f, XMConvertToRadians(50.f)));
-	box->GetRigidbody()->SetAngularVelocity(XMFLOAT3(10.f, 10.f, 10.f));
+	
+	//auto box = AddBoxObject(XMFLOAT3(0.f, 20.f, 10.f), XMFLOAT3(XMConvertToRadians(50.f), 0.f, XMConvertToRadians(50.f)));
+	//box->GetRigidbody()->SetAngularVelocity(XMFLOAT3(10.f, 10.f, 10.f));
 }
 
 GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& transform, 
