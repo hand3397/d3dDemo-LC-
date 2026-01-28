@@ -132,6 +132,15 @@
     <ClCompile Include="ContactManager.cpp">
       <Filter>소스 파일\Physics</Filter>
     </ClCompile>
+    <ClCompile Include="CylinderToCylinderContact.cpp">
+      <Filter>소스 파일\Physics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="BoxToCylinderContact.cpp">
+      <Filter>소스 파일\Physics\Contacts</Filter>
+    </ClCompile>
+    <ClCompile Include="SphereToCylinderContact.cpp">
+      <Filter>소스 파일\Physics\Contacts</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dApp.h">
@@ -238,6 +247,15 @@
     </ClInclude>
     <ClInclude Include="ContactManager.h">
       <Filter>헤더 파일\Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="BoxToCylinderContact.h">
+      <Filter>헤더 파일\Physics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="CylinderToCylinderContact.h">
+      <Filter>헤더 파일\Physics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="SphereToCylinderContact.h">
+      <Filter>헤더 파일\Physics\Contacts</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

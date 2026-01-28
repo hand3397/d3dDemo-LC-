@@ -128,6 +128,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BoxToBoxContact.cpp" />
+    <ClCompile Include="BoxToCylinderContact.cpp" />
     <ClCompile Include="BroadPhase.cpp" />
     <ClCompile Include="Camera.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -135,6 +136,7 @@
     <ClCompile Include="Contact.cpp" />
     <ClCompile Include="ContactManager.cpp" />
     <ClCompile Include="ContactSolver.cpp" />
+    <ClCompile Include="CylinderToCylinderContact.cpp" />
     <ClCompile Include="d3dApp.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -190,16 +192,19 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="SphereToBoxContact.cpp" />
+    <ClCompile Include="SphereToCylinderContact.cpp" />
     <ClCompile Include="SphereToSphereContact.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BoxToBoxContact.h" />
+    <ClInclude Include="BoxToCylinderContact.h" />
     <ClInclude Include="BroadPhase.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Collision.h" />
     <ClInclude Include="Contact.h" />
     <ClInclude Include="ContactManager.h" />
     <ClInclude Include="ContactSolver.h" />
+    <ClInclude Include="CylinderToCylinderContact.h" />
     <ClInclude Include="d3dApp.h" />
     <ClInclude Include="d3dUtil.h" />
     <ClInclude Include="DDSTextureLoader.h" />
@@ -226,6 +231,7 @@
     <ClInclude Include="Shape.h" />
     <ClInclude Include="SkinnedData.h" />
     <ClInclude Include="SphereToBoxContact.h" />
+    <ClInclude Include="SphereToCylinderContact.h" />
     <ClInclude Include="SphereToSphereContact.h" />
     <ClInclude Include="UploadBuffer.h" />
   </ItemGroup>

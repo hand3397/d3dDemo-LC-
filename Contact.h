@@ -67,7 +67,8 @@ struct ResultEPA
 
 struct Face
 {
-	XMFLOAT3 normal; // 정규화 해야함
+	XMFLOAT3 normal; // normalized
+	XMFLOAT3 center; // points의 중심점
 	XMFLOAT3 points[MAX_MANIFOLD_COUNT];
 	uint32_t numPoints = 0;
 	float distance;
@@ -168,8 +169,8 @@ protected:
 		uint32_t verticesSize);
 
 	void SetBoxFace(Face& face, const ConvexInfo& box, const XMVECTOR& normal);
-	//void setCylinderFace(Face& face, const ConvexInfo& cylinder, const XMFLOAT3& normal);
-	//void setCapsuleFace(Face& face, const ConvexInfo& capsule, const XMFLOAT3& normal);
+	void SetCylinderFace(Face& face, const ConvexInfo& cylinder, const XMVECTOR& normal);
+	void SetCapsuleFace(Face& face, const ConvexInfo& capsule, const XMFLOAT3& normal);
 
 	//bool isCollideToHemisphere(const ConvexInfo& capsule, const XMFLOAT3& dir);
 	void MergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray) const;

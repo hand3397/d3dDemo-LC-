@@ -2,6 +2,9 @@
 #include "SphereToSphereContact.h"
 #include "SphereToBoxContact.h"
 #include "BoxToBoxContact.h"
+#include "CylinderToCylinderContact.h"
+#include "SphereToCylinderContact.h"
+#include "BoxToCylinderContact.h"
 
 namespace spe {
     ;
@@ -20,11 +23,11 @@ namespace spe {
         &SphereToBoxContact::Create,		// 101
         &BoxToBoxContact::Create,			// 110
         nullptr,							// 111
-        nullptr,//&CylinderToCylinderContact::create, // 1000
-        nullptr,//&SphereToCylinderContact::create,	// 1001
-        nullptr,//&BoxToCylinderContact::create,		// 1010
+        &CylinderToCylinderContact::Create, // 1000
+        &SphereToCylinderContact::Create,	// 1001
+        &BoxToCylinderContact::Create,		// 1010
         nullptr,							// 1011
-        nullptr,//&BoxToCylinderContact::create,		// 1100
+        &BoxToCylinderContact::Create,		// 1100
         nullptr,							// 1101
         nullptr,							// 1110
         nullptr,							// 1111
@@ -618,13 +621,9 @@ namespace spe {
         contactFace.numPoints = incFace.numPoints;
 
         // sideNormal 보정용 refFace center 구하기
-        int numPoints = refFace.numPoints;
-        XMVECTOR refCenter = XMVectorZero();
-        for (uint32_t i = 0; i < numPoints; ++i) {
-            refCenter += XMLoadFloat3(&refFace.points[i]);
-        }
-        refCenter /= numPoints;
+        XMVECTOR refCenter = XMLoadFloat3(&refFace.center);
 
+        int numPoints = refFace.numPoints;
         // contactFace를 refFace로 자르기
         XMVECTOR refFaceNormal = XMLoadFloat3(&refFace.normal);
         for (uint32_t i = 0; i < numPoints; ++i) {
@@ -774,7 +773,7 @@ namespace spe {
         float sign = (vecDots[base] >= 0.0f) ? 1.0f : -1.0f;
         XMVECTOR baseAxis = axes[base] * sign;
 
-        XMStoreFloat3(&face.normal, baseAxis);
+        XMStoreFloat3(&face.normal, XMVector3Normalize(baseAxis));
 
         constexpr static const uint8_t NEXT1[3] = { 1, 2, 0 };
         constexpr static const uint8_t NEXT2[3] = { 2, 0, 1 };
@@ -786,6 +785,8 @@ namespace spe {
         XMVECTOR h2 = axes[i2] * hs[i2];
 
         XMVECTOR basePoint = XMLoadFloat3(&box.center) + baseAxis * hs[base];
+        XMStoreFloat3(&face.center, basePoint);
+
         face.distance = VecDot(basePoint, baseAxis);
 
         face.numPoints = 4;
@@ -793,6 +794,174 @@ namespace spe {
         XMStoreFloat3(&face.points[1], basePoint + h1 - h2);
         XMStoreFloat3(&face.points[2], basePoint + h1 + h2);
         XMStoreFloat3(&face.points[3], basePoint - h1 + h2);
+    }
+
+    void Contact::SetCylinderFace(Face& face, const ConvexInfo& cylinder, const XMVECTOR& normal)
+    {
+        const XMVECTOR axis = XMLoadFloat3(&cylinder.axes[0]); // Cylinder Up Axis (Y)
+        const float radius = cylinder.radius;
+        const float halfHeight = cylinder.height * 0.5f;
+
+        // 1. Cap(뚜껑) vs Side(옆면) 판별
+        float dot = VecDot(axis, normal);
+        // 모서리 방향(Corner Direction)을 기준으로 임계값(Limit) 설정
+        // (반지름과 반높이의 비율을 고려하여 45도가 아닌 실제 모서리 각도 사용)
+        float limit = halfHeight / sqrtf(radius * radius + halfHeight * halfHeight);
+        if (fabsf(dot) > limit) {
+            // cylinder의 뚜껑 생성
+            float sign = (dot >= 0.0f) ? 1.0f : -1.0f;
+            XMVECTOR faceNormal = axis * sign;
+            XMStoreFloat3(&face.normal, faceNormal);
+
+            // 중심점: 원기둥 중심에서 축 방향으로 끝까지 이동
+            XMVECTOR capCenter = XMLoadFloat3(&cylinder.center) + faceNormal * halfHeight;
+            XMStoreFloat3(&face.center, capCenter);
+            face.distance = VecDot(capCenter, faceNormal);
+
+            // 원 생성: 축에 수직인 두 기저 벡터(Basis Vectors) 생성
+            // (임의의 벡터와 외적하여 수직 벡터를 찾음)
+            XMVECTOR right;
+            if (fabsf(XMVectorGetX(faceNormal)) < 0.9f) {
+                right = XMVector3Cross(faceNormal, XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
+            }
+            else {
+                right = XMVector3Cross(faceNormal, XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+            }
+            right = XMVector3Normalize(right);
+            XMVECTOR forward = XMVector3Cross(faceNormal, right);
+
+            // 세그먼트 수만큼 회전하며 정점 생성
+            constexpr int segments = 20;
+            face.numPoints = segments;
+            float angleStep = XM_2PI / static_cast<float>(segments);
+
+            for (int i = 0; i < segments; ++i) {
+                float angle = i * angleStep;
+                float c = cosf(angle);
+                float s = sinf(angle);
+
+                // Circle Vertex: Center + (Right * cos) + (Forward * sin) * Radius
+                XMVECTOR p = capCenter + (right * c * radius) + (forward * s * radius);
+                XMStoreFloat3(&face.points[i], p);
+            }
+        }
+        else {
+            // cylinder의 가상의 옆면 생성 (가상의 면은 실린더의 높이 x 반지름)
+            // 법선에서 축 성분을 제거하여 완벽한 수평 법선(Radial Normal) 생성
+            XMVECTOR sideNormal = normal - axis * dot;
+
+            // 안전장치: 법선 길이가 너무 짧으면 기존 normal 사용
+            if (XMVectorGetX(XMVector3LengthSq(sideNormal)) > 1.0e-6f) {
+                sideNormal = XMVector3Normalize(sideNormal);
+            }
+            else {
+                sideNormal = normal;
+            }
+            XMStoreFloat3(&face.normal, sideNormal);
+
+            // 표면 중심: 원기둥 중심에서 옆면 법선 방향으로 반지름만큼 이동
+            XMVECTOR surfaceCenter = XMLoadFloat3(&cylinder.center) + sideNormal * radius;
+            XMStoreFloat3(&face.center, surfaceCenter);
+            face.distance = VecDot(surfaceCenter, sideNormal);
+
+            // 가상 직사각형 생성을 위한 벡터
+            // upDir: 원기둥 높이 방향
+            // rightDir: 접평면의 가로 방향 (축과 법선의 외적)
+            XMVECTOR upDir = axis * halfHeight;
+            XMVECTOR rightDir = XMVector3Cross(axis, sideNormal) * radius; // 폭을 반지름 정도로 설정
+
+            face.numPoints = 4;
+            // 충돌 지점을 중심으로 하는 직사각형 생성 (Sutherland-Hodgman 클리핑용)
+            XMStoreFloat3(&face.points[0], surfaceCenter + upDir - rightDir); // Top-Left
+            XMStoreFloat3(&face.points[1], surfaceCenter + upDir + rightDir); // Top-Right
+            XMStoreFloat3(&face.points[2], surfaceCenter - upDir + rightDir); // Bottom-Right
+            XMStoreFloat3(&face.points[3], surfaceCenter - upDir - rightDir); // Bottom-Left
+        }
+    }
+
+    void Contact::SetCapsuleFace(Face& face, const ConvexInfo& capsule, const XMFLOAT3& normal)
+    {
+        XMVECTOR n = XMLoadFloat3(&normal);
+        XMVECTOR axis = XMLoadFloat3(&capsule.axes[0]); // Up Axis (Y)
+        XMVECTOR center = XMLoadFloat3(&capsule.center);
+
+        float radius = capsule.radius;
+        float halfHeight = capsule.height * 0.5f; // 실린더 부분의 절반 높이 (반구 제외)
+
+        // 법선과 축의 내적 (CosTheta)
+        float dot = XMVectorGetX(XMVector3Dot(axis, n));
+        float absDot = fabsf(dot);
+
+        // ---------------------------------------------------
+        // CASE 1: Side (옆면, 원기둥 몸통)
+        // 법선이 축과 수직에 가까운 경우 (내적값이 작음)
+        // ---------------------------------------------------
+        if (absDot < 0.99f) {
+            // 1. 순수한 측면 법선 계산 (축 성분 제거 및 정규화)
+            XMVECTOR sideNormal = n - axis * dot;
+            sideNormal = XMVector3Normalize(sideNormal);
+
+            XMStoreFloat3(&face.normal, sideNormal);
+
+            // 2. 표면 중심점: 캡슐 중심에서 측면 법선 방향으로 반지름만큼 이동
+            XMVECTOR surfaceCenter = center + sideNormal * radius;
+            XMStoreFloat3(&face.center, surfaceCenter);
+            face.distance = XMVectorGetX(XMVector3Dot(surfaceCenter, sideNormal));
+
+            // 3. 가상 직사각형 생성
+            // Up 벡터: 캡슐의 축 방향 (길이는 실린더 높이만큼)
+            // Right 벡터: 측면 법선과 축의 외적 (폭은 반지름 정도로 설정)
+            XMVECTOR upDir = axis * halfHeight;
+            XMVECTOR rightDir = XMVector3Cross(axis, sideNormal) * radius;
+
+            face.numPoints = 4;
+            XMStoreFloat3(&face.points[0], surfaceCenter + upDir - rightDir); // Top-Left
+            XMStoreFloat3(&face.points[1], surfaceCenter + upDir + rightDir); // Top-Right
+            XMStoreFloat3(&face.points[2], surfaceCenter - upDir + rightDir); // Bottom-Right
+            XMStoreFloat3(&face.points[3], surfaceCenter - upDir - rightDir); // Bottom-Left
+        }
+        // ---------------------------------------------------
+        // CASE 2: Cap (뚜껑, 반구의 극점)
+        // 법선이 축과 거의 평행한 경우
+        // ---------------------------------------------------
+        else {
+            // 1. 방향 결정 (위쪽 뚜껑인지 아래쪽 뚜껑인지)
+            float sign = (dot >= 0.0f) ? 1.0f : -1.0f;
+            XMVECTOR capNormal = axis * sign;
+            XMStoreFloat3(&face.normal, capNormal);
+
+            // 2. 극점(Pole) 계산: 캡슐 중심 + (실린더 반높이 + 반지름) * 축방향
+            // 캡슐의 가장 끝점입니다.
+            XMVECTOR polePoint = center + capNormal * (halfHeight + radius);
+            XMStoreFloat3(&face.center, polePoint);
+            face.distance = XMVectorGetX(XMVector3Dot(polePoint, capNormal));
+
+            // 3. 접평면 생성 (작은 쿼드)
+            // 반구의 끝점은 '점'이지만, 클리핑 안정성을 위해 작은 사각형으로 만듭니다.
+            // 축에 수직인 임의의 기저 벡터 생성
+            XMVECTOR right, forward;
+            XMVECTOR worldUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+            XMVECTOR worldRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+
+            if (fabsf(XMVectorGetX(capNormal)) < 0.9f) // 법선이 X축이 아니면
+                right = XMVector3Cross(capNormal, worldRight);
+            else
+                right = XMVector3Cross(capNormal, worldUp);
+
+            right = XMVector3Normalize(right);
+            forward = XMVector3Cross(capNormal, right); // 이미 수직이므로 정규화 불필요
+
+            // 크기는 반지름의 절반 정도로 설정 (너무 작으면 불안정할 수 있음)
+            float size = radius * 0.5f;
+            right *= size;
+            forward *= size;
+
+            face.numPoints = 4;
+            XMStoreFloat3(&face.points[0], polePoint - right + forward);
+            XMStoreFloat3(&face.points[1], polePoint + right + forward);
+            XMStoreFloat3(&face.points[2], polePoint + right - forward);
+            XMStoreFloat3(&face.points[3], polePoint - right - forward);
+        }
     }
 
     void Contact::MergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray) const

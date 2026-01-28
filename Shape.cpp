@@ -9,7 +9,7 @@ int32_t operator|(ShapeType type1, ShapeType type2)
 
 XMVECTOR ConvexInfo::GetFarthestPoint(const XMVECTOR& dir) const
 {
-    XMVECTOR center = XMLoadFloat3(&this->center);
+    const XMVECTOR center = XMLoadFloat3(&this->center);
 
     switch (type) {
     case ShapeType::SPHERE: {
@@ -18,17 +18,64 @@ XMVECTOR ConvexInfo::GetFarthestPoint(const XMVECTOR& dir) const
                           break;
     case ShapeType::BOX: {
         XMVECTOR axesVec[3] = { XMLoadFloat3(&axes[0]), XMLoadFloat3(&axes[1]), XMLoadFloat3(&axes[2]) };
-        center += axesVec[0] * ((VecDot(axesVec[0], dir) > 0 ? 1.0f : -1.0f) * halfSize.x);
-        center += axesVec[1] * ((VecDot(axesVec[1], dir) > 0 ? 1.0f : -1.0f) * halfSize.y);
-        center += axesVec[2] * ((VecDot(axesVec[2], dir) > 0 ? 1.0f : -1.0f) * halfSize.z);
-        return center;
+        XMVECTOR out = center;
+        out += axesVec[0] * ((VecDot(axesVec[0], dir) > 0 ? 1.0f : -1.0f) * halfSize.x);
+        out += axesVec[1] * ((VecDot(axesVec[1], dir) > 0 ? 1.0f : -1.0f) * halfSize.y);
+        out += axesVec[2] * ((VecDot(axesVec[2], dir) > 0 ? 1.0f : -1.0f) * halfSize.z);
+        return out;
     }
                        break;
     case ShapeType::GROUND:
         break;
     case ShapeType::CYLINDER:
+    {
+        XMVECTOR axisVec = XMLoadFloat3(&axes[0]);
+        float radius = this->radius;
+        float halfHeight = this->height * 0.5f;
+
+        // 1. 높이(Height) 성분 계산: 윗면이냐 아랫면이냐
+        // 방향 벡터(dir)가 축(axis)과 같은 방향이면 위, 반대면 아래
+        float dirDotAxis = VecDot(dir, axisVec);
+        float sign = (dirDotAxis >= 0.0f) ? 1.0f : -1.0f;
+
+        // 높이 오프셋: 중심에서 축 방향으로 위 또는 아래로 이동
+        XMVECTOR heightOffset = axisVec * halfHeight * sign;
+
+        // 최종 위치 = 중심 + 높이 오프셋 + 반구
+        return center + heightOffset + radius * dir;
+    }
         break;
     case ShapeType::CAPSULE:
+    {
+        XMVECTOR axisVec = XMLoadFloat3(&axes[0]);
+        float radius = this->radius;
+        float halfHeight = this->height * 0.5f;
+
+        // 1. 높이(Height) 성분 계산: 윗면이냐 아랫면이냐
+        // 방향 벡터(dir)가 축(axis)과 같은 방향이면 위, 반대면 아래
+        float dirDotAxis = VecDot(dir, axisVec);
+        float sign = (dirDotAxis >= 0.0f) ? 1.0f : -1.0f;
+
+        // 높이 오프셋: 중심에서 축 방향으로 위 또는 아래로 이동
+        XMVECTOR heightOffset = axisVec * halfHeight * sign;
+
+        // 2. 반지름(Radius) 성분 계산: 원의 어느 지점이냐
+        // dir에서 축 성분을 제거하여, 수평(원판) 평면 상의 방향을 구함
+        XMVECTOR perpDir = dir - (axisVec * dirDotAxis);
+        float distSq = Vec3LengthSq(perpDir);
+
+        XMVECTOR radiusOffset = XMVectorZero();
+
+        // dir가 축과 완전히 평행하지 않다면 (수평 성분이 있다면)
+        if (distSq > 1e-6f) // Epsilon 체크
+        {
+            // 수평 방향으로 반지름만큼 이동
+            radiusOffset = XMVector3Normalize(perpDir) * radius;
+        }
+
+        // 최종 위치 = 중심 + 높이 오프셋 + 반지름 오프셋
+        return center + heightOffset + radiusOffset;
+    }
         break;
     }
 }
@@ -260,6 +307,116 @@ void CylinderShape::SetRadius(float radius)
 }
 
 void CylinderShape::SetHeight(float height)
+{
+    height_ = height;
+}
+
+CapsuleShape::CapsuleShape(const XMFLOAT3& center, float radius, float height) :
+    radius_(radius), height_(height)
+{
+    center_ = center;
+    type_ = ShapeType::CAPSULE;
+}
+
+void CapsuleShape::GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const
+{
+    out.type = ShapeType::CYLINDER;
+
+    // world center 계산
+    XMVECTOR worldCenter = XMVector3TransformCoord(XMLoadFloat3(&center_), transform);
+    XMStoreFloat3(&out.center, worldCenter);
+
+    out.radius = radius_;
+    out.height = height_;
+
+    XMVECTOR axisY = transform.r[1];
+
+    // 축 저장
+    out.numAxes = 1;
+    out.axes = new XMFLOAT3[1];
+    out.axes[0] = XMFLOAT3(0.f, 1.f, 0.f);
+}
+
+AABB CapsuleShape::GetAABB(const XMMATRIX& transform) const
+{
+    // 1. 월드 중심 계산
+    XMVECTOR centerVec = XMVector3TransformCoord(XMLoadFloat3(&center_), transform);
+
+    // 2. 월드 상단 방향 벡터 (Up Vector) - 정규화된 축 가져오기
+    XMVECTOR axisVec = XMVector3Normalize(transform.r[1]);
+    XMFLOAT3 axis;
+    XMStoreFloat3(&axis, axisVec);
+
+    // 3. 각 축(X, Y, Z)에 대한 투영(Projection) 계산
+    // 공식: Extent = (Height / 2) * |Axis_i| + Radius
+    // cylinder와 다르게  height축에서 모든 방향으로 radius만큼 더 뚱뚱함.
+    float h2 = height_ * 0.5f;
+
+    // X축 범위: H/2 * |Ax| + R
+    float extentX = h2 * fabsf(axis.x) + radius_;
+
+    // Y축 범위
+    float extentY = h2 * fabsf(axis.y) + radius_;
+
+    // Z축 범위
+    float extentZ = h2 * fabsf(axis.z) + radius_;
+
+    XMVECTOR extentVec = XMVectorSet(extentX, extentY, extentZ, 0.0f);
+
+    return AABB(centerVec - extentVec, centerVec + extentVec);
+}
+
+XMMATRIX CapsuleShape::ComputeLocalInvInertia(float mass) const
+{
+    // 0. 치수 및 부피 계산
+    float r = radius_;
+    float h = height_; // 실린더 부분의 높이 (반구 제외)
+    float r2 = r * r;
+    float h2 = h * h;
+
+    // 부피 계산 (밀도는 균일하다고 가정)
+    float volCylinder = XM_PI * r2 * h;
+    float volSphere = (4.0f / 3.0f) * XM_PI * r * r2; // 4/3 * pi * r^3
+    float volTotal = volCylinder + volSphere;
+
+    // 1. 질량 분배 (Mass Ratio)
+    float density = mass / volTotal;
+    float mCyl = density * volCylinder; // 원기둥 부분 질량
+    float mSph = density * volSphere;   // 반구(구) 부분 질량
+
+    // 2. Y축 관성 모멘트 (Spinning along the axis)
+    // Cylinder: 1/2 * m * r^2
+    // Sphere:   2/5 * m * r^2
+    float Iyy = (0.5f * mCyl * r2) + (0.4f * mSph * r2);
+
+    // 3. X, Z축 관성 모멘트 (Rotating perpendicular to axis)
+    // Cylinder: 1/12 * m * (3r^2 + h^2)
+    float Icyl_xx = (1.0f / 12.0f) * mCyl * (3.0f * r2 + h2);
+
+    // Hemispheres: 평행축 정리 적용 (Parallel Axis Theorem)
+    // 반구 자체 관성(base 기준) + 이동(offset)
+    // I_hemi = I_sphere_center + m * dist^2
+    // 합산된 공식: mSph * (2/5 * r^2 + 0.25 * h^2)
+    // 설명: 두 반구를 합친 질량이 mSph이고, 각 반구의 중심이 +/- h/2 만큼 떨어져 있다고 근사
+    float Isph_xx = mSph * (0.4f * r2 + 0.25f * h2);
+
+    float Ixx = Icyl_xx + Isph_xx;
+    float Izz = Ixx;
+
+    // 4. 역행렬 반환 (무한대 질량 등 예외처리는 호출부 혹은 여기서 0 체크 필요)
+    return XMMatrixSet(
+        (1.0f / Ixx), 0, 0, 0,
+        0, (1.0f / Iyy), 0, 0,
+        0, 0, (1.0f / Izz), 0,
+        0, 0, 0, 1);
+}
+
+void CapsuleShape::SetRadius(float radius)
+{
+    radius_ = radius;
+}
+
+void CapsuleShape::SetHeight(float height)
 {
     height_ = height;
 }

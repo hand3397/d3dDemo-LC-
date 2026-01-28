@@ -17,16 +17,17 @@ int32_t operator|(ShapeType type1, ShapeType type2);
 
 struct ConvexInfo
 {
-	XMFLOAT3* points = nullptr;
-	XMFLOAT3* axes = nullptr;
+	XMFLOAT3* points = nullptr;	// box, cylinder, capsule
+	XMFLOAT3* axes = nullptr;	// box, cylinder, capsule
 
 	int32_t numPoints = 0;
-	int32_t numAxes = 0;
+	int32_t numAxes = 0; 
 
+	// center & halfsize is local value
 	XMFLOAT3 center = XMFLOAT3(0.f, 0.f, 0.f);
-	XMFLOAT3 halfSize = XMFLOAT3(0.f, 0.f, 0.f);; // local
+	XMFLOAT3 halfSize = XMFLOAT3(0.f, 0.f, 0.f);; // box 
 
-	float radius = 0.f;
+	float radius = 0.f;	//sphere, cylinder, capsule
 	float height = 0.f; //cylinder, capsule
 
 	ShapeType type;
@@ -95,6 +96,22 @@ public:
 protected:
 	float radius_;
 	float height_;
+};
+
+class CapsuleShape : public Shape
+{
+public:
+	CapsuleShape(const XMFLOAT3& center, float radius, float height);
+
+	virtual void GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const override;
+	virtual AABB GetAABB(const XMMATRIX& transform) const override;
+	virtual XMMATRIX ComputeLocalInvInertia(float mass) const override;
+
+	void SetRadius(float radius);
+	void SetHeight(float height);
+protected:
+	float radius_;
+	float height_; // cylinder height (capsule height = cylinder + radius * 2)
 };
 
 }

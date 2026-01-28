@@ -56,6 +56,8 @@ private:
         const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
         const XMMATRIX& world = XMMatrixIdentity(), const XMMATRIX& texTransform = XMMatrixIdentity(),
         SkinnedModelInstance* skinnedModelInstance = nullptr, const int32_t skinnedCBIndex = -1);
+
+    GameObject* AddCylinderObject(const XMFLOAT3& pos, const XMFLOAT3& rotate = XMFLOAT3(0.f, 0.f, 0.f));
     GameObject* AddBoxObject(const XMFLOAT3& pos, const XMFLOAT3& rotate = XMFLOAT3(0.f, 0.f, 0.f));
     GameObject* AddBallObject(const XMFLOAT3& pos);
 

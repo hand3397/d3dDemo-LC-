@@ -161,7 +161,7 @@ void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 	GeometryGenerator::MeshData wall = geoGen.CreateOnBox(1.0f, 3.0f, 0.1f, 1);
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(150.0f, 150.0f, 150, 150);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(1.0f, 20, 20);
-	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(1.0f, 1.0f, 4.0f, 20, 5);
+	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(1.0f, 1.0f, 2.0f, 20, 5);
 
 	//
 	// We are concatenating all the geometry into one big vertex/index buffer.  So
@@ -411,15 +411,14 @@ void Scene::BuildGameObjects()
 	}
 	*/
 
-	AddBoxObject(XMFLOAT3(0.f, 1.0f, 0.f));
-
-	for (int x = 1; x <= 5; x++) {
-		float dx = x * 1.0f;
-		AddBoxObject(XMFLOAT3(dx - 0.2f, 2.0f * dx + 1.2f, 0.f));
+	for (int x = 0; x < 5; x++) {
+		for (int y = 0; y < 5; y++) {
+			float dx = 2.0f * x;
+			float dy = 2.0f * y;
+			AddBoxObject(XMFLOAT3(dx - 5.0f, dy + 1.0f, 0.f));
+		}
 	}
-	
-	//auto box = AddBoxObject(XMFLOAT3(0.f, 20.f, 10.f), XMFLOAT3(XMConvertToRadians(50.f), 0.f, XMConvertToRadians(50.f)));
-	//box->GetRigidbody()->SetAngularVelocity(XMFLOAT3(10.f, 10.f, 10.f));
+	AddCylinderObject(XMFLOAT3(0.0f, 2.0f, -3.0f));
 }
 
 GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& transform, 
@@ -473,6 +472,43 @@ RenderItem* Scene::BuildRenderItem(const uint8_t renderLayer,
 	renderItemLayer_[renderLayer].push_back(rItem);
 	allRenderItems_.push_back(move(renderItem));
 	return rItem;
+}
+
+GameObject* Scene::AddCylinderObject(const XMFLOAT3& pos, const XMFLOAT3& rotate)
+{
+	XMMATRIX R = XMMatrixRotationRollPitchYaw(rotate.x, rotate.y, rotate.z);
+	XMMATRIX T = XMMatrixTranslation(pos.x, pos.y, pos.z);
+	XMMATRIX world = R * T;
+
+	GameObject* gameObject = gameObejctManager_.CreateObject(
+		XMFLOAT3(1.0f, 1.0f, 1.0f), rotate, pos, spe::RigidbodyType::DYNAMIC);
+
+	auto renderItems = { BuildRenderItem((uint8_t)RenderLayer::RENDER_OPAQUE,
+			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["cylinder"], materials_["stone0"].get(),
+			XMMatrixIdentity(), XMMatrixIdentity()) };
+
+	for (RenderItem* ri : renderItems) {
+		if (!ri) continue;
+		//XMStoreFloat4x4(&ri->world_, world);
+		gameObject->AddRenderItem(ri);
+	}
+
+	spe::Rigidbody* rigidbody = gameObject->GetRigidbody();
+	//rigidbody->SetLinearDamping(0.005f);
+	//rigidbody->SetAngularDamping(0.005f);
+	rigidbody->SetMass(10.0f);
+
+	spe::CylinderShape* cylinderShape = new spe::CylinderShape(XMFLOAT3(0.f, 0.f, 0.f), 1.0f, 2.0f);
+
+	spe::Fixture* fixture = new spe::Fixture(cylinderShape);
+	fixture->SetFriction(0.4f);
+	fixture->SetRestitution(0.4f);
+	rigidbody->AddFixture(fixture);
+	rigidbody->ComputeInertiaTensor();
+
+	physicsWorld_.AddRigidbody(rigidbody);
+
+	return gameObject;
 }
 
 GameObject* Scene::AddBoxObject(const XMFLOAT3& pos, const XMFLOAT3& rotate)
