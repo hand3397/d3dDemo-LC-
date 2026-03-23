@@ -3,8 +3,8 @@
 
 namespace spe {;
 
-const float ContactSolver::NORMAL_STOP_VELOCITY = 0.0001f;
-const float ContactSolver::TANGENT_STOP_VELOCITY = 0.0001f;
+const float ContactSolver::NORMAL_STOP_VELOCITY = 0.01f;
+const float ContactSolver::TANGENT_STOP_VELOCITY = 0.01f;
 const float ContactSolver::NORMAL_SLEEP_VELOCITY = 1.0f;
 const float ContactSolver::TANGENT_SLEEP_VELOCITY = 1.0f;
 const float ContactSolver::POSITION_SOLVE_ALPHA = 0.25f;
@@ -149,7 +149,7 @@ void ContactSolver::SolveVelocityConstraints()
 				}
 
 				angularVelBufferA -= XMVector3TransformNormal(XMVector3Cross(rA, normalImpulse), invInertiaA);
-				angularVelBufferB -= XMVector3TransformNormal(XMVector3Cross(rB, normalImpulse), invInertiaB);
+				angularVelBufferB += XMVector3TransformNormal(XMVector3Cross(rB, normalImpulse), invInertiaB);
 			}
 
 			// 접선 방향 상대속도 계산
@@ -239,10 +239,7 @@ void ContactSolver::SolvePositionConstraints()
 
 		int32_t numPoints = contactConstraint.numPoints;
 		int32_t indexA = contactConstraint.bodyIdA;
-		int32_t indexB = contactConstraint.bodyIdA;
-
-		const XMMATRIX invInertiaA = XMLoadFloat3x3(&contactConstraint.invInertiaA);
-		const XMMATRIX invInertiaB = XMLoadFloat3x3(&contactConstraint.invInertiaB);
+		int32_t indexB = contactConstraint.bodyIdB;
 
 		float sumMass = contactConstraint.invMassA + contactConstraint.invMassB;
 		float ratioA = contactConstraint.invMassA / sumMass;
