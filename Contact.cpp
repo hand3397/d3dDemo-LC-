@@ -1006,8 +1006,6 @@ namespace spe {
 
     void Contact::FreeConvexInfo(ConvexInfo& convexA, ConvexInfo& convexB) const
     {
-        delete[] convexA.axes;
-        delete[] convexB.axes;
         delete[] convexA.points;
         delete[] convexB.points;
     }

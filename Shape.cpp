@@ -169,7 +169,6 @@ void BoxShape::GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const
 
     // 축 저장
     out.numAxes = 3;
-    out.axes = new XMFLOAT3[3];
     XMStoreFloat3(&out.axes[0], XMVector3Normalize(halfX));
     XMStoreFloat3(&out.axes[1], XMVector3Normalize(halfY));
     XMStoreFloat3(&out.axes[2], XMVector3Normalize(halfZ));
@@ -247,8 +246,7 @@ void CylinderShape::GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) co
 
     // 축 저장
     out.numAxes = 1;
-    out.axes = new XMFLOAT3[1];
-    out.axes[0] = XMFLOAT3(0.f, 1.f, 0.f);
+    XMStoreFloat3(&out.axes[0], axisY);
 }
 
 AABB CylinderShape::GetAABB(const XMMATRIX& transform) const
@@ -333,8 +331,7 @@ void CapsuleShape::GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) con
 
     // 축 저장
     out.numAxes = 1;
-    out.axes = new XMFLOAT3[1];
-    out.axes[0] = XMFLOAT3(0.f, 1.f, 0.f);
+    XMStoreFloat3(&out.axes[0], axisY);
 }
 
 AABB CapsuleShape::GetAABB(const XMMATRIX& transform) const

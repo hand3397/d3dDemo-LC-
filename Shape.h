@@ -18,10 +18,10 @@ int32_t operator|(ShapeType type1, ShapeType type2);
 struct ConvexInfo
 {
 	XMFLOAT3* points = nullptr;	// box, cylinder, capsule
-	XMFLOAT3* axes = nullptr;	// box, cylinder, capsule
+	XMFLOAT3 axes[3];	// box, cylinder, capsule
 
 	int32_t numPoints = 0;
-	int32_t numAxes = 0; 
+	int32_t numAxes = 0; // numAxes <= 3
 
 	// center & halfsize is local value
 	XMFLOAT3 center = XMFLOAT3(0.f, 0.f, 0.f);

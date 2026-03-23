@@ -35,6 +35,7 @@ public:
 	static const float NORMAL_SLEEP_VELOCITY;
 	static const float TANGENT_SLEEP_VELOCITY;
 	static const float POSITION_SOLVE_ALPHA;
+	static const float CONTACT_SLOP;
 
 	int32_t numBodies_;
 	int32_t numContacts_;

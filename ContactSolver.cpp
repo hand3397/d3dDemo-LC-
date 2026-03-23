@@ -3,11 +3,12 @@
 
 namespace spe {;
 
-const float ContactSolver::NORMAL_STOP_VELOCITY = 0.01f;
-const float ContactSolver::TANGENT_STOP_VELOCITY = 0.01f;
-const float ContactSolver::NORMAL_SLEEP_VELOCITY = 0.01f;
-const float ContactSolver::TANGENT_SLEEP_VELOCITY = 0.01f;
+const float ContactSolver::NORMAL_STOP_VELOCITY = 0.0001f;
+const float ContactSolver::TANGENT_STOP_VELOCITY = 0.0001f;
+const float ContactSolver::NORMAL_SLEEP_VELOCITY = 1.0f;
+const float ContactSolver::TANGENT_SLEEP_VELOCITY = 1.0f;
 const float ContactSolver::POSITION_SOLVE_ALPHA = 0.25f;
+const float ContactSolver::CONTACT_SLOP = 0.01f;
 
 ContactSolver::ContactSolver(float duration, Contact** contacts,
 	PositionBuffer* positions, VelocityBuffer* velocities,
@@ -57,164 +58,226 @@ void ContactSolver::Destroy()
 
 void ContactSolver::SolveVelocityConstraints()
 {
-	for (uint32_t i = 0; i < numContacts_; i++) {
-		const ContactConstraint& contactConstraint = contactConstraints_[i];
-		uint32_t numPoints = contactConstraint.numPoints;
-		int32_t idxA = contactConstraint.bodyIdA;
-		int32_t idxB = contactConstraint.bodyIdB;
-
-		XMVECTOR positionA = XMLoadFloat3(&positions_[idxA].position);
-		XMVECTOR positionB = XMLoadFloat3(&positions_[idxB].position);
-
-		XMVECTOR linearVelocityA = XMLoadFloat3(&velocities_[idxA].linearVelocity) + XMLoadFloat3(&velocities_[idxA].linearVelocityBuffer);
-		XMVECTOR linearVelocityB = XMLoadFloat3(&velocities_[idxB].linearVelocity) + XMLoadFloat3(&velocities_[idxB].linearVelocityBuffer);
-		XMVECTOR angularVelocityA = XMLoadFloat3(&velocities_[idxA].angularVelocity) + XMLoadFloat3(&velocities_[idxA].angularVelocityBuffer);
-		XMVECTOR angularVelocityB = XMLoadFloat3(&velocities_[idxB].angularVelocity) + XMLoadFloat3(&velocities_[idxB].angularVelocityBuffer);
-
-		for (uint32_t j = 0; j < numPoints; ++j) {
-			ManifoldPoint& manifoldPoint = contactConstraint.points[j];
-
-			XMVECTOR rA = XMLoadFloat3(&manifoldPoint.pointA) - XMLoadFloat3(&contactConstraint.worldCenterA);
-			XMVECTOR rB = XMLoadFloat3(&manifoldPoint.pointB) - XMLoadFloat3(&contactConstraint.worldCenterB);
-
-			XMVECTOR velocityA = linearVelocityA + XMVector3Cross(angularVelocityA, rA);
-			XMVECTOR velocityB = linearVelocityB + XMVector3Cross(angularVelocityB, rB);
-			XMVECTOR relativeVelocity = velocityB - velocityA;
-
-			XMVECTOR normalVec = XMLoadFloat3(&manifoldPoint.normal);
-			float normalSpeed = VecDot(relativeVelocity, normalVec);
-
-			// 1. Normal Impulse
-			float inverseMasses = (contactConstraint.invMassA + contactConstraint.invMassB);
-			XMMATRIX invInertiaMatA = XMLoadFloat3x3(&contactConstraint.invInertiaA);
-			XMMATRIX invInertiaMatB = XMLoadFloat3x3(&contactConstraint.invInertiaB);
-			XMVECTOR torqueArmA = XMVector3Cross(rA, normalVec);
-			XMVECTOR torqueArmB = XMVector3Cross(rB, normalVec);
-
-			float normalEffectiveMassA = VecDot(torqueArmA, XMVector3Transform(torqueArmA, invInertiaMatA));
-			float normalEffectiveMassB = VecDot(torqueArmB, XMVector3Transform(torqueArmB, invInertiaMatB));
-			float kNormal = inverseMasses + normalEffectiveMassA + normalEffectiveMassB;
-
-			if (kNormal > 0.0f) {
-				float restitution = contactConstraint.restitution;
-				if (normalSpeed > 0.0f) restitution = 0.0f;
-
-				float rhs = -(1.0f + restitution) * normalSpeed;
-				float lambda = rhs / kNormal;
-
-				float oldNormalImpulse = manifoldPoint.normalImpulse;
-				float newNormalImpulse = std::max(0.0f, oldNormalImpulse + lambda);
-				lambda = newNormalImpulse - oldNormalImpulse;
-
-				manifoldPoint.normalImpulse = newNormalImpulse;
-
-				XMVECTOR impulseVec = lambda * normalVec;
-				linearVelocityA -= contactConstraint.invMassA * impulseVec;
-				linearVelocityB += contactConstraint.invMassB * impulseVec;
-				angularVelocityA -= XMVector3Transform(XMVector3Cross(rA, impulseVec), invInertiaMatA);
-				angularVelocityB += XMVector3Transform(XMVector3Cross(rB, impulseVec), invInertiaMatB);
-			}
-
-			// 2. Tangent Impulse (Friction)
-			velocityA = linearVelocityA + XMVector3Cross(angularVelocityA, rA);
-			velocityB = linearVelocityB + XMVector3Cross(angularVelocityB, rB);
-			relativeVelocity = velocityB - velocityA;
-
-			// [수정 1] 상대 속도에서 법선 성분을 제거하여 접선 속도 벡터를 구함
-			XMVECTOR tangentVelocity = relativeVelocity - (VecDot(relativeVelocity, normalVec) * normalVec);
-			float tangentSpeed = XMVectorGetX(XMVector3Length(tangentVelocity));
-
-			// [수정 2] 아주 작은 속도(EPSILON) 이하라면 마찰 계산을 건너뜀 (진동 방지)
-			if (tangentSpeed > 1e-6f) {
-				XMVECTOR tangentVec = tangentVelocity / tangentSpeed; // Normalize
-
-				XMVECTOR torqueArmA = XMVector3Cross(rA, tangentVec);
-				XMVECTOR torqueArmB = XMVector3Cross(rB, tangentVec);
-
-				// [중요] 관성 텐서 적용 확인
-				float tangentEffectiveMassA = VecDot(torqueArmA, XMVector3Transform(torqueArmA, invInertiaMatA));
-				float tangentEffectiveMassB = VecDot(torqueArmB, XMVector3Transform(torqueArmB, invInertiaMatB));
-
-				float kTangent = inverseMasses + tangentEffectiveMassA + tangentEffectiveMassB;
-
-				if (kTangent > 0.0f) {
-					float lambdaT = -tangentSpeed / kTangent;
-
-					// [수정 3] 누적 클램핑 (Accumulated Clamping)
-					// 기존 코드는 현재 스텝의 lambdaT만으로 클램핑하지만, 
-					// 올바른 물리 엔진은 "누적된 충격량"을 기준으로 클램핑해야 합니다.
-					float maxFriction = contactConstraint.friction * manifoldPoint.normalImpulse;
-					float oldTangentImpulse = manifoldPoint.tangentImpulse;
-					float newTangentImpulse = std::clamp(oldTangentImpulse + lambdaT, -maxFriction, maxFriction);
-
-					// 실제 이번 스텝에 가할 델타 충격량
-					lambdaT = newTangentImpulse - oldTangentImpulse;
-					manifoldPoint.tangentImpulse = newTangentImpulse; // 저장
-
-					XMVECTOR impulseVecT = lambdaT * tangentVec;
-
-					// 속도 갱신
-					linearVelocityA -= contactConstraint.invMassA * impulseVecT;
-					linearVelocityB += contactConstraint.invMassB * impulseVecT;
-					angularVelocityA -= XMVector3Transform(XMVector3Cross(rA, impulseVecT), invInertiaMatA);
-					angularVelocityB += XMVector3Transform(XMVector3Cross(rB, impulseVecT), invInertiaMatB);
-				}
-			}
-		}
-
-		XMStoreFloat3(&velocities_[idxA].linearVelocityBuffer, linearVelocityA - XMLoadFloat3(&velocities_[idxA].linearVelocity));
-		XMStoreFloat3(&velocities_[idxB].linearVelocityBuffer, linearVelocityB - XMLoadFloat3(&velocities_[idxB].linearVelocity));
-		XMStoreFloat3(&velocities_[idxA].angularVelocityBuffer, angularVelocityA - XMLoadFloat3(&velocities_[idxA].angularVelocity));
-		XMStoreFloat3(&velocities_[idxB].angularVelocityBuffer, angularVelocityB - XMLoadFloat3(&velocities_[idxB].angularVelocity));
-	}
-}
-
-void ContactSolver::SolvePositionConstraints()
-{
-	const float kSlop = 0.01f;
-	const float alpha = POSITION_SOLVE_ALPHA;
-
-	for (int i = 0; i < numContacts_; ++i) {
-		const ContactConstraint& contactConstraint = contactConstraints_[i];
-
+	for (uint32_t i = 0; i < numContacts_; ++i) {
+		Contact* contact = contacts_[i];
+		ContactConstraint& contactConstraint = contactConstraints_[i];
 		int32_t numPoints = contactConstraint.numPoints;
 		int32_t idxA = contactConstraint.bodyIdA;
 		int32_t idxB = contactConstraint.bodyIdB;
 
-		float sumMass = contactConstraint.invMassA + contactConstraint.invMassB;
-		if (sumMass == 0.0f) continue;
+		// Load XMVECTOR
+		XMVECTOR linearVelA = XMLoadFloat3(&velocities_[idxA].linearVelocity);
+		XMVECTOR linearVelB = XMLoadFloat3(&velocities_[idxB].linearVelocity);
+		XMVECTOR angularVelA = XMLoadFloat3(&velocities_[idxA].angularVelocity);
+		XMVECTOR angularVelB = XMLoadFloat3(&velocities_[idxB].angularVelocity);
 
+		XMVECTOR linearVelBufferA = XMLoadFloat3(&velocities_[idxA].linearVelocityBuffer);
+		XMVECTOR linearVelBufferB = XMLoadFloat3(&velocities_[idxB].linearVelocityBuffer);
+		XMVECTOR angularVelBufferA = XMLoadFloat3(&velocities_[idxA].angularVelocityBuffer);
+		XMVECTOR angularVelBufferB = XMLoadFloat3(&velocities_[idxB].angularVelocityBuffer);
+
+		bool isStop = true;
+
+		float seperationSum = 0.0f;
+
+		for (int32_t j = 0; j < numPoints; ++j) {
+			seperationSum += contactConstraint.points[j].separation;
+		}
+
+		// 두 물체가 멀어지고 있음 -> 충돌 처리 x
+		if (seperationSum <= 0.0f) {
+			continue;
+		}
+
+		for (int32_t j = 0; j < numPoints; ++j) {
+			ManifoldPoint& manifoldPoint = contactConstraint.points[j];
+			const float dSeparation = manifoldPoint.separation / seperationSum;
+
+			// 물체의 중심에서 충돌지점 까지의 벡터
+			const XMVECTOR rA = XMLoadFloat3(&manifoldPoint.pointA) - XMLoadFloat3(&contactConstraint.worldCenterA);
+			const XMVECTOR rB = XMLoadFloat3(&manifoldPoint.pointB) - XMLoadFloat3(&contactConstraint.worldCenterB);
+
+			const XMMATRIX invInertiaA = XMLoadFloat3x3(&contactConstraint.invInertiaA);
+			const XMMATRIX invInertiaB = XMLoadFloat3x3(&contactConstraint.invInertiaB);
+
+			// 상대 속도 계산
+			const XMVECTOR velocityA = linearVelA + XMVector3Cross(angularVelA, rA);
+			const XMVECTOR velocityB = linearVelB + XMVector3Cross(angularVelB, rB);
+			const XMVECTOR relativeVel = velocityB - velocityA;
+
+			// 법선 방향 속도
+			const XMVECTOR contactNormal = XMLoadFloat3(&manifoldPoint.normal);
+			const float normalSpeed = VecDot(relativeVel, contactNormal);
+
+			if (normalSpeed < -NORMAL_STOP_VELOCITY) {
+				// 충돌 처리를 위한 법선방향 충격량 구하기
+				// 충격량 = 속도 변화량 (반발 계수 포함) / 유효질량
+				const float oldNormalImpulse = manifoldPoint.normalImpulse;
+				float appliedNormalImpulse = -(1.0f + contactConstraint.restitution) * normalSpeed * dSeparation;
+				const float inverseMasses = (contactConstraint.invMassA + contactConstraint.invMassB);
+
+				// 노말 방향 유효질량 구하기
+				const XMVECTOR crossA = XMVector3Cross(contactNormal, rA);
+				float normalEffectiveMassA = VecDot(crossA, XMVector3TransformNormal(crossA, invInertiaA));
+				const XMVECTOR crossB = XMVector3Cross(contactNormal, rB);
+				float normalEffectiveMassB = VecDot(crossB, XMVector3TransformNormal(crossB, invInertiaB));
+
+				appliedNormalImpulse =
+					appliedNormalImpulse / (inverseMasses + normalEffectiveMassA + normalEffectiveMassB); // 유효질량의 합을 나눔
+
+				// 이전 프레임의 충격량과 이번 프레임의 충격량을 더해 새로운 충격량 만들기
+				const float newNormalImpulse = appliedNormalImpulse + oldNormalImpulse;
+
+				manifoldPoint.normalImpulse = newNormalImpulse;
+				 
+				// 충격량이 음수라면 충돌이 멀어지고 있음.
+				if (manifoldPoint.normalImpulse <= 0.0f) {
+					manifoldPoint.normalImpulse = 0.0f;
+				}
+
+				const XMVECTOR normalImpulse = appliedNormalImpulse * contactNormal;
+
+				linearVelBufferA -= contactConstraint.invMassA * normalImpulse;
+				linearVelBufferB += contactConstraint.invMassB * normalImpulse;
+
+				if (Vec3LengthSq(rA) == 0.0f) {
+					throw std::runtime_error("normal rA is zero!!");
+				}
+
+				if (Vec3LengthSq(rB) == 0.0f) {
+					throw std::runtime_error("normal rB is zero!!");
+				}
+
+				angularVelBufferA -= XMVector3TransformNormal(XMVector3Cross(rA, normalImpulse), invInertiaA);
+				angularVelBufferB -= XMVector3TransformNormal(XMVector3Cross(rB, normalImpulse), invInertiaB);
+			}
+
+			// 접선 방향 상대속도 계산
+			const XMVECTOR tangentVel = relativeVel - (normalSpeed * contactNormal);
+			const XMVECTOR tangent = XMVector3Normalize(tangentVel);
+			float tangentSpeed = VecDot(tangent, tangentVel);
+
+			if (tangentSpeed > TANGENT_STOP_VELOCITY) {
+				// 충격량 = 속도 변화량 (반발 계수 포함) / 유효질량
+				const float oldTangentImpulse = manifoldPoint.tangentImpulse;
+				float newTangentImpulse = tangentSpeed * dSeparation;
+
+				const float inverseMasses = (contactConstraint.invMassA + contactConstraint.invMassB);
+
+				// 접선 방향 유효질량 구하기
+				const XMVECTOR crossA = XMVector3Cross(tangent, rA);
+				const float tangentEffectiveMassA = VecDot(crossA, XMVector3TransformNormal(crossA, invInertiaA));
+				const XMVECTOR crossB = XMVector3Cross(tangent, rB);
+				const float tangentEffectiveMassB = VecDot(crossB, XMVector3TransformNormal(crossB, invInertiaB));
+
+				// 상대속도에 유효질량을 나눠 충격량 구하기
+				newTangentImpulse = newTangentImpulse / (inverseMasses + tangentEffectiveMassA + tangentEffectiveMassB);
+				newTangentImpulse += oldTangentImpulse;
+
+				const float maxFriction = contactConstraint.friction * manifoldPoint.normalImpulse;
+				// std::cout << "maxFriction: " << maxFriction << "\n";
+				// std::cout << "newTangentImpulse: " << newTangentImpulse << "\n";
+
+				newTangentImpulse = clamp(newTangentImpulse, -maxFriction, maxFriction);
+
+				manifoldPoint.tangentImpulse = newTangentImpulse;
+
+				const float appliedTangentImpulse = newTangentImpulse - oldTangentImpulse;
+
+				const XMVECTOR tangentImpulse = appliedTangentImpulse * tangent;
+				linearVelBufferA += contactConstraint.invMassA * tangentImpulse;
+				linearVelBufferB -= contactConstraint.invMassB * tangentImpulse;
+
+				if (Vec3LengthSq(rA) == 0.0f) {
+					throw std::runtime_error("tangent rA is zero!!");
+				}
+
+				if (Vec3LengthSq(rB) == 0.0f) {
+					throw std::runtime_error("tangent rB is zero!!");
+				}
+
+				if (Vec3LengthSq(tangent) == 0.0f) {
+					throw std::runtime_error("tangent vector is zero!!");
+				}
+
+				angularVelBufferA += XMVector3TransformNormal(XMVector3Cross(rA, tangentImpulse), invInertiaA);
+				angularVelBufferB -= XMVector3TransformNormal(XMVector3Cross(rB, tangentImpulse), invInertiaB);
+			}
+		}
+
+		// store XMVECTOR
+		linearVelA += linearVelBufferA;
+		linearVelB += linearVelBufferB;
+		angularVelA += angularVelBufferA;
+		angularVelB += angularVelBufferB;
+
+		XMStoreFloat3(&velocities_[idxA].linearVelocity, linearVelA);
+		XMStoreFloat3(&velocities_[idxB].linearVelocity, linearVelB);
+		XMStoreFloat3(&velocities_[idxA].angularVelocity, angularVelA);
+		XMStoreFloat3(&velocities_[idxB].angularVelocity, angularVelB);
+		// buffer 초기화
+		velocities_[idxA].linearVelocityBuffer = XMFLOAT3(0.f, 0.f, 0.f);
+		velocities_[idxB].linearVelocityBuffer = XMFLOAT3(0.f, 0.f, 0.f);
+		velocities_[idxA].angularVelocityBuffer = XMFLOAT3(0.f, 0.f, 0.f);
+		velocities_[idxB].angularVelocityBuffer = XMFLOAT3(0.f, 0.f, 0.f);
+	}
+
+	// for (int32_t i = 0; i < m_bodyCount; ++i)
+	// {
+
+		// std::cout << "\n\nafter velocity!!!\n";
+		// std::cout << "linear velocity: " << velocities_[i].linearVelocity.x << " " << velocities_[i].linearVelocity.y << " " << velocities_[i].linearVelocity.z << "\n";
+		// std::cout << "angular velocity: " << velocities_[i].angularVelocity.x << " " << velocities_[i].angularVelocity.y << " " << velocities_[i].angularVelocity.z << "\n";
+	// }
+}
+
+void ContactSolver::SolvePositionConstraints()
+{
+	for (uint32_t i = 0; i < numContacts_; ++i) {
+		Contact* contact = contacts_[i];
+		ContactConstraint& contactConstraint = contactConstraints_[i];
+
+		int32_t numPoints = contactConstraint.numPoints;
+		int32_t indexA = contactConstraint.bodyIdA;
+		int32_t indexB = contactConstraint.bodyIdA;
+
+		const XMMATRIX invInertiaA = XMLoadFloat3x3(&contactConstraint.invInertiaA);
+		const XMMATRIX invInertiaB = XMLoadFloat3x3(&contactConstraint.invInertiaB);
+
+		float sumMass = contactConstraint.invMassA + contactConstraint.invMassB;
 		float ratioA = contactConstraint.invMassA / sumMass;
 		float ratioB = contactConstraint.invMassB / sumMass;
 
-		XMVECTOR positionBufferA = XMLoadFloat3(&positions_[idxA].positionBuffer);
-		XMVECTOR positionBufferB = XMLoadFloat3(&positions_[idxB].positionBuffer);
+		// load XMVECTOR
+		XMVECTOR positionBufferA = XMLoadFloat3(&positions_[indexA].positionBuffer);
+		XMVECTOR positionBufferB = XMLoadFloat3(&positions_[indexB].positionBuffer);
 
-		for (uint32_t j = 0; j < numPoints; j++) {
-			const ManifoldPoint& manifoldPoint = contactConstraint.points[j];
+		for (int32_t j = 0; j < numPoints; j++) {
 
+			ManifoldPoint& manifoldPoint = contactConstraint.points[j];
+
+			const XMVECTOR contactNormal = XMLoadFloat3(&manifoldPoint.normal);
 			XMVECTOR movedPointA = XMLoadFloat3(&manifoldPoint.pointA) + positionBufferA;
 			XMVECTOR movedPointB = XMLoadFloat3(&manifoldPoint.pointB) + positionBufferB;
-			XMVECTOR normalVec = XMLoadFloat3(&manifoldPoint.normal); // Normal points A -> B
 
-			// [수정 핵심] B - A 순서로 계산해야 올바른 Signed Distance(침투시 음수)가 나옵니다.
-			float separation = VecDot(normalVec, movedPointB - movedPointA);
+			float separation = VecDot(contactNormal, (movedPointA - movedPointB));
 
-			// separation이 -kSlop보다 작으면(즉, 깊게 침투했으면) 보정
-			if (separation >= -kSlop) {
+			// 관통 해소된상태면 무시
+			if (separation < CONTACT_SLOP) {
 				continue;
 			}
 
-			// 침투 깊이(음수) * alpha = 보정량(양수 스칼라)
-			float correction = -separation * alpha;
-			XMVECTOR correctionVector = correction * normalVec;
+			// 관통 깊이에 따른 보정량 계산
+			float correction = separation * POSITION_SOLVE_ALPHA / numPoints;
+			XMVECTOR correctionVector = correction * contactNormal;
 
-			// A는 Normal 반대 방향(-), B는 Normal 방향(+)으로 밀어냄
 			positionBufferA -= correctionVector * ratioA;
 			positionBufferB += correctionVector * ratioB;
 		}
-		XMStoreFloat3(&positions_[idxA].positionBuffer, positionBufferA);
-		XMStoreFloat3(&positions_[idxB].positionBuffer, positionBufferB);
+
+		// store XMVECTOR
+		XMStoreFloat3(&positions_[indexA].positionBuffer, positionBufferA);
+		XMStoreFloat3(&positions_[indexB].positionBuffer, positionBufferB);
 	}
 }
 
@@ -223,27 +286,22 @@ void ContactSolver::CheckSleepContact()
 	for (uint32_t i = 0; i < numContacts_; i++) {
 		Contact* contact = contacts_[i];
 		const ContactConstraint& contactConstraint = contactConstraints_[i];
-		uint32_t pointCount = contactConstraint.numPoints;
-		int32_t indexA = contactConstraint.bodyIdA;
-		int32_t indexB = contactConstraint.bodyIdB;
+		const uint32_t numPoints = contactConstraint.numPoints;
+		const int32_t indexA = contactConstraint.bodyIdA;
+		const int32_t indexB = contactConstraint.bodyIdB;
 
-		XMVECTOR linearVelocityA = XMLoadFloat3(&velocities_[indexA].linearVelocity);
-		XMVECTOR linearVelocityB = XMLoadFloat3(&velocities_[indexB].linearVelocity);
-		XMVECTOR angularVelocityA = XMLoadFloat3(&velocities_[indexA].angularVelocity);
-		XMVECTOR angularVelocityB = XMLoadFloat3(&velocities_[indexB].angularVelocity);
-		XMVECTOR upVector = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+		const XMVECTOR relativeVelocity = XMLoadFloat3(&velocities_[indexA].linearVelocity) - XMLoadFloat3(&velocities_[indexB].linearVelocity);
+		const XMVECTOR relativeAngularVelocity = XMLoadFloat3(&velocities_[indexA].angularVelocity) - XMLoadFloat3(&velocities_[indexB].angularVelocity);
+		const XMVECTOR upVector = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
-		for (int32_t j = 0; j < pointCount; ++j) {
+		for (int32_t j = 0; j < numPoints; ++j) {
 			const ManifoldPoint& manifoldPoint = contactConstraint.points[j];
-
-			XMVECTOR relativeVelocity = linearVelocityA - linearVelocityB;
 
 			if (Vec3LengthSq(relativeVelocity) > NORMAL_SLEEP_VELOCITY) {
 				positions_[indexA].isNormalStop = false;
 				positions_[indexB].isNormalStop = false;
 			}
 
-			XMVECTOR relativeAngularVelocity = angularVelocityA - angularVelocityB;
 			if (Vec3LengthSq(relativeAngularVelocity) > TANGENT_SLEEP_VELOCITY) {
 				positions_[indexA].isTangentStop = false;
 				positions_[indexB].isTangentStop = false;
