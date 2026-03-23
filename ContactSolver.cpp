@@ -7,8 +7,8 @@ const float ContactSolver::NORMAL_STOP_VELOCITY = 0.01f;
 const float ContactSolver::TANGENT_STOP_VELOCITY = 0.01f;
 const float ContactSolver::NORMAL_SLEEP_VELOCITY = 1.0f;
 const float ContactSolver::TANGENT_SLEEP_VELOCITY = 1.0f;
-const float ContactSolver::POSITION_SOLVE_ALPHA = 0.25f;
-const float ContactSolver::CONTACT_SLOP = 0.01f;
+const float ContactSolver::POSITION_SOLVE_ALPHA = 0.3f;
+const float ContactSolver::CONTACT_SLOP = 0.005f;
 
 ContactSolver::ContactSolver(float duration, Contact** contacts,
 	PositionBuffer* positions, VelocityBuffer* velocities,
@@ -109,11 +109,14 @@ void ContactSolver::SolveVelocityConstraints()
 			const XMVECTOR contactNormal = XMLoadFloat3(&manifoldPoint.normal);
 			const float normalSpeed = VecDot(relativeVel, contactNormal);
 
+			float ;
+
 			if (normalSpeed < -NORMAL_STOP_VELOCITY) {
 				// 충돌 처리를 위한 법선방향 충격량 구하기
 				// 충격량 = 속도 변화량 (반발 계수 포함) / 유효질량
 				const float oldNormalImpulse = manifoldPoint.normalImpulse;
-				float appliedNormalImpulse = -(1.0f + contactConstraint.restitution) * normalSpeed * dSeparation;
+
+				float appliedNormalImpulse = -(1.0f + restitution = contactConstraint.restitution) * normalSpeed * dSeparation;
 				const float inverseMasses = (contactConstraint.invMassA + contactConstraint.invMassB);
 
 				// 노말 방향 유효질량 구하기
