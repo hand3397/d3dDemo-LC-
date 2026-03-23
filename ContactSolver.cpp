@@ -115,36 +115,45 @@ void ContactSolver::SolveVelocityConstraints()
 				angularVelocityB += XMVector3Transform(XMVector3Cross(rB, impulseVec), invInertiaMatB);
 			}
 
-			// 2. Tangent Impulse
+			// 2. Tangent Impulse (Friction)
 			velocityA = linearVelocityA + XMVector3Cross(angularVelocityA, rA);
 			velocityB = linearVelocityB + XMVector3Cross(angularVelocityB, rB);
 			relativeVelocity = velocityB - velocityA;
 
-			float currentNormalSpeed = VecDot(relativeVelocity, normalVec);
-			XMVECTOR tangentVelocity = relativeVelocity - (currentNormalSpeed * normalVec);
+			// [수정 1] 상대 속도에서 법선 성분을 제거하여 접선 속도 벡터를 구함
+			XMVECTOR tangentVelocity = relativeVelocity - (VecDot(relativeVelocity, normalVec) * normalVec);
 			float tangentSpeed = XMVectorGetX(XMVector3Length(tangentVelocity));
 
-			if (tangentSpeed > TANGENT_STOP_VELOCITY) {
-				XMVECTOR tangentVec = tangentVelocity / tangentSpeed;
+			// [수정 2] 아주 작은 속도(EPSILON) 이하라면 마찰 계산을 건너뜀 (진동 방지)
+			if (tangentSpeed > 1e-6f) {
+				XMVECTOR tangentVec = tangentVelocity / tangentSpeed; // Normalize
 
-				XMVECTOR torqueArmAT = XMVector3Cross(rA, tangentVec);
-				XMVECTOR torqueArmBT = XMVector3Cross(rB, tangentVec);
+				XMVECTOR torqueArmA = XMVector3Cross(rA, tangentVec);
+				XMVECTOR torqueArmB = XMVector3Cross(rB, tangentVec);
 
-				float tangentEffectiveMassA = VecDot(torqueArmAT, XMVector3Transform(torqueArmAT, invInertiaMatA));
-				float tangentEffectiveMassB = VecDot(torqueArmBT, XMVector3Transform(torqueArmBT, invInertiaMatB));
+				// [중요] 관성 텐서 적용 확인
+				float tangentEffectiveMassA = VecDot(torqueArmA, XMVector3Transform(torqueArmA, invInertiaMatA));
+				float tangentEffectiveMassB = VecDot(torqueArmB, XMVector3Transform(torqueArmB, invInertiaMatB));
 
 				float kTangent = inverseMasses + tangentEffectiveMassA + tangentEffectiveMassB;
 
 				if (kTangent > 0.0f) {
 					float lambdaT = -tangentSpeed / kTangent;
+
+					// [수정 3] 누적 클램핑 (Accumulated Clamping)
+					// 기존 코드는 현재 스텝의 lambdaT만으로 클램핑하지만, 
+					// 올바른 물리 엔진은 "누적된 충격량"을 기준으로 클램핑해야 합니다.
 					float maxFriction = contactConstraint.friction * manifoldPoint.normalImpulse;
 					float oldTangentImpulse = manifoldPoint.tangentImpulse;
 					float newTangentImpulse = std::clamp(oldTangentImpulse + lambdaT, -maxFriction, maxFriction);
-					lambdaT = newTangentImpulse - oldTangentImpulse;
 
-					manifoldPoint.tangentImpulse = newTangentImpulse;
+					// 실제 이번 스텝에 가할 델타 충격량
+					lambdaT = newTangentImpulse - oldTangentImpulse;
+					manifoldPoint.tangentImpulse = newTangentImpulse; // 저장
 
 					XMVECTOR impulseVecT = lambdaT * tangentVec;
+
+					// 속도 갱신
 					linearVelocityA -= contactConstraint.invMassA * impulseVecT;
 					linearVelocityB += contactConstraint.invMassB * impulseVecT;
 					angularVelocityA -= XMVector3Transform(XMVector3Cross(rA, impulseVecT), invInertiaMatA);

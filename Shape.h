@@ -32,6 +32,7 @@ struct ConvexInfo
 
 	ShapeType type;
 
+	// 도형의 점중 dir방향의 가장 먼 점을 반환하는 함수
 	XMVECTOR GetFarthestPoint(const XMVECTOR& dir) const;
 };
 

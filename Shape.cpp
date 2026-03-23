@@ -41,24 +41,6 @@ XMVECTOR ConvexInfo::GetFarthestPoint(const XMVECTOR& dir) const
         // 높이 오프셋: 중심에서 축 방향으로 위 또는 아래로 이동
         XMVECTOR heightOffset = axisVec * halfHeight * sign;
 
-        // 최종 위치 = 중심 + 높이 오프셋 + 반구
-        return center + heightOffset + radius * dir;
-    }
-        break;
-    case ShapeType::CAPSULE:
-    {
-        XMVECTOR axisVec = XMLoadFloat3(&axes[0]);
-        float radius = this->radius;
-        float halfHeight = this->height * 0.5f;
-
-        // 1. 높이(Height) 성분 계산: 윗면이냐 아랫면이냐
-        // 방향 벡터(dir)가 축(axis)과 같은 방향이면 위, 반대면 아래
-        float dirDotAxis = VecDot(dir, axisVec);
-        float sign = (dirDotAxis >= 0.0f) ? 1.0f : -1.0f;
-
-        // 높이 오프셋: 중심에서 축 방향으로 위 또는 아래로 이동
-        XMVECTOR heightOffset = axisVec * halfHeight * sign;
-
         // 2. 반지름(Radius) 성분 계산: 원의 어느 지점이냐
         // dir에서 축 성분을 제거하여, 수평(원판) 평면 상의 방향을 구함
         XMVECTOR perpDir = dir - (axisVec * dirDotAxis);
@@ -75,6 +57,24 @@ XMVECTOR ConvexInfo::GetFarthestPoint(const XMVECTOR& dir) const
 
         // 최종 위치 = 중심 + 높이 오프셋 + 반지름 오프셋
         return center + heightOffset + radiusOffset;
+    }
+        break;
+    case ShapeType::CAPSULE:
+    {
+        XMVECTOR axisVec = XMLoadFloat3(&axes[0]);
+        float radius = this->radius;
+        float halfHeight = this->height * 0.5f;
+
+        // 1. 높이(Height) 성분 계산: 윗면이냐 아랫면이냐
+        // 방향 벡터(dir)가 축(axis)과 같은 방향이면 위, 반대면 아래
+        float dirDotAxis = VecDot(dir, axisVec);
+        float sign = (dirDotAxis >= 0.0f) ? 1.0f : -1.0f;
+
+        // 높이 오프셋: 중심에서 축 방향으로 위 또는 아래로 이동
+        XMVECTOR heightOffset = axisVec * halfHeight * sign;
+
+        // 최종 위치 = 중심 + 높이 오프셋 + 반구
+        return center + heightOffset + radius * dir;
     }
         break;
     }
@@ -320,7 +320,7 @@ CapsuleShape::CapsuleShape(const XMFLOAT3& center, float radius, float height) :
 
 void CapsuleShape::GetConvexInfo(const XMMATRIX& transform, ConvexInfo& out) const
 {
-    out.type = ShapeType::CYLINDER;
+    out.type = ShapeType::CAPSULE;
 
     // world center 계산
     XMVECTOR worldCenter = XMVector3TransformCoord(XMLoadFloat3(&center_), transform);
