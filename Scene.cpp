@@ -12,8 +12,10 @@ Scene::~Scene()
 		layer.clear();
 }
 
-void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
+void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, int clientWidth, int clientHeight)
 {
+	OnResize(clientWidth, clientHeight);
+
 	player_ = make_unique<Player>(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 5.0f, -10.0f));
 	mainCamera_ = player_->GetCamera();
 	mainCamera_->RotatePitch(0.4f);
@@ -25,10 +27,23 @@ void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 	physicsWorld_.InitSceneObjects();
 }
 
+void Scene::OnResize(int clientWidth, int clientHeight)
+{
+	clientWidth_ = clientWidth;
+	clientHeight_ = clientHeight;
+}
+
 void Scene::KeyInput(const KeyInputManager& keyInput, float dt)
 {
+	// 화면 클릭
+	if (keyInput.WasMousePressed(MouseButton::LMB)) {
+		int dx, dy;
+		keyInput.GetMousePos(dx, dy);
+		Pick(dx, dy);
+	}
+	
 	if (player_)
-		player_->KeyInput(keyInput, dt);
+		player_->KeyInput(keyInput, dt);	
 
 	if (keyInput.WasKeyPressed('O') && player_) {
 		auto ball = AddBallObject(player_->GetPosition());
@@ -658,4 +673,11 @@ void Scene::LoadTexture(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList
 
 void Scene::AnimateMaterials(float dt)
 {
+}
+
+void Scene::Pick(int mouseX, int mouseY)
+{
+	if (mainCamera_ != nullptr) {
+		ray = mainCamera_->GetPickingRay(mouseX, mouseY, clientWidth_, clientHeight_);
+	}
 }

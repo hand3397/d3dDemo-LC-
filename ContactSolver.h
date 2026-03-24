@@ -32,8 +32,8 @@ public:
 
 	static const float NORMAL_STOP_VELOCITY;
 	static const float TANGENT_STOP_VELOCITY;
-	static const float NORMAL_SLEEP_VELOCITY;
-	static const float TANGENT_SLEEP_VELOCITY;
+	static const float NORMAL_SLEEP_VELOCITY_SQ;
+	static const float TANGENT_SLEEP_VELOCITY_SQ;
 	static const float POSITION_SOLVE_ALPHA;
 	static const float CONTACT_SLOP;
 

@@ -1,5 +1,8 @@
 #pragma once
-#include "d3dUtil.h"
+#include <DirectXMath.h>
+#include <DirectXCollision.h>
+#include "MathHelper.h"
+#include "Collision.h"
 
 enum class CameraMode
 {
@@ -47,6 +50,9 @@ public:
 	float GetFarWindowWidth()const;
 	float GetFarWindowHeight()const;
 	
+	// camera picking
+	const spe::Ray GetPickingRay(int mouseX, int mouseY, int clientWidth, int clientHeight) const;
+
 	// Set frustum.
 	void SetLens(float fovY, float aspect, float zn, float zf);
 

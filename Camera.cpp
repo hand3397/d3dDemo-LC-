@@ -129,6 +129,39 @@ float Camera::GetFarWindowHeight()const
 	return farWindowHeight_;
 }
 
+const spe::Ray Camera::GetPickingRay(int mouseX, int mouseY, int clientWidth, int clientHeight) const
+{
+	spe::Ray ray;
+
+	// 1. 명시적 캐스팅으로 의도치 않은 정수 나눗셈(Truncation)을 원천 차단
+	float fX = static_cast<float>(mouseX);
+	float fY = static_cast<float>(mouseY);
+	float fWidth = static_cast<float>(clientWidth);
+	float fHeight = static_cast<float>(clientHeight);
+
+	// 2. NDC 변환 및 투영 행렬 역산
+	// (projMat_ 가 Transpose 되지 않은 Row-major 상태여야 정상 작동합니다)
+	float vx = ((2.0f * fX) / fWidth - 1.0f) / projMat_(0, 0);
+	float vy = (-(2.0f * fY) / fHeight + 1.0f) / projMat_(1, 1);
+
+	// View 공간 기준 반직선의 방향 (DirectX 표준 Left-Handed 기준 +Z 방향)
+	XMVECTOR rayDir = XMVectorSet(vx, vy, 1.0f, 0.0f);
+
+	// 3. World 공간으로 변환
+	XMMATRIX viewMat = GetView(); // *주의: Transpose된 상태가 아니어야 함
+	XMMATRIX invView = XMMatrixInverse(nullptr, viewMat);
+
+	XMVECTOR rayDirWorld = XMVector3TransformNormal(rayDir, invView);
+	XMStoreFloat3(&ray.dir, XMVector3Normalize(rayDirWorld));
+
+	// 4. 확실한 원점(Origin) 보장
+	// position_ 변수를 쓰는 대신, invView의 4번째 행(Translation)을 가져오면 
+	// 현재 View 행렬이 바라보고 있는 정확한 월드 위치를 100% 동기화하여 가져옵니다.
+	XMStoreFloat3(&ray.vertex, invView.r[3]);
+
+	return ray;
+}
+
 void Camera::SetLens(float fovY, float aspect, float zn, float zf)
 {
 	// cache properties

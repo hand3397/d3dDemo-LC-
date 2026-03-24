@@ -9,21 +9,21 @@ LRESULT CALLBACK
 MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	// hwnd를 전달합니다. WM_CREATE 등 메시지는 CreateWindow가 반환되기 전,
-	// mhMainWnd가 유효하지 않을 때도 받을 수 있습니다.
+	// hMainWnd_가 유효하지 않을 때도 받을 수 있습니다.
 	return D3DApp::GetApp()->MsgProc(hwnd, msg, wParam, lParam);
 }
 
-D3DApp* D3DApp::mApp = nullptr;
+D3DApp* D3DApp::app_ = nullptr;
 D3DApp* D3DApp::GetApp()
 {
-	return mApp;
+	return app_;
 }
 
-D3DApp::D3DApp(HINSTANCE hInstance) : mhAppInst(hInstance)
+D3DApp::D3DApp(HINSTANCE hInstance) : hAppInst_(hInstance)
 {
 	// 한 번에 하나의 D3DApp만 생성될 수 있습니다.
-	assert(mApp == nullptr);
-	mApp = this;
+	assert(app_ == nullptr);
+	app_ = this;
 }
 
 D3DApp::~D3DApp()
@@ -32,24 +32,24 @@ D3DApp::~D3DApp()
 
 HINSTANCE D3DApp::AppInst()const
 {
-	return mhAppInst;
+	return hAppInst_;
 }
 
 HWND D3DApp::MainWnd()const
 {
-	return mhMainWnd;
+	return hMainWnd_;
 }
 
 float D3DApp::AspectRatio()const
 {
-	return static_cast<float>(mClientWidth) / mClientHeight;
+	return static_cast<float>(clientWidth_) / clientHeight_;
 }
 
 int D3DApp::Run()
 {
 	MSG msg = { 0 };
 
-	mTimer.Reset();
+	gameTimer_.Reset();
 
 	while (msg.message != WM_QUIT) {
 		// 윈도우 메시지가 있으면 처리합니다.
@@ -59,13 +59,13 @@ int D3DApp::Run()
 		}
 		// 메시지가 없으면 애니메이션/게임 로직을 처리합니다.
 		else {
-			mTimer.Tick();
+			gameTimer_.Tick();
 
-			if (!mAppPaused) {
+			if (!appPaused_) {
 				CalculateFrameStats();
-				KeyInput(mTimer);
-				Update(mTimer);
-				Draw(mTimer);
+				KeyInput(gameTimer_);
+				Update(gameTimer_);
+				Draw(gameTimer_);
 			}
 			else {
 				Sleep(100);
@@ -73,8 +73,8 @@ int D3DApp::Run()
 		}
 	}
 
-	if (renderer)
-		renderer->FlushCommandQueue();
+	if (renderer_)
+		renderer_->FlushCommandQueue();
 
 	return (int)msg.wParam;
 }
@@ -84,8 +84,8 @@ bool D3DApp::Initialize()
 	if (!InitMainWindow())
 		return false;
 
-	renderer = make_unique<Renderer>();
-	if (!renderer->InitDirect3D(mhMainWnd, mClientWidth, mClientHeight))
+	renderer_ = make_unique<Renderer>();
+	if (!renderer_->InitDirect3D(hMainWnd_, clientWidth_, clientHeight_))
 		return false;
 
 	return true;
@@ -93,7 +93,7 @@ bool D3DApp::Initialize()
 
 void D3DApp::OnResize()
 {
-	renderer->OnResize(mClientWidth, mClientHeight);
+	renderer_->OnResize(clientWidth_, clientHeight_);
 }
 
 LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -104,46 +104,46 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		// 활성화되면 다시 시작합니다.
 	case WM_ACTIVATE:
 		if (LOWORD(wParam) == WA_INACTIVE) {
-			mAppPaused = true;
-			mTimer.Stop();
+			appPaused_ = true;
+			gameTimer_.Stop();
 		}
 		else {
-			mAppPaused = false;
-			mTimer.Start();
+			appPaused_ = false;
+			gameTimer_.Start();
 		}
 		return 0;
 
 		// WM_SIZE는 사용자가 창 크기를 변경할 때 전송됩니다.
 	case WM_SIZE:
 		// 새 클라이언트 영역 크기를 저장합니다.
-		mClientWidth = LOWORD(lParam);
-		mClientHeight = HIWORD(lParam);
-		if (mHasD3dDevice) {
+		clientWidth_ = LOWORD(lParam);
+		clientHeight_ = HIWORD(lParam);
+		if (hasD3dDevice_) {
 			if (wParam == SIZE_MINIMIZED) {
-				mAppPaused = true;
-				mMinimized = true;
-				mMaximized = false;
+				appPaused_ = true;
+				minimized_ = true;
+				maximized_ = false;
 			}
 			else if (wParam == SIZE_MAXIMIZED) {
-				mAppPaused = false;
-				mMinimized = false;
-				mMaximized = true;
+				appPaused_ = false;
+				minimized_ = false;
+				maximized_ = true;
 				OnResize();
 			}
 			else if (wParam == SIZE_RESTORED) {
 				// 최소화 상태에서 복원?
-				if (mMinimized) {
-					mAppPaused = false;
-					mMinimized = false;
+				if (minimized_) {
+					appPaused_ = false;
+					minimized_ = false;
 					OnResize();
 				}
 				// 최대화 상태에서 복원?
-				else if (mMaximized) {
-					mAppPaused = false;
-					mMaximized = false;
+				else if (maximized_) {
+					appPaused_ = false;
+					maximized_ = false;
 					OnResize();
 				}
-				else if (mResizing) {
+				else if (resizing_) {
 					// 사용자가 창 크기 조절 막대를 드래그하는 동안에는
 					// 여기서 버퍼를 리사이즈하지 않습니다.
 					// 사용자가 막대를 계속 드래그하면 WM_SIZE 메시지가
@@ -162,17 +162,17 @@ LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 		// WM_ENTERSIZEMOVE는 사용자가 창 크기 조절 막대를 잡으면 전송됩니다.
 	case WM_ENTERSIZEMOVE:
-		mAppPaused = true;
-		mResizing = true;
-		mTimer.Stop();
+		appPaused_ = true;
+		resizing_ = true;
+		gameTimer_.Stop();
 		return 0;
 
 		// WM_EXITSIZEMOVE는 사용자가 창 크기 조절 막대를 놓으면 전송됩니다.
 		// 새 창 크기에 맞춰 모든 것을 재설정합니다.
 	case WM_EXITSIZEMOVE:
-		mAppPaused = false;
-		mResizing = false;
-		mTimer.Start();
+		appPaused_ = false;
+		resizing_ = false;
+		gameTimer_.Start();
 		OnResize();
 		return 0;
 
@@ -223,7 +223,7 @@ bool D3DApp::InitMainWindow()
 	wc.lpfnWndProc = MainWndProc;
 	wc.cbClsExtra = 0;
 	wc.cbWndExtra = 0;
-	wc.hInstance = mhAppInst;
+	wc.hInstance = hAppInst_;
 	wc.hIcon = LoadIcon(0, IDI_APPLICATION);
 	wc.hCursor = LoadCursor(0, IDC_ARROW);
 	wc.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);
@@ -236,20 +236,20 @@ bool D3DApp::InitMainWindow()
 	}
 
 	// Compute window rectangle dimensions based on requested client area dimensions.
-	RECT R = { 0, 0, mClientWidth, mClientHeight };
+	RECT R = { 0, 0, clientWidth_, clientHeight_ };
 	AdjustWindowRect(&R, WS_OVERLAPPEDWINDOW, false);
 	int width = R.right - R.left;
 	int height = R.bottom - R.top;
 
-	mhMainWnd = CreateWindow(L"MainWnd", mMainWndCaption.c_str(),
-		WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, mhAppInst, 0);
-	if (!mhMainWnd) {
+	hMainWnd_ = CreateWindow(L"MainWnd", mainWndCaption_.c_str(),
+		WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, hAppInst_, 0);
+	if (!hMainWnd_) {
 		MessageBox(0, L"CreateWindow Failed.", 0, 0);
 		return false;
 	}
 
-	ShowWindow(mhMainWnd, SW_SHOW);
-	UpdateWindow(mhMainWnd);
+	ShowWindow(hMainWnd_, SW_SHOW);
+	UpdateWindow(hMainWnd_);
 
 	return true;
 }
@@ -266,18 +266,18 @@ void D3DApp::CalculateFrameStats()
 	frameCnt++;
 
 	// 1초 단위로 평균을 계산합니다.
-	if ((mTimer.TotalTime() - timeElapsed) >= 1.0f) {
+	if ((gameTimer_.TotalTime() - timeElapsed) >= 1.0f) {
 		float fps = (float)frameCnt; // fps = frameCnt / 1초
 		float mspf = 1000.0f / fps;  // 한 프레임당 밀리초
 
 		wstring fpsStr = to_wstring(fps);
 		wstring mspfStr = to_wstring(mspf);
 
-		wstring windowText = mMainWndCaption +
+		wstring windowText = mainWndCaption_ +
 			L"    fps: " + fpsStr +
 			L"   mspf: " + mspfStr;
 
-		SetWindowText(mhMainWnd, windowText.c_str());
+		SetWindowText(hMainWnd_, windowText.c_str());
 
 		// 다음 평균 계산을 위해 값 초기화
 		frameCnt = 0;

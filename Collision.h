@@ -116,5 +116,11 @@ struct Manifold
 	int32_t numPoints = 0;
 };
 
+struct Ray
+{
+    XMFLOAT3 vertex = XMFLOAT3(0.f, 0.f, 0.f);
+    XMFLOAT3 dir = XMFLOAT3(0.f, 0.f, 0.f);
+};
+
 }
 

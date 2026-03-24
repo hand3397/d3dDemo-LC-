@@ -571,6 +571,7 @@ void Renderer::BuildDebugMesh()
 		0, &readRange, reinterpret_cast<void**>(&mappedData_)));
 }
 
+// 디버그용 메시나 선 그리기
 void Renderer::UpdateDebugMesh(Scene* scene)
 {
 	vector<ColorVertex> vertices;
@@ -683,6 +684,12 @@ void Renderer::UpdateDebugMesh(Scene* scene)
 	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(5.f, 0.f, 0.f), DirectX::Colors::Red);
 	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(0.f, 5.f, 0.f), DirectX::Colors::Green);
 	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(0.f, 0.f, 5.f), DirectX::Colors::Blue);
+
+	// pickingRay
+	XMFLOAT3 p1, p2;
+	XMStoreFloat3(&p1, XMLoadFloat3(&scene->ray.vertex));
+	XMStoreFloat3(&p2, XMLoadFloat3(&scene->ray.vertex) + XMLoadFloat3(&scene->ray.dir) * 1000);
+	pushLine(p1, p2, DirectX::Colors::Orange);
 	//---------------------------
 
 	/*

@@ -3,10 +3,10 @@
 
 namespace spe {;
 
-const float ContactSolver::NORMAL_STOP_VELOCITY = 0.01f;
-const float ContactSolver::TANGENT_STOP_VELOCITY = 0.01f;
-const float ContactSolver::NORMAL_SLEEP_VELOCITY = 1.0f;
-const float ContactSolver::TANGENT_SLEEP_VELOCITY = 1.0f;
+const float ContactSolver::NORMAL_STOP_VELOCITY = 0.001f;
+const float ContactSolver::TANGENT_STOP_VELOCITY = 0.001f;
+const float ContactSolver::NORMAL_SLEEP_VELOCITY_SQ = 0.1f;
+const float ContactSolver::TANGENT_SLEEP_VELOCITY_SQ = 0.1f;
 const float ContactSolver::POSITION_SOLVE_ALPHA = 0.3f;
 const float ContactSolver::CONTACT_SLOP = 0.005f;
 
@@ -109,14 +109,12 @@ void ContactSolver::SolveVelocityConstraints()
 			const XMVECTOR contactNormal = XMLoadFloat3(&manifoldPoint.normal);
 			const float normalSpeed = VecDot(relativeVel, contactNormal);
 
-			float ;
-
 			if (normalSpeed < -NORMAL_STOP_VELOCITY) {
 				// 충돌 처리를 위한 법선방향 충격량 구하기
 				// 충격량 = 속도 변화량 (반발 계수 포함) / 유효질량
 				const float oldNormalImpulse = manifoldPoint.normalImpulse;
 
-				float appliedNormalImpulse = -(1.0f + restitution = contactConstraint.restitution) * normalSpeed * dSeparation;
+				float appliedNormalImpulse = -(1.0f + contactConstraint.restitution) * normalSpeed * dSeparation;
 				const float inverseMasses = (contactConstraint.invMassA + contactConstraint.invMassB);
 
 				// 노말 방향 유효질량 구하기
@@ -225,13 +223,6 @@ void ContactSolver::SolveVelocityConstraints()
 		velocities_[idxB].angularVelocityBuffer = XMFLOAT3(0.f, 0.f, 0.f);
 	}
 
-	// for (int32_t i = 0; i < m_bodyCount; ++i)
-	// {
-
-		// std::cout << "\n\nafter velocity!!!\n";
-		// std::cout << "linear velocity: " << velocities_[i].linearVelocity.x << " " << velocities_[i].linearVelocity.y << " " << velocities_[i].linearVelocity.z << "\n";
-		// std::cout << "angular velocity: " << velocities_[i].angularVelocity.x << " " << velocities_[i].angularVelocity.y << " " << velocities_[i].angularVelocity.z << "\n";
-	// }
 }
 
 void ContactSolver::SolvePositionConstraints()
@@ -297,22 +288,22 @@ void ContactSolver::CheckSleepContact()
 		for (int32_t j = 0; j < numPoints; ++j) {
 			const ManifoldPoint& manifoldPoint = contactConstraint.points[j];
 
-			if (Vec3LengthSq(relativeVelocity) > NORMAL_SLEEP_VELOCITY) {
+			if (Vec3LengthSq(relativeVelocity) > NORMAL_SLEEP_VELOCITY_SQ) {
 				positions_[indexA].isNormalStop = false;
 				positions_[indexB].isNormalStop = false;
 			}
 
-			if (Vec3LengthSq(relativeAngularVelocity) > TANGENT_SLEEP_VELOCITY) {
+			if (Vec3LengthSq(relativeAngularVelocity) > TANGENT_SLEEP_VELOCITY_SQ) {
 				positions_[indexA].isTangentStop = false;
 				positions_[indexB].isTangentStop = false;
 			}
 
 			float normalDotUpVector = VecDot(XMLoadFloat3(&manifoldPoint.normal), upVector);
 			if (normalDotUpVector < -0.3f) {
-				positions_[indexA].isNormal = true;
+				positions_[indexA].isSupported = true;
 			}
 			if (normalDotUpVector > 0.3f) {
-				positions_[indexB].isNormal = true;
+				positions_[indexB].isSupported = true;
 			}
 		}
 	}

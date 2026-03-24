@@ -18,8 +18,6 @@ void spe::BoxToCylinderContact::FindCollisionPoints(const ConvexInfo& boxA, cons
     Face refFace, incFace;
     SetBoxFace(refFace, boxA, resultEPA.normal);
     SetCylinderFace(incFace, cylinderB, -resultEPA.normal);
-
-    cout << cylinderB.axes[0].x << ", " << cylinderB.axes[0].y << ", " << cylinderB.axes[0].z << '\n';
     
     ContactFace contactFace;
     ComputeContactPolygon(contactFace, refFace, incFace);

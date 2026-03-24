@@ -73,7 +73,9 @@ XMVECTOR Player::GetRightXZ() const
 void Player::KeyInput(const KeyInputManager& keyInput, float dt)
 {
     //mouse input
-    if (keyInput.IsMouseDown(MouseButton::LMB)) {
+    
+    // 카메라 회전
+    if (keyInput.IsMouseDown(MouseButton::RMB)) {
         int dx, dy;
         keyInput.GetMouseDelta(dx, dy);
 

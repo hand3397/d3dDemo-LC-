@@ -25,6 +25,7 @@ public:
     void DeleteRigidbody(Rigidbody* rigidbody);
     void Clear();
 
+    Ray pickingRay;
 private:
     Scene* scene_;
 

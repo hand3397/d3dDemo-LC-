@@ -15,7 +15,8 @@ public:
     Scene();
     ~Scene();
     
-    void InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
+    void InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, int clientWidth, int clientHeight);
+    void OnResize(int clientWidth, int clientHeight);
 
     void KeyInput(const KeyInputManager& keyInput, float dt);
     void Update(const GameTimer& gt);
@@ -41,6 +42,8 @@ public:
     const SkinnedData* GetSkinnedData(const string& name) const;
     unordered_map<string, unique_ptr<SkinnedModelInstance>>& GetSkinnedModelInsts();
     SkinnedModelInstance* GetSkinnedModelInst(const string& name);
+
+    spe::Ray ray;
 
 private:
 
@@ -69,6 +72,7 @@ private:
 
     void AnimateMaterials(float dt);
 
+    void Pick(int mouseX, int mouseY);
 private:
     unique_ptr<Player> player_;
 
@@ -90,4 +94,6 @@ private:
     unordered_map<string, unique_ptr<SkinnedModelInstance>> skinnedModelInsts_;
 
     spe::PhysicsWorld physicsWorld_;
+
+    int clientWidth_, clientHeight_;
 };

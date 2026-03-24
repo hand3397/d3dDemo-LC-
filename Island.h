@@ -11,7 +11,7 @@ struct PositionBuffer
 	XMFLOAT3 positionBuffer;
 	bool isNormalStop = true;
 	bool isTangentStop = true;
-	bool isNormal = false;
+	bool isSupported = false; // 해당 물체가 바닥으로부터 지지받고 있는가?
 };
 
 // contact solve중 변하는 velocity값을 buffer에 저장한 뒤 sovle가 모두 완료된 뒤 적용한다.

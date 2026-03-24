@@ -28,7 +28,7 @@ private:
 
 	virtual void KeyInput(const GameTimer& gt);
 private:
-	unique_ptr<Scene> scene;
+	unique_ptr<Scene> scene_;
 };
 
 void CreateConsole()
@@ -77,20 +77,20 @@ Direct3DDemo::~Direct3DDemo()
 
 bool Direct3DDemo::Initialize()
 {
-	mMainWndCaption = L"d3d_Demo";
-	mClientWidth = 1280;
-	mClientHeight = 720;
+	mainWndCaption_ = L"d3d_Demo";
+	clientWidth_ = 1280;
+	clientHeight_ = 720;
 
     if(!D3DApp::Initialize())
 		return false;
 	
-	scene = make_unique<Scene>();
+	scene_ = make_unique<Scene>();
 
-	renderer->CommandListReset();
-	scene.get()->InitScene(renderer->GetDevice(), renderer->GetCommandList());
-	scene.get()->GetCamera()->SetLens(0.25f * MathHelper::Pi, AspectRatio(), 0.1f, 1000.0f);
-	renderer.get()->InitScene(scene.get());
-	renderer->CommandListClose();
+	renderer_->CommandListReset();
+	scene_->InitScene(renderer_->GetDevice(), renderer_->GetCommandList(), clientWidth_, clientHeight_);
+	scene_->GetCamera()->SetLens(0.25f * MathHelper::Pi, AspectRatio(), 0.1f, 1000.0f);
+	renderer_->InitScene(scene_.get());
+	renderer_->CommandListClose();
 
 	return true;
 }
@@ -99,26 +99,27 @@ void Direct3DDemo::OnResize()
 {
 	// 창의 크기가 바뀌면 종횡비를 다시 갱신한다.
 	// 투영 행렬을 다시 계산한다.
-	Camera* camera = scene.get()->GetCamera();
+	Camera* camera = scene_->GetCamera();
 	if (camera)
 		camera->SetLens(0.25f * MathHelper::Pi, AspectRatio(), 0.1f, 1000.0f);
 
-	renderer.get()->OnResize(mClientWidth, mClientHeight);
+	renderer_->OnResize(clientWidth_, clientHeight_);
+	scene_->OnResize(clientWidth_, clientHeight_);
 }
 
 void Direct3DDemo::Update(const GameTimer& gt)
 {
 	const float dt = gt.DeltaTime();
 	keyInput_.Update();
-	scene->Update(gt);
+	scene_->Update(gt);
 
 	// update CB
-	renderer->Update(gt, scene.get());
+	renderer_->Update(gt, scene_.get());
 }
 
 void Direct3DDemo::Draw(const GameTimer& gt)
 {
-	renderer->Draw(scene.get());
+	renderer_->Draw(scene_.get());
 }
 
 void Direct3DDemo::KeyInput(const GameTimer& gt)
@@ -126,11 +127,11 @@ void Direct3DDemo::KeyInput(const GameTimer& gt)
 	float dt = gt.DeltaTime();
 	
 	// Mouse
-	if (keyInput_.WasMousePressed(MouseButton::LMB))
-		SetCapture(mhMainWnd);
-	if (keyInput_.WasMouseReleased(MouseButton::LMB))
+	if (keyInput_.WasMousePressed(MouseButton::LMB) || keyInput_.WasMousePressed(MouseButton::RMB))
+		SetCapture(hMainWnd_);
+	if (keyInput_.WasMouseReleased(MouseButton::LMB) || keyInput_.WasMouseReleased(MouseButton::RMB))
 		ReleaseCapture();
 
 	// KeyBoard
-	scene->KeyInput(keyInput_, dt);
+	scene_->KeyInput(keyInput_, dt);
 }

@@ -6,8 +6,8 @@ namespace spe {;
 
     const uint32_t Island::VELOCITY_ITERATION = 10;
     const uint32_t Island::POSITION_ITERATION = 10;
-    const float Island::STOP_LINEAR_VELOCITY = 0.1f;
-    const float Island::STOP_ANGULAR_VELOCITY = 0.1f;
+    const float Island::STOP_LINEAR_VELOCITY_SQ = 0.05f;
+    const float Island::STOP_ANGULAR_VELOCITY_SQ = 0.05f;
 
     Island::Island(uint32_t bodyCount, uint32_t contactCount) :
         positions_(nullptr), velocities_(nullptr)
@@ -63,15 +63,15 @@ namespace spe {;
             }
 
             // [수정] 속도 계산 시 Buffer(충격량)를 포함하도록 수정
-            XMVECTOR finalLinVel = XMLoadFloat3(&velocities_[i].linearVelocity) + XMLoadFloat3(&velocities_[i].linearVelocityBuffer);
-            XMVECTOR finalAngVel = XMLoadFloat3(&velocities_[i].angularVelocity) + XMLoadFloat3(&velocities_[i].angularVelocityBuffer);
+            XMVECTOR finallinearVel = XMLoadFloat3(&velocities_[i].linearVelocity) + XMLoadFloat3(&velocities_[i].linearVelocityBuffer);
+            XMVECTOR finalAngularVel = XMLoadFloat3(&velocities_[i].angularVelocity) + XMLoadFloat3(&velocities_[i].angularVelocityBuffer);
 
-            if (positions_[i].isNormalStop && positions_[i].isTangentStop && positions_[i].isNormal &&
-                XMVectorGetX(XMVector3LengthEst(finalLinVel)) < STOP_LINEAR_VELOCITY &&
-                XMVectorGetX(XMVector3LengthEst(finalAngVel)) < STOP_ANGULAR_VELOCITY) {
+            if (positions_[i].isNormalStop && positions_[i].isTangentStop && positions_[i].isSupported &&
+                Vec3LengthSq(finallinearVel) < STOP_LINEAR_VELOCITY_SQ &&
+                Vec3LengthSq(finalAngularVel) < STOP_ANGULAR_VELOCITY_SQ) {
 
-                finalLinVel = XMVectorZero();
-                finalAngVel = XMVectorZero();
+                finallinearVel = XMVectorZero();
+                finalAngularVel = XMVectorZero();
                 body->ClearFlag(RigidbodyFlag::AWAKE);
                 body->ClearAcclerations();
             }
@@ -86,8 +86,8 @@ namespace spe {;
             body->SetPosition(newPostion);
 
             XMFLOAT3 finalLinVelF3, finalAngVelF3;
-            XMStoreFloat3(&finalLinVelF3, finalLinVel);
-            XMStoreFloat3(&finalAngVelF3, finalAngVel);
+            XMStoreFloat3(&finalLinVelF3, finallinearVel);
+            XMStoreFloat3(&finalAngVelF3, finalAngularVel);
 
             body->SetLinearVelocity(finalLinVelF3);
             body->SetAngularVelocity(finalAngVelF3);
