@@ -9,13 +9,7 @@ ContactManager::ContactManager() :
 
 ContactManager::~ContactManager()
 {
-    Contact* contact = contacts_;
-    while (contact) {
-        Contact* next = contact->GetNext();
-        delete contact;
-        contact = next;
-    }
-    contacts_ = nullptr;
+    ClearContact();
 }
 
 void ContactManager::AddPair(void* proxyUserDataA, void* proxyUserDataB)
@@ -80,6 +74,37 @@ void ContactManager::AddPair(void* proxyUserDataA, void* proxyUserDataB)
         bodyLinkB->prev = linkB;
     }
     bodyB->SetContactLink(linkB);
+}
+
+void ContactManager::RemoveContact(Contact* target)
+{
+    numContacts_--;
+
+    Contact* contact = contacts_;
+    while (contact != nullptr) {
+        if (contact == target) {
+            delete contact;
+            contact = nullptr;
+            break;
+        }
+        contact = contact->GetNext();
+    }
+
+    if (numContacts_ == 0)
+        contacts_ = nullptr;
+}
+
+void ContactManager::ClearContact()
+{
+    numContacts_ = 0;
+
+    Contact* contact = contacts_;
+    while (contact) {
+        Contact* next = contact->GetNext();
+        delete contact;
+        contact = next;
+    }
+    contacts_ = nullptr;
 }
 
 void ContactManager::FindNewContacts()

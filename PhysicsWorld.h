@@ -22,7 +22,7 @@ public:
     // set Rigidbodies
     void InitSceneObjects();
     void AddRigidbody(Rigidbody* rigidbody);
-    void DeleteRigidbody(Rigidbody* rigidbody);
+    void RemoveRigidbody(Rigidbody* rigidbody);
     void Clear();
 
     // picking

@@ -111,6 +111,8 @@ enum class ContactFlag : uint32_t
 class Contact
 {
 public:
+	~Contact();
+
 	static Contact* Create(Fixture* fixtureA, Fixture* fixtureB);
 
 	Contact(Fixture* fixtureA, Fixture* fixtureB);
@@ -190,8 +192,8 @@ protected:
 	Contact* next_ = nullptr;
 	Contact* prev_ = nullptr;
 
-	ContactLink linkA;
-	ContactLink linkB;
+	ContactLink linkA_;
+	ContactLink linkB_;
 };
 
 }	// namespace spe

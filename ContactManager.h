@@ -14,6 +14,8 @@ public:
     ~ContactManager();
 
     void AddPair(void* proxyUserDataA, void* proxyUserDataB);
+    void RemoveContact(Contact* target);
+    void ClearContact();
     void FindNewContacts();
     bool IsSameContact(ContactLink* link, Fixture* fixtureA, Fixture* fixtureB);
     void Collide();

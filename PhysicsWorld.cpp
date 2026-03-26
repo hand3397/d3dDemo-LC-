@@ -195,35 +195,41 @@ void PhysicsWorld::AddRigidbody(Rigidbody* rigidbody)
     ++numRigidbodies_;
 }
 
-void PhysicsWorld::DeleteRigidbody(Rigidbody* rigidbody)
+void PhysicsWorld::RemoveRigidbody(Rigidbody* rigidbody)
 {
-    if (rigidbody == nullptr)
-        return;
+	if (rigidbody == nullptr)
+		return;
 
-    Rigidbody* prev = rigidbody->GetPrev();
-    Rigidbody* next = rigidbody->GetNext();
+	Rigidbody* prev = rigidbody->GetPrev();
+	Rigidbody* next = rigidbody->GetNext();
 
-    if (rigidbody == rigidbodies_) {
-        rigidbodies_ = next;
-    }
+	if (rigidbody == rigidbodies_) {
+		rigidbodies_ = next;
+	}
 
-    if (prev != nullptr) {
-        prev->SetNext(next);
-    }
-    if (next != nullptr) {
-        next->SetPrev(prev);
-    }
+	if (prev != nullptr) prev->SetNext(next);
+	if (next != nullptr) next->SetPrev(prev);
 
-    rigidbody->SetPrev(nullptr);
-    rigidbody->SetNext(nullptr);
+	rigidbody->SetPrev(nullptr);
+	rigidbody->SetNext(nullptr);
 
 	rigidbody->GetFixture()->DestroyProxy(broadPhase_);
 
-    --numRigidbodies_;
+	// contactLink를 순회하며 contact를 제거 및 contact의 다른 rigidbody를 깨우기
+	ContactLink* contactLink = rigidbody->GetContactLink();
+	while (contactLink != nullptr) {
+		contactLink->other->SetAwake(true);
+		ContactLink* next = contactLink->next;
+		contactManager_.RemoveContact(contactLink->contact);
+		contactLink = next;
+	}
+
+	--numRigidbodies_;
 }
 
 void PhysicsWorld::Clear()
 {
+	contactManager_.ClearContact();
     numRigidbodies_ = 0;
     rigidbodies_ = nullptr;
 }
@@ -240,12 +246,10 @@ Rigidbody* PhysicsWorld::RayCast(const Ray& ray)
 
 	Rigidbody* rigidBody = proxyData->fixture->GetRigidbody();
 
-	rigidBody->AddLinearVelocity(XMFLOAT3(0.f, 100.f, 0.f));
-
 	// 2. 각 후보 body에 대해 세부 충돌 판정 (Narrow-phase)
 
 	// Shape의 유형에 따라 Ray-Shape 충돌 계산 (Collision.h 등에 정의 필요)
-	return nullptr;
+	return rigidBody;
 }
 
 }

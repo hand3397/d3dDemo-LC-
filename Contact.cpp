@@ -49,6 +49,20 @@ namespace spe {
         nullptr,							// 11111
     };
 
+    Contact::~Contact()
+    {
+        // contact 제거시 이전 contact와 다음 contact를 이어줌
+        if (prev_ != nullptr) prev_->SetNext(next_);
+        if (next_ != nullptr) next_->SetPrev(prev_);
+
+        // 두 rigidbody의 contactLink 끊기
+        if (linkA_.prev != nullptr) linkA_.prev->next = linkA_.next;
+        if (linkA_.next != nullptr) linkA_.next->prev = linkA_.prev;
+
+        if (linkB_.prev != nullptr) linkB_.prev->next = linkB_.next;
+        if (linkB_.next != nullptr) linkB_.next->prev = linkB_.prev;
+    }
+
     Contact* Contact::Create(Fixture* fixtureA, Fixture* fixtureB)
     {
         // 각 fixture의 shape의 type 가져오기
@@ -74,10 +88,10 @@ namespace spe {
         friction_ = std::sqrt(fixtureA_->GetFriction() * fixtureB_->GetFriction());
         restitution_ = std::max(fixtureA_->GetRestitution(), fixtureB_->GetRestitution());
 
-        linkA.contact = this;
-        linkB.contact = this;
-        linkA.other = fixtureB_->GetRigidbody();
-        linkB.other = fixtureA_->GetRigidbody();
+        linkA_.contact = this;
+        linkB_.contact = this;
+        linkA_.other = fixtureB_->GetRigidbody();
+        linkB_.other = fixtureA_->GetRigidbody();
 
         SetFlag(ContactFlag::TOUCHING);
     }
@@ -383,12 +397,12 @@ namespace spe {
 
     ContactLink* Contact::GetContactLinkA()
     {
-        return &linkA;
+        return &linkA_;
     }
 
     ContactLink* Contact::GetContactLinkB()
     {
-        return &linkB;
+        return &linkB_;
     }
 
     Contact* Contact::GetNext()

@@ -679,6 +679,11 @@ void Scene::Pick(int mouseX, int mouseY)
 {
 	if (mainCamera_ != nullptr) {
 		const spe::Ray ray = mainCamera_->GetPickingRay(mouseX, mouseY, clientWidth_, clientHeight_);
-		physicsWorld_.RayCast(ray);
+		spe::Rigidbody* rigidbody = physicsWorld_.RayCast(ray);
+
+		if (rigidbody != nullptr) {
+			physicsWorld_.RemoveRigidbody(rigidbody);
+			gameObejctManager_.DestroyObject(rigidbody->GetGameObject());
+		}
 	}
 }

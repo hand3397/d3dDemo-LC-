@@ -7,8 +7,8 @@ const float ContactSolver::NORMAL_STOP_VELOCITY = 0.01f;
 const float ContactSolver::TANGENT_STOP_VELOCITY = 0.01f;
 const float ContactSolver::NORMAL_SLEEP_VELOCITY_SQ = 1.0f;
 const float ContactSolver::TANGENT_SLEEP_VELOCITY_SQ = 1.0f;
-const float ContactSolver::POSITION_SOLVE_ALPHA = 0.3f;
-const float ContactSolver::CONTACT_SLOP = 0.005f;
+const float ContactSolver::POSITION_SOLVE_ALPHA = 0.5f;
+const float ContactSolver::CONTACT_SLOP = 0.01f;
 
 ContactSolver::ContactSolver(float duration, Contact** contacts,
 	PositionBuffer* positions, VelocityBuffer* velocities,
