@@ -6,8 +6,9 @@ namespace spe {;
 
     const uint32_t Island::VELOCITY_ITERATION = 10;
     const uint32_t Island::POSITION_ITERATION = 10;
-    const float Island::STOP_LINEAR_VELOCITY_SQ = 0.05f;
-    const float Island::STOP_ANGULAR_VELOCITY_SQ = 0.05f;
+    const float Island::STOP_LINEAR_VELOCITY_SQ = 1.00f;
+    const float Island::STOP_ANGULAR_VELOCITY_SQ = 1.00f;
+    const float Island::SLEEP_START_TIME = 0.2f;
 
     Island::Island(uint32_t bodyCount, uint32_t contactCount) :
         positions_(nullptr), velocities_(nullptr)
@@ -69,14 +70,18 @@ namespace spe {;
             if (positions_[i].isNormalStop && positions_[i].isTangentStop && positions_[i].isSupported &&
                 Vec3LengthSq(finallinearVel) < STOP_LINEAR_VELOCITY_SQ &&
                 Vec3LengthSq(finalAngularVel) < STOP_ANGULAR_VELOCITY_SQ) {
-
-                finallinearVel = XMVectorZero();
-                finalAngularVel = XMVectorZero();
-                body->ClearFlag(RigidbodyFlag::AWAKE);
-                body->ClearAcclerations();
+                
+                if (body->GetSleepTime() < SLEEP_START_TIME) {
+                    body->AddSleepTime(duration);
+                }
+                else {
+                    finallinearVel = XMVectorZero();
+                    finalAngularVel = XMVectorZero();
+                    body->SetAwake(false);
+                }
             }
             else {
-                body->SetFlag(RigidbodyFlag::AWAKE);
+                body->SetAwake(true);
             }
 
             body->UpdateSweep();
@@ -92,6 +97,16 @@ namespace spe {;
             body->SetLinearVelocity(finalLinVelF3);
             body->SetAngularVelocity(finalAngVelF3);
             //body->synchronizeFixtures();
+        }
+
+        // 위치, 회전, 속도 업데이트
+        for (int32_t i = 0; i < numBodies_; ++i) {
+
+            Rigidbody* body = bodies_[i];
+            if (body->GetType() == RigidbodyType::STATIC) {
+                continue;
+            }
+
         }
 
         contactSolver.Destroy();

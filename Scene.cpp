@@ -678,6 +678,7 @@ void Scene::AnimateMaterials(float dt)
 void Scene::Pick(int mouseX, int mouseY)
 {
 	if (mainCamera_ != nullptr) {
-		ray = mainCamera_->GetPickingRay(mouseX, mouseY, clientWidth_, clientHeight_);
+		const spe::Ray ray = mainCamera_->GetPickingRay(mouseX, mouseY, clientWidth_, clientHeight_);
+		physicsWorld_.RayCast(ray);
 	}
 }

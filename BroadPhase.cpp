@@ -30,7 +30,6 @@ void BroadPhase::MoveProxy(int32_t proxyId, const AABB& aabb, const XMVECTOR& di
     if (tree_.MoveProxy(proxyId, aabb, displacement)) {
         BufferMove(proxyId);
     }
-
 }
 
 void BroadPhase::BufferMove(int32_t proxyId)
@@ -40,6 +39,11 @@ void BroadPhase::BufferMove(int32_t proxyId)
         moves_.resize(moveCapacity_);
     }
     moves_[numMoves_++] = proxyId;
+}
+
+void* BroadPhase::RayCast(const Ray& ray)
+{
+    return tree_.Query(ray);
 }
 
 bool BroadPhase::QueryCallback(int32_t proxyId)

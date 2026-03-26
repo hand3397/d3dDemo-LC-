@@ -81,6 +81,42 @@ const AABB& DynamicTree::GetFatAABB(int32_t proxyId) const
 	return nodes_[proxyId].aabb;
 }
 
+void* DynamicTree::Query(const Ray& ray) const
+{
+	if (root_ == NULL_NODE)
+		return nullptr;
+
+	int stack[64];
+	int* sp = stack;
+	*sp++ = root_;
+
+	void* targetData = nullptr;
+	float tMin = FLT_MAX, tMax = -FLT_MAX;
+
+	while (sp > stack) {
+		int nodeId = *(--sp);
+		if (nodeId == NULL_NODE)
+			continue;
+		const AABBNode* node = &nodes_[nodeId];
+
+		float tm, tx;
+		if (node->aabb.RayCast(ray, tm, tx)) {
+			if (node->IsLeaf()) {
+				if (tm < tMin) {
+					tMin = tm;
+					targetData = GetUserData(nodeId);
+				}
+			}
+			else {
+				*sp++ = node->child1;
+				*sp++ = node->child2;
+			}
+		}
+	}
+
+	return targetData;
+}
+
 int32_t DynamicTree::AllocateNode()
 {
 	// freeNode_를 가져와 새로운 노드로 할당한다.

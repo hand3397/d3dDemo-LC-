@@ -79,8 +79,13 @@ public:
     void SetAngularAccelration(const XMFLOAT3& angularAcceleration);
     void SetLinearDamping(const float linearDamping);
     void SetAngularDamping(const float angularDamping);
+
+    void SetAwake(bool awake);
+    void AddSleepTime(float dt);
+    float GetSleepTime() const;
     void SetFlag(RigidbodyFlag flag);
     void ClearFlag(RigidbodyFlag flag);
+
     void SetIslandId(int32_t id);
     void SetContactLink(ContactLink* contactLink);
     void SetNext(Rigidbody* next);
@@ -118,6 +123,7 @@ protected:
     float angularDamping_ = 0.01f;
 
     uint32_t flags_ = 0;
+    float sleepTime_ = 0.f;
 
     // fixture
     Fixture* fixture_ = nullptr;
@@ -126,6 +132,7 @@ protected:
     // id
     int32_t islandId_ = -1;
 
+    // «ÿ¥Á body¿« contact π≠¿Ω
     ContactLink* contactLink_ = nullptr;
 
     // physicsWorld

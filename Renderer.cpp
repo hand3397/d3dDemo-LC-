@@ -686,10 +686,12 @@ void Renderer::UpdateDebugMesh(Scene* scene)
 	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(0.f, 0.f, 5.f), DirectX::Colors::Blue);
 
 	// pickingRay
+	/*
 	XMFLOAT3 p1, p2;
 	XMStoreFloat3(&p1, XMLoadFloat3(&scene->ray.vertex));
 	XMStoreFloat3(&p2, XMLoadFloat3(&scene->ray.vertex) + XMLoadFloat3(&scene->ray.dir) * 1000);
 	pushLine(p1, p2, DirectX::Colors::Orange);
+	*/
 	//---------------------------
 
 	/*

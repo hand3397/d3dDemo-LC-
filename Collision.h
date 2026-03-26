@@ -25,6 +25,27 @@ struct Sweep
     float alpha;
 };
 
+struct Ray
+{
+    XMFLOAT3 origin = XMFLOAT3(0.f, 0.f, 0.f);
+    XMFLOAT3 dir = XMFLOAT3(0.f, 0.f, 0.f);
+    // dir 값이 바뀌면 invDir을 다시 계산해야함
+    XMFLOAT3 invDir = XMFLOAT3(0.f, 0.f, 0.f);
+
+    Ray(XMFLOAT3 o, XMFLOAT3 d) : origin(o), dir(d)
+    {
+        const float epsilon = 1e-6f;
+
+        XMVECTOR absDir = XMVectorAbs(XMLoadFloat3(&d));
+        XMVECTOR isZero = XMVectorLess(absDir, XMVectorReplicate(epsilon));
+
+        // 0인 성분만 epsilon으로 교체 (부호 유지)
+        XMVECTOR safeDir = XMVectorSelect(XMLoadFloat3(&d), XMVectorReplicate(epsilon), isZero);
+        XMStoreFloat3(&dir, safeDir);
+        XMStoreFloat3(&invDir, XMVectorReciprocal(safeDir));
+    }
+};
+
 struct AABB
 {
     AABB() = default;
@@ -94,6 +115,57 @@ struct AABB
         return XMVector3EqualInt(XMVectorAndInt(cmp1, cmp2), XMVectorTrueInt());
     }
 
+    bool Intersects(const Ray& ray) const
+    {
+        float tMin, tMax;
+        return RayCast(ray, tMin, tMax);
+    }
+
+    bool Intersects(const Ray& ray, float& tMin, float& tMax) const
+    {
+        return RayCast(ray, tMin, tMax);
+    }
+
+    bool RayCast(const Ray& ray, float& tmin, float& tmax) const
+    {
+        const XMVECTOR origin = XMLoadFloat3(&ray.origin);
+        const XMVECTOR dir = XMLoadFloat3(&ray.dir);
+        const XMVECTOR invDir = XMLoadFloat3(&ray.invDir);
+
+        XMVECTOR bMin = XMLoadFloat3(&lowerBound);
+        XMVECTOR bMax = XMLoadFloat3(&upperBound);
+
+        // (bMin - origin) * invDir
+        XMVECTOR t1 = (bMin - origin) * invDir;
+        // (bMax - origin) * invDir
+        XMVECTOR t2 = (bMax - origin) * invDir;
+
+        // 각 축별로 진입 시간(min)과 탈출 시간(max)을 정렬
+        XMVECTOR vMin = XMVectorMin(t1, t2);
+        XMVECTOR vMax = XMVectorMax(t1, t2);
+
+        // 모든 축 중 가장 늦게 들어오는 시간 (X, Y, Z 중 max)
+        XMVECTOR maxNear = XMVectorMax(vMin, XMVectorSwizzle<1, 2, 0, 3>(vMin)); // x,y 비교
+        maxNear = XMVectorMax(maxNear, XMVectorSwizzle<2, 0, 1, 3>(vMin));      // z 비교
+
+        XMVECTOR minFar = XMVectorMin(vMax, XMVectorSwizzle<1, 2, 0, 3>(vMax));
+        minFar = XMVectorMin(minFar, XMVectorSwizzle<2, 0, 1, 3>(vMax));
+
+        float tNear = XMVectorGetX(maxNear);
+        float tFar = XMVectorGetX(minFar);
+
+        // 교차 조건: 
+        // 1. 들어오는 시간이 나가는 시간보다 빨라야 함
+        // 2. 나가는 시간이 0보다 커야 함 (Ray 뒤쪽에 있는 AABB 제외)
+        if (tNear <= tFar && tFar > 0.0f) {
+            tmin = tNear;
+            tmax = tFar;
+            return true;
+        }
+
+        return false;
+    }
+
     XMFLOAT3 lowerBound;
     XMFLOAT3 upperBound;
 };
@@ -114,12 +186,6 @@ struct Manifold
 {
 	ManifoldPoint points[MAX_MANIFOLD_COUNT];
 	int32_t numPoints = 0;
-};
-
-struct Ray
-{
-    XMFLOAT3 vertex = XMFLOAT3(0.f, 0.f, 0.f);
-    XMFLOAT3 dir = XMFLOAT3(0.f, 0.f, 0.f);
 };
 
 }

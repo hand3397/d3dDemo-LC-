@@ -25,7 +25,9 @@ public:
     void DeleteRigidbody(Rigidbody* rigidbody);
     void Clear();
 
-    Ray pickingRay;
+    // picking
+    Rigidbody* RayCast(const Ray& ray);
+
 private:
     Scene* scene_;
 
@@ -35,7 +37,7 @@ private:
 	Rigidbody *rigidbodies_;
 	int32_t numRigidbodies_;
     
-    float gravity_ = -9.8f;
+    float gravity_ = -29.8f;
     float minFloorY_ = 0.0f;
 };
 

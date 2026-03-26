@@ -43,8 +43,6 @@ public:
     unordered_map<string, unique_ptr<SkinnedModelInstance>>& GetSkinnedModelInsts();
     SkinnedModelInstance* GetSkinnedModelInst(const string& name);
 
-    spe::Ray ray;
-
 private:
 
     void BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);

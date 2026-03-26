@@ -228,6 +228,26 @@ void PhysicsWorld::Clear()
     rigidbodies_ = nullptr;
 }
 
+Rigidbody* PhysicsWorld::RayCast(const Ray& ray)
+{
+	Rigidbody* closestBody = nullptr;
+	float minT = FLT_MAX;
+
+	// 1. DynamicTree를 통해 Ray와 AABB가 겹치는 후보들을 찾음
+	FixtureProxy* proxyData = static_cast<FixtureProxy*>(broadPhase_->RayCast(ray));
+	if (proxyData == nullptr) // ray와 겹치는 물체가 없음
+		return nullptr;
+
+	Rigidbody* rigidBody = proxyData->fixture->GetRigidbody();
+
+	rigidBody->AddLinearVelocity(XMFLOAT3(0.f, 100.f, 0.f));
+
+	// 2. 각 후보 body에 대해 세부 충돌 판정 (Narrow-phase)
+
+	// Shape의 유형에 따라 Ray-Shape 충돌 계산 (Collision.h 등에 정의 필요)
+	return nullptr;
+}
+
 }
 
 

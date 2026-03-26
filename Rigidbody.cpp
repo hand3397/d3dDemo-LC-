@@ -7,7 +7,6 @@ namespace spe { ;
 Rigidbody::Rigidbody()
 {
     CalculateMatrix();
-    SetFlag(RigidbodyFlag::AWAKE);
 }
 
 Rigidbody::Rigidbody(RigidbodyType type, const XMFLOAT4& rotateQuat, const XMFLOAT3& position) :
@@ -19,7 +18,10 @@ Rigidbody::Rigidbody(RigidbodyType type, const XMFLOAT4& rotateQuat, const XMFLO
     }
 
     CalculateMatrix();
-    SetFlag(RigidbodyFlag::AWAKE);
+
+    if (type != RigidbodyType::STATIC) {
+        SetFlag(RigidbodyFlag::AWAKE);
+    }
 }
 
 Rigidbody::~Rigidbody()
@@ -353,6 +355,28 @@ void Rigidbody::SetLinearDamping(const float linearDamping)
 void Rigidbody::SetAngularDamping(const float angularDamping)
 {
     angularDamping_ = angularDamping;
+}
+
+void Rigidbody::SetAwake(bool awake)
+{
+    if (awake) {
+        SetFlag(RigidbodyFlag::AWAKE);
+        sleepTime_ = 0.f;
+    }
+    else {
+        ClearFlag(RigidbodyFlag::AWAKE);
+        ClearAcclerations();
+    }
+}
+
+void Rigidbody::AddSleepTime(float dt)
+{
+    sleepTime_ += dt;
+}
+
+float Rigidbody::GetSleepTime() const
+{
+    return sleepTime_;
 }
 
 void Rigidbody::SetFlag(RigidbodyFlag flag)

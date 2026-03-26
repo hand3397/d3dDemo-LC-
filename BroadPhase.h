@@ -23,6 +23,9 @@ public:
 
 	void BufferMove(int32_t proxyId);
 
+    // ray와 충돌한 물체의 nodeId를 반환
+    void* RayCast(const Ray& ray);
+
 	template <typename T> void UpdatePairs(T* callback);
 
 private:

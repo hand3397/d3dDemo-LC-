@@ -47,6 +47,8 @@ public:
     const AABB& GetFatAABB(int32_t proxyId) const;
 
     template <typename T> void Query(T* callback, const AABB& aabb) const;
+    // rayCast
+    void* Query(const Ray& ray) const;
 
 private:
     int32_t AllocateNode();

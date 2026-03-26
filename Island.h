@@ -44,7 +44,8 @@ private:
 	static const float STOP_ANGULAR_VELOCITY;
 	static const float STOP_LINEAR_VELOCITY_SQ;
 	static const float STOP_ANGULAR_VELOCITY_SQ;
-	
+	static const float SLEEP_START_TIME;
+
 	Rigidbody** bodies_;
 	Contact** contacts_;
 	PositionBuffer* positions_;
