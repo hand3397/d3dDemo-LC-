@@ -57,8 +57,13 @@ void BroadPhase::UpdatePairs(T* callback)
     numMoves_ = 0;
     for (const auto& [a, b] : proxySet_)
     {
-        callback->AddPair(tree_.GetUserData(a), tree_.GetUserData(b));
+        void* userDataA = tree_.GetUserData(a); 
+        void* userDataB = tree_.GetUserData(b);
+        if (userDataA == nullptr || userDataB == nullptr)
+            continue;
+        callback->AddPair(userDataA, userDataB);
     }
+    proxySet_.clear();
 }
 
 } // namespace spe

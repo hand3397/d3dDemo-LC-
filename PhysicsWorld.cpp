@@ -200,6 +200,7 @@ void PhysicsWorld::RemoveRigidbody(Rigidbody* rigidbody)
 	if (rigidbody == nullptr)
 		return;
 
+	// rigidbodies_에서 제거
 	Rigidbody* prev = rigidbody->GetPrev();
 	Rigidbody* next = rigidbody->GetNext();
 
@@ -213,14 +214,18 @@ void PhysicsWorld::RemoveRigidbody(Rigidbody* rigidbody)
 	rigidbody->SetPrev(nullptr);
 	rigidbody->SetNext(nullptr);
 
-	rigidbody->GetFixture()->DestroyProxy(broadPhase_);
+	// Proxy 제거 (BroadPhase에서 proxySet_ 정리)
+	Fixture* fixture = rigidbody->GetFixture();
+	if (fixture != nullptr) {
+		fixture->DestroyProxy(broadPhase_);
+	}
 
-	// contactLink를 순회하며 contact를 제거 및 contact의 다른 rigidbody를 깨우기
+	// 3. 해당 Rigidbody의 모든 Contact 정리
 	ContactLink* contactLink = rigidbody->GetContactLink();
-while (contactLink != nullptr) {
+	while (contactLink != nullptr) {
 		contactLink->other->SetAwake(true);
 		ContactLink* next = contactLink->next;
- 		contactManager_.RemoveContact(contactLink->contact);
+		contactManager_.RemoveContact(contactLink->contact);
 		contactLink = next;
 	}
 

@@ -52,8 +52,7 @@ private:
     void BuildGameObjects();
     GameObject* BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& transform,
         vector<RenderItem*>& rItems, spe::RigidbodyType rigidbodyType);
-
-    RenderItem* BuildRenderItem(const uint8_t renderLayer, 
+    RenderItem* BuildRenderItem(const RenderLayer renderLayer,
         const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
         const XMMATRIX& world = XMMatrixIdentity(), const XMMATRIX& texTransform = XMMatrixIdentity(),
         SkinnedModelInstance* skinnedModelInstance = nullptr, const int32_t skinnedCBIndex = -1);
@@ -61,6 +60,9 @@ private:
     GameObject* AddCylinderObject(const XMFLOAT3& pos, const XMFLOAT3& rotate = XMFLOAT3(0.f, 0.f, 0.f));
     GameObject* AddBoxObject(const XMFLOAT3& pos, const XMFLOAT3& rotate = XMFLOAT3(0.f, 0.f, 0.f));
     GameObject* AddBallObject(const XMFLOAT3& pos);
+
+    void RemoveGameObject(GameObject* gameObject);
+    void RemoveRenderItem(RenderItem* item, RenderLayer layer);
 
     void LoadScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void LoadModels(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
@@ -80,7 +82,7 @@ private:
     LayeredObjectManager<GameObject, spe::RigidbodyType> gameObejctManager_;
 
     vector<unique_ptr<RenderItem>> allRenderItems_;
-    vector<RenderItem*> renderItemLayer_[(uint32_t)RenderLayer::COUNT];
+    vector<RenderItem*> renderItemLayer_[static_cast<uint8_t>(RenderLayer::COUNT)];
 
     unordered_map<string, unique_ptr<MeshGeometry>> meshes_;
     unordered_map<string, unique_ptr<Material>> materials_;

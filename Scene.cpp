@@ -337,7 +337,7 @@ void Scene::BuildGameObjects()
 	BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 4.0f, 0.0f),
 		renderItems, RigidbodyType::Static);
 	*/
-	renderItems = { BuildRenderItem((uint8_t)RenderLayer::RENDER_OPAQUE,
+	renderItems = { BuildRenderItem(RenderLayer::RENDER_OPAQUE,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["grid"], materials_["tile0"].get(),
 		XMMatrixIdentity(), XMMatrixScaling(50.0f, 50.0f, 1.0f)) };
 	GameObject* go = BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
@@ -376,12 +376,12 @@ void Scene::BuildGameObjects()
 	}
 	*/
 	
-	renderItems = { BuildRenderItem((uint8_t)RenderLayer::RENDER_SKINNED,
+	renderItems = { BuildRenderItem(RenderLayer::RENDER_SKINNED,
 		meshes_["skinnedGeo"].get(), meshes_["skinnedGeo"].get()->subMeshes_["0"], materials_["soldier"].get(),
 		XMMatrixIdentity(), XMMatrixIdentity(),
 		skinnedModelInsts_["Vanguard"].get(), 0),
 
-		BuildRenderItem((uint8_t)RenderLayer::RENDER_SKINNED,
+		BuildRenderItem(RenderLayer::RENDER_SKINNED,
 		meshes_["skinnedGeo"].get(), meshes_["skinnedGeo"].get()->subMeshes_["1"], materials_["soldier"].get(),
 		XMMatrixIdentity(), XMMatrixIdentity(),
 		skinnedModelInsts_["Vanguard"].get(), 0) };
@@ -426,14 +426,10 @@ void Scene::BuildGameObjects()
 	}
 	*/
 
-	for (int x = 0; x < 5; x++) {
-		for (int y = 0; y < 5; y++) {
-			float dx = 2.0f * x;
-			float dy = 2.0f * y;
-			AddBoxObject(XMFLOAT3(dx - 5.0f, dy + 1.0f, 0.f));
-		}
-	}
-	AddCylinderObject(XMFLOAT3(0.0f, 2.0f, -3.0f));
+	AddBoxObject(XMFLOAT3(-5.0f, 1.0f, 0.f));
+	AddBoxObject(XMFLOAT3(-5.3f, 3.0f, 0.f));
+	AddBoxObject(XMFLOAT3(-5.6f, 5.0f, 0.f));
+
 }
 
 GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& transform, 
@@ -467,13 +463,13 @@ GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate
 	return gameObject;
 }
 
-RenderItem* Scene::BuildRenderItem(const uint8_t renderLayer,
+RenderItem* Scene::BuildRenderItem(const RenderLayer renderLayer,
 	const MeshGeometry* mesh, const Submesh& submesh, const Material* material,
 	const XMMATRIX& world, const XMMATRIX& texTransform,
 	SkinnedModelInstance* skinnedModelInstance, const int32_t skinnedCBIndex)
 {
-	auto renderItem = make_unique<RenderItem>(mesh, submesh, material, world, texTransform);
-	if (renderLayer == (uint8_t)RenderLayer::RENDER_SKINNED) {
+	auto renderItem = make_unique<RenderItem>(renderLayer, mesh, submesh, material, world, texTransform);
+	if (renderLayer == RenderLayer::RENDER_SKINNED) {
 		renderItem->isSkinningObject = true;
 		renderItem->skinnedModelInst_ = skinnedModelInstance;
 		renderItem->skinnedCBIndex_ = skinnedCBIndex;
@@ -484,7 +480,7 @@ RenderItem* Scene::BuildRenderItem(const uint8_t renderLayer,
 	renderItem->boundingSphere_ = submesh.boundingSphere_;
 
 	RenderItem* rItem = renderItem.get();
-	renderItemLayer_[renderLayer].push_back(rItem);
+	renderItemLayer_[static_cast<uint8_t>(renderLayer)].push_back(rItem);
 	allRenderItems_.push_back(move(renderItem));
 	return rItem;
 }
@@ -498,7 +494,7 @@ GameObject* Scene::AddCylinderObject(const XMFLOAT3& pos, const XMFLOAT3& rotate
 	GameObject* gameObject = gameObejctManager_.CreateObject(
 		XMFLOAT3(1.0f, 1.0f, 1.0f), rotate, pos, spe::RigidbodyType::DYNAMIC);
 
-	auto renderItems = { BuildRenderItem((uint8_t)RenderLayer::RENDER_OPAQUE,
+	auto renderItems = { BuildRenderItem(RenderLayer::RENDER_OPAQUE,
 			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["cylinder"], materials_["stone0"].get(),
 			XMMatrixIdentity(), XMMatrixIdentity()) };
 
@@ -521,8 +517,6 @@ GameObject* Scene::AddCylinderObject(const XMFLOAT3& pos, const XMFLOAT3& rotate
 	rigidbody->AddFixture(fixture);
 	rigidbody->ComputeInertiaTensor();
 
-	physicsWorld_.AddRigidbody(rigidbody);
-
 	return gameObject;
 }
 
@@ -535,7 +529,7 @@ GameObject* Scene::AddBoxObject(const XMFLOAT3& pos, const XMFLOAT3& rotate)
 	GameObject* gameObject = gameObejctManager_.CreateObject(
 		XMFLOAT3(1.0f, 1.0f, 1.0f), rotate, pos, spe::RigidbodyType::DYNAMIC);
 
-	auto renderItems = { BuildRenderItem((uint8_t)RenderLayer::RENDER_OPAQUE,
+	auto renderItems = { BuildRenderItem(RenderLayer::RENDER_OPAQUE,
 			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["box"], materials_["stone0"].get(),
 			XMMatrixIdentity(), XMMatrixIdentity()) };
 
@@ -558,8 +552,6 @@ GameObject* Scene::AddBoxObject(const XMFLOAT3& pos, const XMFLOAT3& rotate)
 	rigidbody->AddFixture(fixture);
 	rigidbody->ComputeInertiaTensor();
 
-	physicsWorld_.AddRigidbody(rigidbody);
-
 	return gameObject;
 }
 
@@ -572,7 +564,7 @@ GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
 	GameObject* gameObject = gameObejctManager_.CreateObject(
 		XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), pos, spe::RigidbodyType::DYNAMIC);
 	
-	auto renderItems = { BuildRenderItem((uint8_t)RenderLayer::RENDER_OPAQUE,
+	auto renderItems = { BuildRenderItem(RenderLayer::RENDER_OPAQUE,
 			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["sphere"], materials_["bricks0"].get(),
 			XMMatrixIdentity(), XMMatrixIdentity()) };
 
@@ -595,9 +587,37 @@ GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
 	rigidbody->AddFixture(fixture);
 	rigidbody->ComputeInertiaTensor();
 
-	physicsWorld_.AddRigidbody(rigidbody);
-
 	return gameObject;
+}
+
+void Scene::RemoveGameObject(GameObject* gameObject)
+{
+	if (gameObejctManager_.IsEmpty() || gameObject == nullptr)
+		return;
+
+	// 실제 rigidbody 제거는 gameObject가 제거될 때 이루어짐
+	physicsWorld_.RemoveRigidbody(gameObject->GetRigidbody());
+	const auto& renderItems = gameObject->GetRenderItems();
+	for (RenderItem* rItem : renderItems) {
+        if (rItem == nullptr) continue;
+		RemoveRenderItem(rItem, rItem->renderLayer);
+	}
+
+	gameObejctManager_.DestroyObject(gameObject);
+}
+
+void Scene::RemoveRenderItem(RenderItem* item, RenderLayer layer)
+{
+	if (item == nullptr)
+        return;
+
+	// 1. 레이어 벡터에서 제거
+	auto& layerVec = renderItemLayer_[static_cast<uint8_t>(layer)];
+	layerVec.erase(std::remove(layerVec.begin(), layerVec.end(), item), layerVec.end());
+
+	// 2. 전체 관리 벡터에서 제거 (실제 메모리 해제)
+	allRenderItems_.erase(std::remove_if(allRenderItems_.begin(), allRenderItems_.end(),
+		[&](const unique_ptr<RenderItem>& ptr) { return ptr.get() == item; }), allRenderItems_.end());
 }
 
 void Scene::LoadScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
@@ -682,8 +702,11 @@ void Scene::Pick(int mouseX, int mouseY)
 		spe::Rigidbody* rigidbody = physicsWorld_.RayCast(ray);
 
 		if (rigidbody != nullptr) {
-			physicsWorld_.RemoveRigidbody(rigidbody);
-			gameObejctManager_.DestroyObject(rigidbody->GetGameObject());
+			if (rigidbody->GetType() == spe::RigidbodyType::STATIC)
+				return;
+			
+			RemoveGameObject(rigidbody->GetGameObject());
 		}
 	}
 }
+

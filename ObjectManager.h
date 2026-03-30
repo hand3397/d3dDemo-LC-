@@ -17,6 +17,7 @@ public:
     ~ObjectManager() { Clear(); }
 
     size_t Size() { return poolSize_; }
+    bool IsEmpty() { return allObjects_.empty(); }
     std::vector<T*>& GetAllObjects() { return allObjects_; }
 
     template<typename... Args>
@@ -60,6 +61,7 @@ public:
     ~LayeredObjectManager() { Clear(); }
 
     size_t Size() { return poolSize_; }
+    bool IsEmpty() { return allObjects_.empty(); }
     std::vector<T*>& GetAllObjects() { return allObjects_; }
     std::vector<T*>* GetAllLayeredObjects() { return objectLayer_; }
     std::vector<T*>& GetLayeredObjects(const Layer layer) { return objectLayer_[(uint32_t)layer]; }

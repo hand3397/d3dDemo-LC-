@@ -5,7 +5,7 @@
 namespace spe {;
 
 Fixture::Fixture(Shape* shape) :
-    shape_(shape), proxy_(nullptr)
+    shape_(shape)
 {
     shapeType_ = shape->GetType();
     proxy_ = new FixtureProxy();

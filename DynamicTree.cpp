@@ -145,6 +145,7 @@ int32_t DynamicTree::AllocateNode()
 
 void DynamicTree::FreeNode(int32_t nodeId)
 {
+    nodes_[nodeId].data = nullptr;
 	nodes_[nodeId].next = freeNode_;
 	nodes_[nodeId].height = -1;
 	freeNode_ = nodeId;

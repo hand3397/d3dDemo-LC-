@@ -20,6 +20,9 @@ void ContactManager::AddPair(void* proxyUserDataA, void* proxyUserDataB)
     Fixture* fixtureA = proxyA->fixture;
     Fixture* fixtureB = proxyB->fixture;
 
+    if (fixtureA == nullptr || fixtureB == nullptr)
+        return;
+
     Rigidbody* bodyA = fixtureA->GetRigidbody();
     Rigidbody* bodyB = fixtureB->GetRigidbody();
 
@@ -86,15 +89,20 @@ void ContactManager::RemoveContact(Contact* target)
     Contact* contact = contacts_;
     while (contact != nullptr) {
         if (contact == target) {
-            if (contact->GetPrev() != nullptr) 
-                contact->SetPrev(contact->GetNext());
-            if (contact->GetNext() != nullptr) 
-                contact->SetNext(contact->GetPrev());
-            if (contacts_ == contact) 
-                contacts_ = contact->GetNext();
+            Contact* prev = contact->GetPrev();
+            Contact* next = contact->GetNext();
+
+            // prev 노드의 next 포인터 갱신
+            if (prev != nullptr)
+                prev->SetNext(next);
+            // next 노드의 prev 포인터 갱신
+            if (next != nullptr)
+                next->SetPrev(prev);
+            // head가 삭제되는 경우 처리
+            if (contacts_ == contact)
+                contacts_ = next;
 
             delete contact;
-            contact = nullptr;
             break;
         }
         contact = contact->GetNext();

@@ -4,7 +4,7 @@
 #include "SkinnedData.h"
 
 
-enum class RenderLayer
+enum class RenderLayer : uint8_t
 {
     RENDER_OPAQUE = 0,
     RENDER_TRANSPARENT,
@@ -20,17 +20,17 @@ enum class RenderLayer
 struct RenderItem
 {
     RenderItem() = default;
-    RenderItem(const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
+    RenderItem(RenderLayer layer, const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
         const XMFLOAT4X4& world, const XMFLOAT4X4& texTransform) :
-        mesh_(mesh), material_(material), world_(world), texTransform_(texTransform)
+        renderLayer(layer), mesh_(mesh), material_(material), world_(world), texTransform_(texTransform)
     {
         indexCount_ = submesh.numIndices_;
         baseIndex_ = submesh.baseIndex_;
         baseVertex_ = submesh.baseVertex_;
     }
-    RenderItem(const MeshGeometry* mesh, const Submesh& submesh, const Material* material,
+    RenderItem(RenderLayer layer, const MeshGeometry* mesh, const Submesh& submesh, const Material* material,
         const XMMATRIX& world, const XMMATRIX& texTransform) :
-        mesh_(mesh), material_(material)
+        renderLayer(layer), mesh_(mesh), material_(material)
     {
         XMStoreFloat4x4(&world_, world);
         XMStoreFloat4x4(&texTransform_, texTransform);
@@ -41,6 +41,8 @@ struct RenderItem
     }
 
     void SetFrameDirty() { numFramesDirty_ = gNumFrameResources; }
+
+    RenderLayer renderLayer;
 
     // 셰계 공간을 기준으로 물체의 국소 공간을 서술하는 세계 행렬
     // 이 행렬은 세계공간에서의 물체의 크기, 회전, 위치를 결정.

@@ -41,14 +41,14 @@ public:
 protected:
     Rigidbody* rigidbody_ = nullptr;
 
-    ShapeType shapeType_;
+    ShapeType shapeType_ = ShapeType::BOX;
     Shape* shape_ = nullptr;
 
     //float density_ = 1.0f;
     float friction_ = 0.f;
     float restitution_ = 0.f;
 
-    FixtureProxy* proxy_;
+    FixtureProxy* proxy_ = nullptr;
 };
 
 }
