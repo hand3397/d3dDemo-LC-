@@ -217,10 +217,10 @@ void PhysicsWorld::RemoveRigidbody(Rigidbody* rigidbody)
 
 	// contactLink를 순회하며 contact를 제거 및 contact의 다른 rigidbody를 깨우기
 	ContactLink* contactLink = rigidbody->GetContactLink();
-	while (contactLink != nullptr) {
+while (contactLink != nullptr) {
 		contactLink->other->SetAwake(true);
 		ContactLink* next = contactLink->next;
-		contactManager_.RemoveContact(contactLink->contact);
+ 		contactManager_.RemoveContact(contactLink->contact);
 		contactLink = next;
 	}
 

@@ -51,16 +51,19 @@ namespace spe {
 
     Contact::~Contact()
     {
-        // contact 제거시 이전 contact와 다음 contact를 이어줌
-        if (prev_ != nullptr) prev_->SetNext(next_);
-        if (next_ != nullptr) next_->SetPrev(prev_);
+        Rigidbody* bodyA = fixtureA_->GetRigidbody();
+        Rigidbody* bodyB = fixtureB_->GetRigidbody();
 
         // 두 rigidbody의 contactLink 끊기
         if (linkA_.prev != nullptr) linkA_.prev->next = linkA_.next;
         if (linkA_.next != nullptr) linkA_.next->prev = linkA_.prev;
+        if (bodyA->GetContactLink() == &linkA_) bodyA->SetContactLink(linkA_.next);
+        linkA_.contact = nullptr;
 
         if (linkB_.prev != nullptr) linkB_.prev->next = linkB_.next;
         if (linkB_.next != nullptr) linkB_.next->prev = linkB_.prev;
+        if (bodyB->GetContactLink() == &linkB_) bodyB->SetContactLink(linkB_.next);
+        linkB_.contact = nullptr;
     }
 
     Contact* Contact::Create(Fixture* fixtureA, Fixture* fixtureB)

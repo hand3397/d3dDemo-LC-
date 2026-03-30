@@ -23,6 +23,14 @@ int32_t BroadPhase::CreateProxy(const AABB& aabb, void* userData)
 void BroadPhase::DestroyProxy(int32_t proxyId)
 {
     tree_.DestroyProxy(proxyId);
+
+    // proxySet_에서 target이 포함된 원소를 제거한다.
+    for (auto it = proxySet_.begin(); it != proxySet_.end(); ) {
+        if (it->first == proxyId || it->second == proxyId)
+            it = proxySet_.erase(it);
+        else
+            ++it;
+    }
 }
 
 void BroadPhase::MoveProxy(int32_t proxyId, const AABB& aabb, const XMVECTOR& displacement)

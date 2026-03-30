@@ -8,7 +8,7 @@ namespace spe {;
     const uint32_t Island::POSITION_ITERATION = 10;
     const float Island::STOP_LINEAR_VELOCITY_SQ = 1.00f;
     const float Island::STOP_ANGULAR_VELOCITY_SQ = 1.00f;
-    const float Island::SLEEP_START_TIME = 0.2f;
+    const float Island::SLEEP_START_TIME = 0.1f;
 
     Island::Island(uint32_t bodyCount, uint32_t contactCount) :
         positions_(nullptr), velocities_(nullptr)

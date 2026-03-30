@@ -78,20 +78,27 @@ void ContactManager::AddPair(void* proxyUserDataA, void* proxyUserDataB)
 
 void ContactManager::RemoveContact(Contact* target)
 {
+    if (target == nullptr)
+        return;
+
     numContacts_--;
 
     Contact* contact = contacts_;
     while (contact != nullptr) {
         if (contact == target) {
+            if (contact->GetPrev() != nullptr) 
+                contact->SetPrev(contact->GetNext());
+            if (contact->GetNext() != nullptr) 
+                contact->SetNext(contact->GetPrev());
+            if (contacts_ == contact) 
+                contacts_ = contact->GetNext();
+
             delete contact;
             contact = nullptr;
             break;
         }
         contact = contact->GetNext();
     }
-
-    if (numContacts_ == 0)
-        contacts_ = nullptr;
 }
 
 void ContactManager::ClearContact()

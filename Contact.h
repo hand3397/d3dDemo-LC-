@@ -192,7 +192,9 @@ protected:
 	Contact* next_ = nullptr;
 	Contact* prev_ = nullptr;
 
+	// fixtureA의 다른 contact 목록
 	ContactLink linkA_;
+	// fixtureB의 다른 contact 목록
 	ContactLink linkB_;
 };
 
