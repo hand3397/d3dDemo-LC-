@@ -5,7 +5,7 @@
 
 using Microsoft::WRL::ComPtr;
 
-const int gNumFrameResources = 3;
+const int NUM_FRAME_RESOURCES = 3;
 
 DxException::DxException(HRESULT hr, const std::wstring& functionName, const std::wstring& filename, int lineNumber) :
     ErrorCode(hr),

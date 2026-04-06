@@ -37,10 +37,16 @@ struct ColorVertex
 struct SkinnedVertex
 {
     XMFLOAT3 Pos = XMFLOAT3(0.0f, 0.0f, 0.0f);
-    XMFLOAT3 Normal = XMFLOAT3(0.0f, 0.0f, 0.0f);;
-    XMFLOAT2 TexC = XMFLOAT2(0.0f, 0.0f);;
+    XMFLOAT3 Normal = XMFLOAT3(0.0f, 0.0f, 0.0f);
+    XMFLOAT2 TexC = XMFLOAT2(0.0f, 0.0f);
     XMFLOAT3 BoneWeights = XMFLOAT3(0.0f, 0.0f, 0.0f);
     uint32_t BoneIndices[4] = {0, 0, 0, 0};
+};
+
+struct BillboardVertex
+{
+    XMFLOAT3 Pos = XMFLOAT3(0.0f, 0.0f, 0.0f); // Center of the billboard
+    XMFLOAT2 Size = XMFLOAT2(0.0f, 0.0f);
 };
 
 struct Submesh

@@ -40,7 +40,7 @@ using namespace DirectX;
 #pragma comment(lib, "D3D12.lib")
 #pragma comment(lib, "dxgi.lib")
 
-extern const int gNumFrameResources;
+extern const int NUM_FRAME_RESOURCES;
 
 inline void d3dSetDebugName(IDXGIObject* obj, const char* name)
 {
@@ -181,9 +181,9 @@ struct Material {
 
     // Dirty 플래그: Material이 수정되었음을 표시. → 상수 버퍼 업데이트 필요
     // FrameResource마다 Material 상수 버퍼가 존재하므로,
-    // 수정 시 NumFramesDirty = gNumFrameResources 로 설정해야
+    // 수정 시 NumFramesDirty = NUM_FRAME_RESOURCES 로 설정해야
     // 모든 프레임 리소스가 업데이트를 받는다.
-    int numFramesDirty_ = gNumFrameResources;
+    int numFramesDirty_ = NUM_FRAME_RESOURCES;
 
     // 셰이딩에 사용되는 Material 상수 버퍼 데이터
     XMFLOAT4 diffuseAlbedo_ = { 1.0f, 1.0f, 1.0f, 1.0f };

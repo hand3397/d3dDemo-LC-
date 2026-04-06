@@ -9,8 +9,9 @@ enum class RenderLayer : uint8_t
     RENDER_OPAQUE = 0,
     RENDER_TRANSPARENT,
     RENDER_ALPHATESTED,
+    RENDER_ALPHATESTED_BILLBOARD,
     RENDER_SKINNED,
-    RENDER_INSTANCE,
+    RENDER_INSTANCE, 
     COUNT
 };
 
@@ -20,17 +21,17 @@ enum class RenderLayer : uint8_t
 struct RenderItem
 {
     RenderItem() = default;
-    RenderItem(RenderLayer layer, const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
+    RenderItem(const RenderLayer layer, const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
         const XMFLOAT4X4& world, const XMFLOAT4X4& texTransform) :
-        renderLayer(layer), mesh_(mesh), material_(material), world_(world), texTransform_(texTransform)
+        renderLayer_(layer), mesh_(mesh), material_(material), world_(world), texTransform_(texTransform)
     {
         indexCount_ = submesh.numIndices_;
         baseIndex_ = submesh.baseIndex_;
         baseVertex_ = submesh.baseVertex_;
     }
-    RenderItem(RenderLayer layer, const MeshGeometry* mesh, const Submesh& submesh, const Material* material,
+    RenderItem(const RenderLayer layer, const MeshGeometry* mesh, const Submesh& submesh, const Material* material,
         const XMMATRIX& world, const XMMATRIX& texTransform) :
-        renderLayer(layer), mesh_(mesh), material_(material)
+        renderLayer_(layer), mesh_(mesh), material_(material)
     {
         XMStoreFloat4x4(&world_, world);
         XMStoreFloat4x4(&texTransform_, texTransform);
@@ -40,9 +41,9 @@ struct RenderItem
         baseVertex_ = submesh.baseVertex_;
     }
 
-    void SetFrameDirty() { numFramesDirty_ = gNumFrameResources; }
+    void SetFrameDirty() { numFramesDirty_ = NUM_FRAME_RESOURCES; }
 
-    RenderLayer renderLayer;
+    RenderLayer renderLayer_;
 
     // 셰계 공간을 기준으로 물체의 국소 공간을 서술하는 세계 행렬
     // 이 행렬은 세계공간에서의 물체의 크기, 회전, 위치를 결정.
@@ -51,9 +52,9 @@ struct RenderItem
     XMFLOAT4X4 texTransform_ = MathHelper::Identity4x4();
 
     // 더티 플래그는 물체의 자료가 변해서 버퍼를 갱신해야 하는지의 여부를 나타낸다.
-    // 물체의 자료를 수정할 때에는 반드시 NumFramesDirty = gNumFrameResources로 설정한다.
+    // 물체의 자료를 수정할 때에는 반드시 NumFramesDirty = NUM_FRAME_RESOURCES로 설정한다.
     //  그래야 각각의 프레임 자원이 갱신된다.
-    int numFramesDirty_ = gNumFrameResources;
+    int numFramesDirty_ = NUM_FRAME_RESOURCES;
 
     // GPU 상수 버퍼의 색인
     uint32_t objCBIndex_ = -1;
@@ -74,8 +75,7 @@ struct RenderItem
     uint32_t baseVertex_ = 0;
 
     // Only applicable to skinned render-items.
-    bool isSkinningObject = false;
-    uint32_t skinnedCBIndex_ = -1;
+    int32_t skinnedCBIndex_ = -1; // -1 == not a skinned render-item
 
     // nullptr if this render-item is not animated by skinned mesh.
     SkinnedModelInstance* skinnedModelInst_ = nullptr;
@@ -84,4 +84,7 @@ struct RenderItem
     uint32_t instanceCount_ = 1;
     vector<InstanceData> instances_;
     uint32_t instanceOffset_ = 0;
+
+    // billboard data
+    bool isBillboardYAxisFixed_ = false;
 };

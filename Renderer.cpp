@@ -174,7 +174,7 @@ void Renderer::Update(const GameTimer& gt, Scene* scene)
 	const float dt = gt.DeltaTime();
 
 	// 순환적으로 자원 프레임 배열의 다음 원소에 접근한다.
-	currFrameResourceIndex_ = (currFrameResourceIndex_ + 1) % gNumFrameResources;
+	currFrameResourceIndex_ = (currFrameResourceIndex_ + 1) % NUM_FRAME_RESOURCES;
 	currFrameResource_ = frameResources_[currFrameResourceIndex_].get();
 
 	// GPU가 현재 프레임 자원의 명령들을 다 처리했는지 확인한다.
@@ -249,6 +249,9 @@ void Renderer::Draw(const Scene* scene)
 
 	commandList_->SetPipelineState(PSOs_["alphaTested"].Get());
 	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_ALPHATESTED));
+	
+	commandList_->SetPipelineState(PSOs_["billboard"].Get());
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_ALPHATESTED_BILLBOARD));
 	
 	commandList_->SetPipelineState(PSOs_["transparent"].Get());
 	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_TRANSPARENT));
@@ -389,15 +392,18 @@ void Renderer::BuildShadersAndInputLayout()
 		{ NULL, NULL }
 	};
 
-	shaders_["colorVS"] = d3dUtil::CompileShader(L"Shaders/color.hlsl", nullptr, "VS", "vs_5_1");
-	shaders_["standardVS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", nullptr, "VS", "vs_5_1");
-	shaders_["skinnedVS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", skinnedDefines, "VS", "vs_5_1");
-	shaders_["instanceVS"] = d3dUtil::CompileShader(L"Shaders/Instance.hlsl", defines, "VS", "vs_5_1");
+	shaders_["colorVS"]			= d3dUtil::CompileShader(L"Shaders/color.hlsl",		nullptr,			"VS", "vs_5_1");
+	shaders_["standardVS"]		= d3dUtil::CompileShader(L"Shaders/Default.hlsl",	nullptr,			"VS", "vs_5_1");
+	shaders_["skinnedVS"]		= d3dUtil::CompileShader(L"Shaders/Default.hlsl",	skinnedDefines,		"VS", "vs_5_1");
+	shaders_["instanceVS"]		= d3dUtil::CompileShader(L"Shaders/Instance.hlsl",	defines,			"VS", "vs_5_1");
+	shaders_["billboardVS"]		= d3dUtil::CompileShader(L"Shaders/Billboard.hlsl", defines,			"VS", "vs_5_1");
 
-	shaders_["colorPS"] = d3dUtil::CompileShader(L"Shaders/color.hlsl", nullptr, "PS", "ps_5_1");
-	shaders_["opaquePS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", defines, "PS", "ps_5_1");
-	shaders_["instancePS"] = d3dUtil::CompileShader(L"Shaders/Instance.hlsl", defines, "PS", "ps_5_1");
-	shaders_["alphaTestedPS"] = d3dUtil::CompileShader(L"Shaders/Default.hlsl", alphaTestDefines, "PS", "ps_5_1");
+	shaders_["billboardGS"]		= d3dUtil::CompileShader(L"Shaders/Billboard.hlsl", nullptr,			"GS", "gs_5_1");
+
+	shaders_["colorPS"]			= d3dUtil::CompileShader(L"Shaders/color.hlsl",		nullptr,			"PS", "ps_5_1");
+	shaders_["opaquePS"]		= d3dUtil::CompileShader(L"Shaders/Default.hlsl",	defines,			"PS", "ps_5_1");
+	shaders_["instancePS"]		= d3dUtil::CompileShader(L"Shaders/Instance.hlsl",	defines,			"PS", "ps_5_1");
+	shaders_["alphaTestedPS"]	= d3dUtil::CompileShader(L"Shaders/Default.hlsl",	alphaTestDefines,	"PS", "ps_5_1");
 
 	inputLayouts_["standard"] =
 	{
@@ -420,6 +426,12 @@ void Renderer::BuildShadersAndInputLayout()
 		{ "WEIGHTS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(SkinnedVertex, BoneWeights), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "BONEINDICES", 0, DXGI_FORMAT_R32G32B32A32_UINT, 0, (UINT)offsetof(SkinnedVertex, BoneIndices), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
+
+	inputLayouts_["billboard"] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(BillboardVertex, Pos), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "SIZE", 0, DXGI_FORMAT_R32G32_FLOAT, 0, (UINT)offsetof(BillboardVertex, Size), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
 }
 
 void Renderer::BuildFrameResources(Scene* scene)
@@ -429,7 +441,7 @@ void Renderer::BuildFrameResources(Scene* scene)
 	numInstances = (numInstances < 1 ? 1 : numInstances);
 	uint32_t numSkinnedObjects = scene->GetSkinnedModelInsts().size();
 	uint32_t numMaterials = scene->GetMaterials().size();
-	for (int i = 0; i < gNumFrameResources; ++i) {
+	for (int i = 0; i < NUM_FRAME_RESOURCES; ++i) {
 		frameResources_.push_back(make_unique<FrameResource>(d3dDevice_.Get(),
 			1, numRenderItems, numSkinnedObjects, numInstances, numMaterials));
 	}
@@ -442,6 +454,7 @@ void Renderer::BuildPSOs()
 	//
 	// PSO for opaque objects.
 	//
+
 	opaquePsoDesc.InputLayout = { inputLayouts_["standard"].data(), (UINT)inputLayouts_["standard"].size() };
 	opaquePsoDesc.pRootSignature = rootSignature_.Get();
 	opaquePsoDesc.VS =
@@ -551,6 +564,27 @@ void Renderer::BuildPSOs()
 		shaders_["skinnedVS"]->GetBufferSize()
 	};
 	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&skinnedOpaquePsoDesc, IID_PPV_ARGS(&PSOs_["skinnedOpaque"])));
+
+	//
+    // PSO for billboard objects
+	//
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC billboardPsoDesc = opaquePsoDesc;
+	billboardPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(shaders_["billboardVS"]->GetBufferPointer()),
+		shaders_["billboardVS"]->GetBufferSize()
+	};
+	billboardPsoDesc.GS =
+	{
+		reinterpret_cast<BYTE*>(shaders_["billboardGS"]->GetBufferPointer()),
+		shaders_["billboardGS"]->GetBufferSize()
+	};
+	billboardPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+	billboardPsoDesc.InputLayout = { inputLayouts_["billboard"].data(), (UINT)inputLayouts_["billboard"].size() };
+	billboardPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+
+	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&billboardPsoDesc, IID_PPV_ARGS(&PSOs_["billboard"])));
 }
 
 void Renderer::BuildDebugMesh()
@@ -962,8 +996,8 @@ D3D12_CPU_DESCRIPTOR_HANDLE Renderer::DepthStencilView()const
 void Renderer::UpdateObjectCBs(const GameTimer& gt, Scene* scene)
 {
 	auto currObjectCB = currFrameResource_->objectCB_.get();
-	auto& renderItems = scene->GetAllRenderItems();
-	for (auto& e : renderItems) {
+	const auto& renderItems = scene->GetAllRenderItems();
+	for (const auto& e : renderItems) {
 		// 상수들이 바뀌었을 떄에만 cbuffer 자료를 갱신한다.
 		// 이러한 갱신을 프레임 자원마다 수행해야 한다.
 		if (e->numFramesDirty_ > 0) {
@@ -975,6 +1009,9 @@ void Renderer::UpdateObjectCBs(const GameTimer& gt, Scene* scene)
 			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
 			objConstants.MaterialIndex = e->material_->matCBIndex_;
 			
+			// billboard Data
+            objConstants.IsBillboardYAxisFixed = e->isBillboardYAxisFixed_ ? 1 : 0;
+
 			currObjectCB->CopyData(e->objCBIndex_, objConstants);
 
 			// 다음 프레임 자원으로 넘어간다.

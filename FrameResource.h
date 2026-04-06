@@ -5,18 +5,18 @@
 #include "UploadBuffer.h"
 
 
-extern const int gNumFrameResources;
+extern const int NUM_FRAME_RESOURCES;
 
 #define MaxLights 16
 
 struct Light
 {
     DirectX::XMFLOAT3 Strength = { 0.5f, 0.5f, 0.5f };
-    float FalloffStart = 1.0f;                          // point/spot 라이트에만 해당
-    DirectX::XMFLOAT3 Direction = { 0.0f, -1.0f, 0.0f };// directional/spot 라이트에만 해당
-    float FalloffEnd = 10.0f;                           // point/spot 라이트에만 해당
-    DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };  // point/spot 라이트에만 해당
-    float SpotPower = 64.0f;                            // spot 라이트에만 해당
+    float FalloffStart = 1.0f;                          // point/spot Light
+    DirectX::XMFLOAT3 Direction = { 0.0f, -1.0f, 0.0f };// directional/spot Light
+    float FalloffEnd = 10.0f;                           // point/spot Light
+    DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };  // point/spot Light
+    float SpotPower = 64.0f;                            // spot Light
 };
 
 struct ObjectConstants
@@ -24,7 +24,12 @@ struct ObjectConstants
     DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
     DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
     UINT     MaterialIndex = 0;
-    UINT     ObjPad0;
+
+    union
+    {
+        UINT ObjPad0;
+        UINT IsBillboardYAxisFixed = 0; // 0: 자유 회전, 1: Y축 고정
+    };
     UINT     ObjPad1;
     UINT     ObjPad2;
 };

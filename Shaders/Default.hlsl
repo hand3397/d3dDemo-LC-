@@ -162,53 +162,52 @@ VertexOut VS(VertexIn vin)
 	
     return vout;
 }
-
 float4 PS(VertexOut pin) : SV_Target
 {
-    // Fetch the material data.
+    // 재질 데이터 가져오기
     MaterialData matData = gMaterialData[gMaterialIndex];
     float4 diffuseAlbedo = matData.DiffuseAlbedo;
     float3 fresnelR0 = matData.FresnelR0;
     float roughness = matData.Roughness;
     uint diffuseTexIndex = matData.DiffuseMapIndex;
 
-	// Dynamically look up the texture in the array.
+    // 텍스처 샘플링 (Texture2D 배열에서 인덱스로 접근)
     diffuseAlbedo *= gDiffuseMap[diffuseTexIndex].Sample(gsamLinearWrap, pin.TexC);
-	
-#ifdef ALPHA_TEST
-	// Discard pixel if texture alpha < 0.1.  We do this test as soon 
-	// as possible in the shader so that we can potentially exit the
-	// shader early, thereby skipping the rest of the shader code.
-	clip(diffuseAlbedo.a - 0.1f);
-#endif
     
-    // Interpolating normal can unnormalize it, so renormalize it.
+#ifdef ALPHA_TEST
+    // 알파 테스트: 투명도 0.1 미만 픽셀 제거 (조기 종료 최적화)
+    clip(diffuseAlbedo.a - 0.1f);
+#endif
+
+    // 법선 벡터 정규화
     pin.NormalW = normalize(pin.NormalW);
 
-    // Vector from point being lit to eye. 
-    float3 toEyeW = normalize(gEyePosW - pin.PosW);
-    
-    // Light terms.
-    float4 ambient = gAmbientLight*diffuseAlbedo;
+    // 카메라 관련 벡터 계산 (조명 및 안개 공용)
+    float3 toEyeW = gEyePosW - pin.PosW; // 카메라로 향하는 벡터
+    float distToEye = length(toEyeW); // 카메라와의 거리
+    toEyeW /= distToEye; // 정규화 (normalize 대용)
+
+    // 조명 연산
+    float4 ambient = gAmbientLight * diffuseAlbedo;
 
     const float shininess = 1.0f - roughness;
     Material mat = { diffuseAlbedo, fresnelR0, shininess };
     float3 shadowFactor = 1.0f;
+    
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
-        pin.NormalW, toEyeW, shadowFactor);
+                                        pin.NormalW, toEyeW, shadowFactor);
 
     float4 litColor = ambient + directLight;
 
+    // 안개 효과 적용
 #ifdef FOG
-    float distToEye = length(toEyeW);
-	float fogAmount = saturate((distToEye - gFogStart) / gFogRange);
-	litColor = lerp(litColor, gFogColor, fogAmount);
+    float fogAmount = saturate((distToEye - gFogStart) / gFogRange);
+    litColor = lerp(litColor, gFogColor, fogAmount);
 #endif
-    
-    // Common convention to take alpha from diffuse albedo.
+
+    // 최종 알파값 설정 (보통 디퓨즈 알파를 따름)
     litColor.a = diffuseAlbedo.a;
 
     return litColor;
 }
-
 

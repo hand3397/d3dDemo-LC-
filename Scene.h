@@ -47,15 +47,27 @@ private:
 
     void BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
+    void BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void BuildMaterials();
 
     void BuildGameObjects();
+
+    // build game object and add to game object manager
     GameObject* BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& transform,
         vector<RenderItem*>& rItems, spe::RigidbodyType rigidbodyType);
+
+    // build render item and add to render item layer
     RenderItem* BuildRenderItem(const RenderLayer renderLayer,
         const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
+        const XMMATRIX& world = XMMatrixIdentity(), const XMMATRIX& texTransform = XMMatrixIdentity());
+    RenderItem* BuildSkinnedRenderItem(const RenderLayer renderLayer,
+        const MeshGeometry* mesh, const Submesh& submesh, const Material* material,
         const XMMATRIX& world = XMMatrixIdentity(), const XMMATRIX& texTransform = XMMatrixIdentity(),
         SkinnedModelInstance* skinnedModelInstance = nullptr, const int32_t skinnedCBIndex = -1);
+    RenderItem* BuildBillboardRenderItem(const RenderLayer renderLayer,
+        const MeshGeometry* mesh, const Submesh& submesh, const Material* material,
+        const XMMATRIX& world = XMMatrixIdentity(), const XMMATRIX& texTransform = XMMatrixIdentity(),
+        const bool isBillboardYAxisFixed = true);
 
     GameObject* AddCylinderObject(const XMFLOAT3& pos, const XMFLOAT3& rotate = XMFLOAT3(0.f, 0.f, 0.f));
     GameObject* AddBoxObject(const XMFLOAT3& pos, const XMFLOAT3& rotate = XMFLOAT3(0.f, 0.f, 0.f));

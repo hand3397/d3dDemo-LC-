@@ -165,6 +165,7 @@ SkinnedModelInstance* Scene::GetSkinnedModelInst(const string& name)
 void Scene::BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
 	BuildShapeGeometry(device, cmdList);
+	BuildBillboardGeometry(device, cmdList);
 	BuildMaterials();
 	BuildGameObjects();
 }
@@ -294,6 +295,55 @@ void Scene::BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 	meshes_[geo->name_] = move(geo);
 }
 
+void Scene::BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
+{
+	struct BillboardGeometryDesc
+	{
+		string name;
+		XMFLOAT3 center;
+		XMFLOAT2 size;
+	};
+
+	BoundingBox bb;
+	BoundingSphere bs;
+
+	const vector<BillboardGeometryDesc> billboardGeometries = {
+		{"test",	XMFLOAT3(0.f, 0.f, 0.f),	XMFLOAT2(1.0f, 1.0f)},
+		{"tree1",	XMFLOAT3(0.f, 4.5f, 0.f),	XMFLOAT2(4.0f, 10.0f)},
+		{"tree2",	XMFLOAT3(0.f, 5.5f, 0.f),	XMFLOAT2(4.0f, 12.0f)},
+		{"tree3",	XMFLOAT3(0.f, 7.0f, 0.f),	XMFLOAT2(5.0f, 15.0f)},
+	};
+
+	uint32_t numBillboardGeometries = billboardGeometries.size();
+	vector<BillboardVertex> vertices(numBillboardGeometries);
+	vector<uint32_t> indices(numBillboardGeometries);
+
+	for (int i = 0; i < numBillboardGeometries; ++i) {
+		const BillboardGeometryDesc& billboard = billboardGeometries[i];
+		vertices[i].Pos = billboard.center;
+		vertices[i].Size = billboard.size;
+		indices[i] = i;
+	}
+
+	auto geo = make_unique<MeshGeometry>();
+	geo->BuildMeshGeo("billboardGeo", vertices, indices, device, cmdList);
+
+	for (int i = 0; i < numBillboardGeometries; ++i) {
+		XMFLOAT3 center = vertices[i].Pos;
+		XMFLOAT2 size = vertices[i].Size;
+
+		bb.Center = center;
+		bb.Extents = { size.x, size.y, size.x };
+		bs.Center = center;
+		bs.Radius = sqrtf(size.x * size.x + size.y * size.y);
+
+		Submesh billboardSubmesh(1, i, 0, bb, bs);
+		geo->AddSubmesh(billboardGeometries[i].name, billboardSubmesh);
+	}
+	
+	meshes_[geo->name_] = move(geo);
+}
+
 void Scene::BuildMaterials()
 {
 	materials_.insert({ "bricks0",	make_unique<Material>("bricks0", materials_.size(),
@@ -338,11 +388,15 @@ void Scene::BuildGameObjects()
 		renderItems, RigidbodyType::Static);
 	*/
 	renderItems = { BuildRenderItem(RenderLayer::RENDER_OPAQUE,
-		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["grid"], materials_["tile0"].get(),
+		meshes_["shapeGeo"].get(), meshes_["shapeGeo"]->subMeshes_["grid"], materials_["tile0"].get(),
 		XMMatrixIdentity(), XMMatrixScaling(50.0f, 50.0f, 1.0f)) };
 	GameObject* go = BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
 		renderItems, spe::RigidbodyType::STATIC);
 	go->GetRigidbody()->GetFixture()->SetFriction(0.5);
+
+	BuildBillboardRenderItem(RenderLayer::RENDER_ALPHATESTED_BILLBOARD,
+		meshes_["billboardGeo"].get(), meshes_["billboardGeo"]->subMeshes_["tree1"], materials_["soldier"].get(),
+		XMMatrixTranslation(0.f, 0.f, 20.f), XMMatrixIdentity(), true);
 
 	// build wall
 	/*
@@ -376,18 +430,17 @@ void Scene::BuildGameObjects()
 	}
 	*/
 	
-	renderItems = { BuildRenderItem(RenderLayer::RENDER_SKINNED,
+	renderItems = { BuildSkinnedRenderItem(RenderLayer::RENDER_SKINNED,
 		meshes_["skinnedGeo"].get(), meshes_["skinnedGeo"].get()->subMeshes_["0"], materials_["soldier"].get(),
 		XMMatrixIdentity(), XMMatrixIdentity(),
 		skinnedModelInsts_["Vanguard"].get(), 0),
 
-		BuildRenderItem(RenderLayer::RENDER_SKINNED,
+		BuildSkinnedRenderItem(RenderLayer::RENDER_SKINNED,
 		meshes_["skinnedGeo"].get(), meshes_["skinnedGeo"].get()->subMeshes_["1"], materials_["soldier"].get(),
 		XMMatrixIdentity(), XMMatrixIdentity(),
 		skinnedModelInsts_["Vanguard"].get(), 0) };
 	player_->SetRenderItems(renderItems);
 	
-
 	/*
 	for (int i = 0; i < 5; ++i) {
 		XMFLOAT3 leftCylPos = XMFLOAT3(-5.0f, 1.5f, -10.0f + i * 5.0f);
@@ -463,22 +516,52 @@ GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate
 	return gameObject;
 }
 
-RenderItem* Scene::BuildRenderItem(const RenderLayer renderLayer,
-	const MeshGeometry* mesh, const Submesh& submesh, const Material* material,
-	const XMMATRIX& world, const XMMATRIX& texTransform,
-	SkinnedModelInstance* skinnedModelInstance, const int32_t skinnedCBIndex)
+RenderItem* Scene::BuildRenderItem(const RenderLayer renderLayer, 
+	const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
+	const XMMATRIX& world, const XMMATRIX& texTransform)
 {
 	auto renderItem = make_unique<RenderItem>(renderLayer, mesh, submesh, material, world, texTransform);
-	if (renderLayer == RenderLayer::RENDER_SKINNED) {
-		renderItem->isSkinningObject = true;
-		renderItem->skinnedModelInst_ = skinnedModelInstance;
-		renderItem->skinnedCBIndex_ = skinnedCBIndex;
-	}
 	renderItem->objCBIndex_ = allRenderItems_.size();
 
 	renderItem->boundingBox_ = submesh.boundingBox_;
 	renderItem->boundingSphere_ = submesh.boundingSphere_;
+	RenderItem* rItem = renderItem.get();
+	renderItemLayer_[static_cast<uint8_t>(renderLayer)].push_back(rItem);
+	allRenderItems_.push_back(move(renderItem));
+	return rItem;
+}
 
+RenderItem* Scene::BuildSkinnedRenderItem(const RenderLayer renderLayer, 
+	const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
+	const XMMATRIX& world, const XMMATRIX& texTransform, 
+	SkinnedModelInstance* skinnedModelInstance, const int32_t skinnedCBIndex)
+{
+	auto renderItem = make_unique<RenderItem>(renderLayer, mesh, submesh, material, world, texTransform);
+	renderItem->skinnedModelInst_ = skinnedModelInstance;
+	renderItem->skinnedCBIndex_ = skinnedCBIndex;
+	renderItem->objCBIndex_ = allRenderItems_.size();
+
+	renderItem->boundingBox_ = submesh.boundingBox_;
+	renderItem->boundingSphere_ = submesh.boundingSphere_;
+	RenderItem* rItem = renderItem.get();
+	renderItemLayer_[static_cast<uint8_t>(renderLayer)].push_back(rItem);
+	allRenderItems_.push_back(move(renderItem));
+	return rItem;
+}
+
+RenderItem* Scene::BuildBillboardRenderItem(const RenderLayer renderLayer, 
+	const MeshGeometry* mesh, const Submesh& submesh, const Material* material, 
+	const XMMATRIX& world, const XMMATRIX& texTransform, const bool isBillboardYAxisFixed)
+{
+	auto renderItem = make_unique<RenderItem>(renderLayer, mesh, submesh, material, world, texTransform);
+	
+	renderItem->primitiveType_ = D3D11_PRIMITIVE_TOPOLOGY_POINTLIST;
+    renderItem->isBillboardYAxisFixed_ = isBillboardYAxisFixed;
+
+	renderItem->objCBIndex_ = allRenderItems_.size();
+
+	renderItem->boundingBox_ = submesh.boundingBox_;
+	renderItem->boundingSphere_ = submesh.boundingSphere_;
 	RenderItem* rItem = renderItem.get();
 	renderItemLayer_[static_cast<uint8_t>(renderLayer)].push_back(rItem);
 	allRenderItems_.push_back(move(renderItem));
@@ -600,7 +683,7 @@ void Scene::RemoveGameObject(GameObject* gameObject)
 	const auto& renderItems = gameObject->GetRenderItems();
 	for (RenderItem* rItem : renderItems) {
         if (rItem == nullptr) continue;
-		RemoveRenderItem(rItem, rItem->renderLayer);
+		RemoveRenderItem(rItem, rItem->renderLayer_);
 	}
 
 	gameObejctManager_.DestroyObject(gameObject);
