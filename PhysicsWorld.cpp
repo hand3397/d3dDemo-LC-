@@ -220,10 +220,29 @@ void PhysicsWorld::RemoveRigidbody(Rigidbody* rigidbody)
 		fixture->DestroyProxy(broadPhase_);
 	}
 
-	// 3. 해당 Rigidbody의 모든 Contact 정리
+    // 해당 Rigidbody와 연결된 모든 Rigidbody를 깨운다.
+    vector<Rigidbody*> stack;
+	unordered_set<Rigidbody*> visited;
+	stack.push_back(rigidbody);
+    visited.insert(rigidbody);
+
+	while (!stack.empty()) {
+		Rigidbody* current = stack.back();
+		stack.pop_back();
+		
+		current->SetAwake(true);
+		ContactLink* contactLink = current->GetContactLink();
+		while (contactLink != nullptr) {
+			if (contactLink->other != nullptr && visited.find(contactLink->other) == visited.end()) {
+				stack.push_back(contactLink->other);
+                visited.insert(contactLink->other);
+			}
+		}
+	}
+
+	// 해당 Rigidbody의 모든 Contact 정리
 	ContactLink* contactLink = rigidbody->GetContactLink();
 	while (contactLink != nullptr) {
-		contactLink->other->SetAwake(true);
 		ContactLink* next = contactLink->next;
 		contactManager_.RemoveContact(contactLink->contact);
 		contactLink = next;
@@ -252,6 +271,7 @@ Rigidbody* PhysicsWorld::RayCast(const Ray& ray)
 	Rigidbody* rigidBody = proxyData->fixture->GetRigidbody();
 
 	// 2. 각 후보 body에 대해 세부 충돌 판정 (Narrow-phase)
+
 
 	// Shape의 유형에 따라 Ray-Shape 충돌 계산 (Collision.h 등에 정의 필요)
 	return rigidBody;
