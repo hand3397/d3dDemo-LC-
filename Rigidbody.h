@@ -118,9 +118,9 @@ protected:
     XMFLOAT3X3 inverseInertiaTensor_        = XMFLOAT3X3(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
     XMFLOAT4X4 transformMatrix_;
 
-    // drag [0.f, 1.0f]
-    float linearDamping_ = 0.01f;
-    float angularDamping_ = 0.01f;
+    // drag ((linearDamping_ * dt)가 1.0이 넘지 않는 값으로 조정)
+    float linearDamping_ = 5.0f;
+    float angularDamping_ = 5.0f;
 
     uint32_t flags_ = 0;
     float sleepTime_ = 0.f;

@@ -588,8 +588,6 @@ GameObject* Scene::AddCylinderObject(const XMFLOAT3& pos, const XMFLOAT3& rotate
 	}
 
 	spe::Rigidbody* rigidbody = gameObject->GetRigidbody();
-	//rigidbody->SetLinearDamping(0.005f);
-	//rigidbody->SetAngularDamping(0.005f);
 	rigidbody->SetMass(10.0f);
 
 	spe::CylinderShape* cylinderShape = new spe::CylinderShape(XMFLOAT3(0.f, 0.f, 0.f), 1.0f, 2.0f);
@@ -623,8 +621,6 @@ GameObject* Scene::AddBoxObject(const XMFLOAT3& pos, const XMFLOAT3& rotate)
 	}
 
 	spe::Rigidbody* rigidbody = gameObject->GetRigidbody();
-	//rigidbody->SetLinearDamping(0.005f);
-	//rigidbody->SetAngularDamping(0.005f);
 	rigidbody->SetMass(10.0f);
 
 	spe::BoxShape* boxShape = new spe::BoxShape(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(1.0f, 1.0f, 1.0f));
@@ -658,8 +654,6 @@ GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
 	}
 
 	auto rigidbody = gameObject->GetRigidbody();
-	rigidbody->SetLinearDamping(0.005f);
-	rigidbody->SetAngularDamping(0.005f);
 	rigidbody->SetMass(7.0f);
 
 	spe::SphereShape* sphereShape = new spe::SphereShape(XMFLOAT3(0.f, 0.f, 0.f), 1.0f);

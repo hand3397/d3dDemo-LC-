@@ -102,9 +102,6 @@ void Rigidbody::Integrate(float dt)
         return;
     }
 
-    if (angularVelocity_.x <= 95.f && angularVelocity_.x >= 90.f)
-        int a = 1;
-
     // Set acceleration by F = ma
     XMVECTOR linearAccVec = XMLoadFloat3(&linearAcceleration_);
     linearAccVec += XMLoadFloat3(&force_) * inverseMass_;
@@ -120,8 +117,8 @@ void Rigidbody::Integrate(float dt)
     angularVelocityVec += (angularAccVec * dt);
 
     // impose drag
-    linearVelocityVec *= (1.0f - linearDamping_);
-    angularVelocityVec *= (1.0f - angularDamping_);
+    linearVelocityVec *= std::max(0.f, (1.0f - linearDamping_ * dt));
+    angularVelocityVec *= std::max(0.f, (1.0f - angularDamping_ * dt));
 
     // store velocity
     XMStoreFloat3(&linearVelocity_, linearVelocityVec);
@@ -142,15 +139,13 @@ void Rigidbody::Integrate(float dt)
     if (omegaMag > EPS_FLOAT_SQ) // 회전이 있을 때만 계산
     {
         // 각속도 벡터 방향을 회전축, 크기*dt를 회전각으로 하는 쿼터니언 생성
-        // 이 쿼터니언(deltaQ)은 월드 좌표계 기준의 회전량입니다.
+        // 이 쿼터니언(deltaQ)은 월드 좌표계 기준의 회전량이다
         XMVECTOR deltaQ = XMQuaternionRotationAxis(angularVelocityVec, omegaMag * dt);
 
         // 회전 적용: Q_new = deltaQ * Q_old
         // DirectXMath의 곱셈 순서는 (Q2 * Q1)이 "Q1 회전 후 Q2 회전"을 의미하므로,
         // 현재 방향(Q_old)에 월드 회전(deltaQ)을 추가하려면 왼쪽에 곱해야 합니다.
         orientationVec = XMQuaternionMultiply(orientationVec, deltaQ);
-
-        // 정규화 (필수)
         orientationVec = XMQuaternionNormalize(orientationVec);
     }
 
