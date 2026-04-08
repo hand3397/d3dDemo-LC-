@@ -339,34 +339,43 @@ void Renderer::BuildRootSignature()
 
 void Renderer::BuildDescriptorHeaps(Scene* scene)
 {
-	// Create the SRV heap.
-	auto& textures = scene->GetTextures();
+	const auto& textures = scene->GetTextures();
+	if (textures.empty()) return;
 
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = textures.size();
+	srvHeapDesc.NumDescriptors = static_cast<UINT>(textures.size());
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(d3dDevice_->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvDescriptorHeap_)));
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(srvDescriptorHeap_->GetCPUDescriptorHandleForHeapStart());
 
-	// Loop over all textures and create SRVs
-	UINT texIndex = 0;
-	
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-	
 	for (auto& [name, tex] : textures) {
-		auto& resource = tex->Resource;
+		const auto& resource = tex->resource_;
+		const D3D12_RESOURCE_DESC resDesc = resource->GetDesc();
 
-		srvDesc.Format = resource->GetDesc().Format;
-		srvDesc.Texture2D.MipLevels = resource->GetDesc().MipLevels;
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Format = resDesc.Format;
+
+		if (resDesc.DepthOrArraySize > 1) {
+			// Texture 2D Array
+			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+			srvDesc.Texture2DArray.MostDetailedMip = 0;
+			srvDesc.Texture2DArray.MipLevels = resDesc.MipLevels;
+			srvDesc.Texture2DArray.FirstArraySlice = 0;
+			srvDesc.Texture2DArray.ArraySize = resDesc.DepthOrArraySize;
+		}
+		else {
+			// Texture 2D
+			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			srvDesc.Texture2D.MostDetailedMip = 0;
+			srvDesc.Texture2D.MipLevels = resDesc.MipLevels;
+			srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+		}
+
 		d3dDevice_->CreateShaderResourceView(resource.Get(), &srvDesc, hDescriptor);
 
-		// 다음 descriptor 위치로 이동
 		hDescriptor.Offset(1, cbvSrvDescriptorSize_);
 	}
 }

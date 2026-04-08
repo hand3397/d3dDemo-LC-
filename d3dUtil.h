@@ -195,16 +195,16 @@ struct Material {
 
 struct Texture {
     // 이름 (lookup용)
-    std::string Name;
+    std::string name_;
 
     // 파일 이름
-    std::wstring Filename;
+    std::wstring fileName_;
 
-    UINT SrvHeapIndex = 0;
+    uint32_t srvHeapIndex_ = 0;
 
     // GPU 리소스 및 업로드 힙
-    Microsoft::WRL::ComPtr<ID3D12Resource> Resource = nullptr;
-    Microsoft::WRL::ComPtr<ID3D12Resource> UploadHeap = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12Resource> resource_ = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12Resource> uploadHeap_ = nullptr;
 };
 
 #ifndef ThrowIfFailed

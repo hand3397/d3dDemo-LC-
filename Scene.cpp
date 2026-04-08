@@ -347,27 +347,27 @@ void Scene::BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandLi
 void Scene::BuildMaterials()
 {
 	materials_.insert({ "bricks0",	make_unique<Material>("bricks0", materials_.size(),
-		textures_["bricksTex"]->SrvHeapIndex, -1,
+		textures_["bricksTex"]->srvHeapIndex_, -1,
 		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f), 0.1f) });
 
 	materials_.insert({ "stone0",	make_unique<Material>("stone0", materials_.size(),
-		textures_["stoneTex"]->SrvHeapIndex, -1,
+		textures_["stoneTex"]->srvHeapIndex_, -1,
 		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.05f, 0.05f, 0.05f), 0.3f) });
 
 	materials_.insert({ "tile0",	make_unique<Material>("tile0", materials_.size(),
-		textures_["tileTex"]->SrvHeapIndex, -1,
+		textures_["tileTex"]->srvHeapIndex_, -1,
 		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f), 0.3f) });
 
 	materials_.insert({ "ice0",		make_unique<Material>("ice0", materials_.size(),
-		textures_["iceTex"]->SrvHeapIndex, -1,
+		textures_["iceTex"]->srvHeapIndex_, -1,
 		XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.0f) });
 
 	materials_.insert({ "wirefence", make_unique<Material>("wirefence",	materials_.size(),
-		textures_["fenceTex"]->SrvHeapIndex, -1,
+		textures_["fenceTex"]->srvHeapIndex_, -1,
 		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.25f) });
 
 	materials_.insert({ "soldier",	make_unique<Material>("soldier", materials_.size(),
-		textures_["soldierTex"]->SrvHeapIndex, -1,
+		textures_["soldierTex"]->srvHeapIndex_, -1,
 		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.25f) });
 }
 
@@ -764,14 +764,17 @@ void Scene::LoadTextures(ID3D12Device* device, ID3D12GraphicsCommandList* cmdLis
 
 void Scene::LoadTexture(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, const string& name, const wstring& fileName)
 {
-	auto tex = make_unique<Texture>();
-	tex->Name = name;
-	tex->Filename = fileName;
-	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(device, cmdList,
-		tex->Filename.c_str(), tex->Resource, tex->UploadHeap));
-	tex->SrvHeapIndex = textures_.size();
+	unique_ptr<Texture>& tex = make_unique<Texture>();
 
-	textures_[tex->Name] = move(tex);
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(device, cmdList,
+		fileName.c_str(), tex->resource_, tex->uploadHeap_));
+	
+	if (tex->resource_) {
+		tex->name_ = name;
+		tex->fileName_ = fileName;
+		tex->srvHeapIndex_ = textures_.size();
+		textures_[tex->name_] = move(tex);
+	}
 }
 
 void Scene::AnimateMaterials(float dt)
