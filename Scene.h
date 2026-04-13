@@ -49,7 +49,7 @@ private:
     void BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void BuildMaterial(const string& name, const string& textureName, const XMFLOAT4& diffuseAlbedo,
-        const XMFLOAT3& fresnelR0, float roughness, const XMFLOAT4X4& matTransform);
+        const XMFLOAT3& fresnelR0, float roughness, const XMMATRIX& matTransform = XMMatrixIdentity());
     void BuildMaterials();
 
     void BuildGameObjects();

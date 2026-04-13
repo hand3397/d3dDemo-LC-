@@ -45,7 +45,6 @@ private:
 	void BuildFrameResources(Scene* scene);
 	void BuildPSOs();
 	void BuildDebugMesh();
-	void UpdateDebugMesh(Scene* scene);
 
 	array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 
@@ -54,6 +53,7 @@ private:
 	void UpdateSkinnedCBs(const GameTimer& gt, Scene* scene);
 	void UpdateMaterialBuffer(const GameTimer& gt, Scene* scene);
 	void UpdateMainPassCB(const GameTimer& gt, Scene* scene);
+	void UpdateDebugMesh(Scene* scene);
 
 	void DrawRenderItems(const vector<RenderItem*>& ritems);
 	void DrawDebugBox();

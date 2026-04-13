@@ -308,10 +308,10 @@ void Scene::BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandLi
 	BoundingSphere bs;
 
 	const vector<BillboardGeometryDesc> billboardGeometries = {
-		{"test",	XMFLOAT3(0.f, 0.f, 0.f),	XMFLOAT2(1.0f, 1.0f)},
-		{"tree1",	XMFLOAT3(0.f, 4.5f, 0.f),	XMFLOAT2(4.0f, 10.0f)},
-		{"tree2",	XMFLOAT3(0.f, 5.5f, 0.f),	XMFLOAT2(4.0f, 12.0f)},
-		{"tree3",	XMFLOAT3(0.f, 7.0f, 0.f),	XMFLOAT2(5.0f, 15.0f)},
+		{"test",		XMFLOAT3(0.f, 0.f, 0.f),	XMFLOAT2(1.0f, 1.0f)},
+		{"character0",	XMFLOAT3(0.f, 0.2f, 0.f),	XMFLOAT2(1.0f, 1.0f)},
+		{"character1",	XMFLOAT3(0.f, 0.75f, 0.f),	XMFLOAT2(1.0f, 1.5f)},
+		{"tree3",		XMFLOAT3(0.f, 7.0f, 0.f),	XMFLOAT2(5.0f, 15.0f)},
 	};
 
 	uint32_t numBillboardGeometries = billboardGeometries.size();
@@ -345,7 +345,7 @@ void Scene::BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandLi
 }
 
 void Scene::BuildMaterial(const string& name, const string& textureName, const XMFLOAT4& diffuseAlbedo, 
-	const XMFLOAT3& fresnelR0, float roughness, const XMFLOAT4X4& matTransform)
+	const XMFLOAT3& fresnelR0, float roughness, const XMMATRIX& matTransform)
 {
     if (textures_.find(textureName) == textures_.end()) {
         // Handle the case where the texture is not found
@@ -363,29 +363,14 @@ void Scene::BuildMaterials()
 {
 	materials_.clear();
 
-	BuildMaterial("bricks0",	"bricksTex",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f),	0.1f, 
-		MathHelper::Identity4x4());
-
-	BuildMaterial("stone0",		"stoneTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.05f, 0.05f, 0.05f),	0.3f, 
-		MathHelper::Identity4x4());
-
-	BuildMaterial("tile0",		"tileTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f),	0.3f, 
-		MathHelper::Identity4x4());
-	
-	BuildMaterial("ice0",		"iceTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.0f, 
-		MathHelper::Identity4x4());
-
-	BuildMaterial("wirefence",	"fenceTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f, 
-		MathHelper::Identity4x4());
-
-	BuildMaterial("soldier",	"soldierTex",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f, 
-		MathHelper::Identity4x4());
-	
-	BuildMaterial("knight",		"knightTex",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f, 
-		MathHelper::Identity4x4());
-
-	BuildMaterial("tree",		"treeTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f,
-		MathHelper::Identity4x4());
+	BuildMaterial("bricks0",	"bricksTex",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f),	0.1f);
+	BuildMaterial("stone0",		"stoneTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.05f, 0.05f, 0.05f),	0.3f);
+	BuildMaterial("tile0",		"tileTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f),	0.3f);
+	BuildMaterial("ice0",		"iceTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.0f);
+	BuildMaterial("wirefence",	"fenceTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f);
+	BuildMaterial("soldier",	"soldierTex",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f);
+	BuildMaterial("knight",		"knightTex",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f);
+	BuildMaterial("tree",		"treeTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f);
 
 	/*
 	for (auto& pair : textures_) {
@@ -422,7 +407,7 @@ void Scene::BuildGameObjects()
 	go->GetRigidbody()->GetFixture()->SetFriction(0.5);
 
 	BuildBillboardRenderItem(RenderLayer::RENDER_ALPHATESTED_BILLBOARD,
-		meshes_["billboardGeo"].get(), meshes_["billboardGeo"]->subMeshes_["tree1"], materials_["knight"].get(),
+		meshes_["billboardGeo"].get(), meshes_["billboardGeo"]->subMeshes_["character0"], materials_["knight"].get(),
 		XMMatrixTranslation(0.f, 0.f, 20.f), XMMatrixIdentity(), true);
 	
 	// build wall

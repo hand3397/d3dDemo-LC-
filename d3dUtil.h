@@ -162,12 +162,14 @@ struct Material {
         const XMFLOAT4& diffuseAlbedo = XMFLOAT4(1, 1, 1, 1),
         const XMFLOAT3& fresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f),
         float roughness = 0.25f, uint16_t width = 1, uint16_t height = 1,
-        const XMFLOAT4X4& matTransform = MathHelper::Identity4x4())
+        const XMMATRIX& matTransform = XMMatrixIdentity())
         : name_(name), matCBIndex_(matCBIndex_),
         diffuseSrvHeapIndex_(diffuseSrvHeapIndex_),
         normalSrvHeapIndex_(normalSrvHeapIndex_),
         diffuseAlbedo_(diffuseAlbedo), fresnelR0_(fresnelR0),
-        roughness_(roughness), width_(width), height_(height), matTransform_(matTransform) {}
+        roughness_(roughness), width_(width), height_(height) {
+        XMStoreFloat4x4(&matTransform_, matTransform);
+    }
 
     string name_;
 

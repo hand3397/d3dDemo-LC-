@@ -247,6 +247,12 @@ void Renderer::Draw(const Scene* scene)
 
 	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_OPAQUE));
 
+	//commandList_->SetPipelineState(PSOs_["skinnedOpaque"].Get());
+	//DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_SKINNED));
+
+	commandList_->SetPipelineState(PSOs_["instance"].Get());
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_INSTANCE));
+
 	commandList_->SetPipelineState(PSOs_["alphaTested"].Get());
 	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_ALPHATESTED));
 	
@@ -255,12 +261,6 @@ void Renderer::Draw(const Scene* scene)
 	
 	commandList_->SetPipelineState(PSOs_["transparent"].Get());
 	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_TRANSPARENT));
-
-	//commandList_->SetPipelineState(PSOs_["skinnedOpaque"].Get());
-	//DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_SKINNED));
-
-	commandList_->SetPipelineState(PSOs_["instance"].Get());
-	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_INSTANCE));
 
 	commandList_->SetPipelineState(PSOs_["color"].Get());
 	DrawDebugBox();
@@ -348,6 +348,8 @@ void Renderer::BuildDescriptorHeaps(Scene* scene)
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(d3dDevice_->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvDescriptorHeap_)));
 
+	const D3D12_CPU_DESCRIPTOR_HANDLE hStart = srvDescriptorHeap_->GetCPUDescriptorHandleForHeapStart();
+
 	for (auto& [name, tex] : textures) {
 		const auto& resource = tex->resource_;
 		const D3D12_RESOURCE_DESC resDesc = resource->GetDesc();
@@ -372,8 +374,7 @@ void Renderer::BuildDescriptorHeaps(Scene* scene)
 			srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 		}
 
-		CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(srvDescriptorHeap_->GetCPUDescriptorHandleForHeapStart(), 
-			tex->srvHeapIndex_, cbvSrvDescriptorSize_);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(hStart, tex->srvHeapIndex_, cbvSrvDescriptorSize_);
 		d3dDevice_->CreateShaderResourceView(resource.Get(), &srvDesc, hDescriptor);
 	}
 }
@@ -592,6 +593,7 @@ void Renderer::BuildPSOs()
 		reinterpret_cast<BYTE*>(shaders_["alphaTestedPS"]->GetBufferPointer()),
 		shaders_["alphaTestedPS"]->GetBufferSize()
 	};
+	billboardPsoDesc.DepthStencilState.DepthEnable = false;
     billboardPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT; // 빌보드의 입력은 점이므로, 점으로 설정한다.(기하셰이더로 빌보드 사각형 생성)
 	billboardPsoDesc.InputLayout = { inputLayouts_["billboard"].data(), (UINT)inputLayouts_["billboard"].size() };
 	billboardPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
@@ -688,8 +690,18 @@ void Renderer::UpdateDebugMesh(Scene* scene)
 		};
 
 	// staticObjects가 실제로 존재해도 나오지 않는 문제가 있음
-	auto& staticObjects = scene->GetGameObjects(spe::RigidbodyType::STATIC);
-	auto& dynamicObjects = scene->GetGameObjects(spe::RigidbodyType::DYNAMIC);
+	const auto& staticObjects = scene->GetGameObjects(spe::RigidbodyType::STATIC);
+	const auto& dynamicObjects = scene->GetGameObjects(spe::RigidbodyType::DYNAMIC);
+    const auto& allRenderItems = scene->GetAllRenderItems();
+
+	for (const auto& ri : allRenderItems) {
+		BoundingBox worldBox;
+		ri->boundingBox_.Transform(worldBox, XMLoadFloat4x4(&ri->world_));
+		XMFLOAT3 worldCorners[8];
+		worldBox.GetCorners(worldCorners);
+		CreateBox(worldCorners, DirectX::Colors::DarkBlue);
+	}
+
 	auto player = scene->GetPlayer();
 	/*
 	if (player && (vertices.size() + 24 <= maxDebugVertices_)) {
