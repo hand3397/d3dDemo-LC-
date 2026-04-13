@@ -85,6 +85,9 @@ struct RenderItem
     vector<InstanceData> instances_;
     uint32_t instanceOffset_ = 0;
 
+    // atlas texture
+    uint32_t atlasIndex_ = 0;
+
     // billboard data
     bool isBillboardYAxisFixed_ = false;
 };

@@ -25,8 +25,8 @@ struct MaterialData
     float Roughness;
     float4x4 MatTransform;
     uint DiffuseMapIndex;
-    uint MatPad0;
-    uint MatPad1;
+    uint AtlasWidth;
+    uint AtlasHeight;
     uint MatPad2;
 };
 
@@ -51,8 +51,8 @@ cbuffer cbPerObject : register(b0)
     float4x4 gWorld;
     float4x4 gTexTransform;
     uint gMaterialIndex;
+    uint gAtlasIndex;
     uint gIsBillboardYAxisFixed; // 0이면 자유 회전(Spherical), 1이면 Y축 고정(Cylindrical)
-    uint gObjPad1;
     uint gObjPad2;
 };
 
@@ -193,8 +193,22 @@ void GS(point VertexOut gin[1],
         
         // Output vertex attributes for interpolation across triangle.
         float4 texC = mul(float4(texCs[i], 0.0f, 1.0f), gTexTransform);
-        gout.TexC = mul(texC, matData.MatTransform).xy;
+        float2 finalTexC = mul(texC, matData.MatTransform).xy;
 		
+        // atlas 텍스처 좌표 계산
+        if (matData.AtlasWidth > 1 || matData.AtlasHeight > 1)
+        {
+            uint x = gAtlasIndex % matData.AtlasWidth;
+            uint y = gAtlasIndex / matData.AtlasWidth;
+
+            float2 scale = float2(1.0f / (float) matData.AtlasWidth, 1.0f / (float) matData.AtlasHeight);
+            float2 offset = float2(x * scale.x, y * scale.y);
+       
+            finalTexC = finalTexC * scale + offset;
+        }
+        
+        gout.TexC = finalTexC;
+        
 		triStream.Append(gout);
 	}
 }

@@ -161,13 +161,13 @@ struct Material {
         int diffuseSrvHeapIndex_ = -1, int normalSrvHeapIndex_ = -1,
         const XMFLOAT4& diffuseAlbedo = XMFLOAT4(1, 1, 1, 1),
         const XMFLOAT3& fresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f),
-        float roughness = 0.25f,
+        float roughness = 0.25f, uint16_t width = 1, uint16_t height = 1,
         const XMFLOAT4X4& matTransform = MathHelper::Identity4x4())
         : name_(name), matCBIndex_(matCBIndex_),
         diffuseSrvHeapIndex_(diffuseSrvHeapIndex_),
         normalSrvHeapIndex_(normalSrvHeapIndex_),
         diffuseAlbedo_(diffuseAlbedo), fresnelR0_(fresnelR0),
-        roughness_(roughness), matTransform_(matTransform) {}
+        roughness_(roughness), width_(width), height_(height), matTransform_(matTransform) {}
 
     string name_;
 
@@ -190,6 +190,9 @@ struct Material {
     XMFLOAT3 fresnelR0_ = { 0.01f, 0.01f, 0.01f };
     float roughness_ = 0.25f;
 
+    uint16_t width_ = 0;
+    uint16_t height_ = 0;
+
     XMFLOAT4X4 matTransform_ = MathHelper::Identity4x4();
 };
 
@@ -201,10 +204,14 @@ struct Texture {
     std::wstring fileName_;
 
     uint32_t srvHeapIndex_ = 0;
+    uint32_t normalSrvHeapIndex_ = 0;
 
     // GPU 리소스 및 업로드 힙
     Microsoft::WRL::ComPtr<ID3D12Resource> resource_ = nullptr;
     Microsoft::WRL::ComPtr<ID3D12Resource> uploadHeap_ = nullptr;
+
+    uint16_t width_ = 0;
+    uint16_t height_ = 0;
 };
 
 #ifndef ThrowIfFailed

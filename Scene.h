@@ -48,6 +48,8 @@ private:
     void BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
+    void BuildMaterial(const string& name, const string& textureName, const XMFLOAT4& diffuseAlbedo,
+        const XMFLOAT3& fresnelR0, float roughness, const XMFLOAT4X4& matTransform);
     void BuildMaterials();
 
     void BuildGameObjects();
@@ -80,7 +82,7 @@ private:
     void LoadModels(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void LoadTextures(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void LoadTexture(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList,
-        const string& name, const wstring& fileName);
+        const string& name, const wstring& fileName, uint16_t atlasWidth, uint16_t atlasHeight);
 
     void AnimateMaterials(float dt);
 

@@ -11,87 +11,86 @@ extern const int NUM_FRAME_RESOURCES;
 
 struct Light
 {
-    DirectX::XMFLOAT3 Strength = { 0.5f, 0.5f, 0.5f };
-    float FalloffStart = 1.0f;                          // point/spot Light
-    DirectX::XMFLOAT3 Direction = { 0.0f, -1.0f, 0.0f };// directional/spot Light
-    float FalloffEnd = 10.0f;                           // point/spot Light
-    DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };  // point/spot Light
-    float SpotPower = 64.0f;                            // spot Light
+    DirectX::XMFLOAT3 strength_ = { 0.5f, 0.5f, 0.5f };
+    float falloffStart_ = 1.0f;                          // point/spot Light
+    DirectX::XMFLOAT3 direction_ = { 0.0f, -1.0f, 0.0f };// directional/spot Light
+    float falloffEnd_ = 10.0f;                           // point/spot Light
+    DirectX::XMFLOAT3 position_ = { 0.0f, 0.0f, 0.0f };  // point/spot Light
+    float spotPower_ = 64.0f;                            // spot Light
 };
 
 struct ObjectConstants
 {
-    DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
-    DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
-    UINT     MaterialIndex = 0;
-
+    DirectX::XMFLOAT4X4 world_ = MathHelper::Identity4x4();
+    DirectX::XMFLOAT4X4 texTransform_ = MathHelper::Identity4x4();
+    UINT     materialIndex_ = 0;
+    UINT     atlasIndex_ = 0;
     union
     {
-        UINT ObjPad0;
-        UINT IsBillboardYAxisFixed = 0; // 0: 자유 회전, 1: Y축 고정
+        UINT objPad0_;
+        UINT isBillboardYAxisFixed_ = 0; // 0: 자유 회전, 1: Y축 고정
     };
-    UINT     ObjPad1;
-    UINT     ObjPad2;
+    
+    UINT     objPad1_;
 };
 
 struct InstanceData
 {
-    DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
-    DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
-    UINT MaterialIndex = 0;
-    UINT InstancePad0;
-    UINT InstancePad1;
-    UINT InstancePad2;
+    DirectX::XMFLOAT4X4 world_ = MathHelper::Identity4x4();
+    DirectX::XMFLOAT4X4 texTransform_ = MathHelper::Identity4x4();
+    UINT materialIndex_ = 0;
+    UINT instancePad0_;
+    UINT instancePad1_;
+    UINT instancePad2_;
 };
 
 struct MaterialData
 {
-    DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
-    DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
-    float Roughness = 0.5f;
+    DirectX::XMFLOAT4 diffuseAlbedo_ = { 1.0f, 1.0f, 1.0f, 1.0f };
+    DirectX::XMFLOAT3 fresnelR0_ = { 0.01f, 0.01f, 0.01f };
+    float roughness_ = 0.5f;
 
     // Used in texture mapping.
-    DirectX::XMFLOAT4X4 MatTransform = MathHelper::Identity4x4();
-
-    UINT DiffuseMapIndex = 0;
-    UINT MaterialPad0;
-    UINT MaterialPad1;
-    UINT MaterialPad2;
+    DirectX::XMFLOAT4X4 matTransform_ = MathHelper::Identity4x4();
+    UINT diffuseMapIndex_ = 0;
+    UINT atlasWidth_;
+    UINT atlasHeight_;
+    UINT materialPad0_;
 };
 
 struct SkinnedConstants
 {
-    DirectX::XMFLOAT4X4 BoneTransforms[96];
+    DirectX::XMFLOAT4X4 boneTransforms_[96];
 };
 
 struct PassConstants
 {
-    DirectX::XMFLOAT4X4 View = MathHelper::Identity4x4();
-    DirectX::XMFLOAT4X4 InvView = MathHelper::Identity4x4();
-    DirectX::XMFLOAT4X4 Proj = MathHelper::Identity4x4();
-    DirectX::XMFLOAT4X4 InvProj = MathHelper::Identity4x4();
-    DirectX::XMFLOAT4X4 ViewProj = MathHelper::Identity4x4();
-    DirectX::XMFLOAT4X4 InvViewProj = MathHelper::Identity4x4();
+    DirectX::XMFLOAT4X4 view_ = MathHelper::Identity4x4();
+    DirectX::XMFLOAT4X4 invView_ = MathHelper::Identity4x4();
+    DirectX::XMFLOAT4X4 proj_ = MathHelper::Identity4x4();
+    DirectX::XMFLOAT4X4 invProj_ = MathHelper::Identity4x4();
+    DirectX::XMFLOAT4X4 viewProj_ = MathHelper::Identity4x4();
+    DirectX::XMFLOAT4X4 invViewProj_ = MathHelper::Identity4x4();
 
-    DirectX::XMFLOAT3 EyePosW = { 0.0f, 0.0f, 0.0f };
-    float cbPerObjectPad1 = 0.0f;
-    DirectX::XMFLOAT2 RenderTargetSize = { 0.0f, 0.0f };
-    DirectX::XMFLOAT2 InvRenderTargetSize = { 0.0f, 0.0f };
+    DirectX::XMFLOAT3 eyePosW_ = { 0.0f, 0.0f, 0.0f };
+    float cbPerObjectPad1_ = 0.0f;
+    DirectX::XMFLOAT2 renderTargetSize_ = { 0.0f, 0.0f };
+    DirectX::XMFLOAT2 invRenderTargetSize_ = { 0.0f, 0.0f };
 
-    float NearZ = 0.0f;
-    float FarZ = 0.0f;
+    float nearZ_ = 0.0f;
+    float farZ_ = 0.0f;
 
-    float TotalTime = 0.0f;
-    float DeltaTime = 0.0f;
+    float totalTime_ = 0.0f;
+    float deltaTime_ = 0.0f;
 
-    DirectX::XMFLOAT4 AmbientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
+    DirectX::XMFLOAT4 ambientLight_ = { 0.0f, 0.0f, 0.0f, 1.0f };
 
-    DirectX::XMFLOAT4 FogColor = { 0.7f, 0.7f, 0.7f, 1.0f };
-    float gFogStart = 5.0f;
-    float gFogRange = 150.0f;
-    DirectX::XMFLOAT2 cbPerObjectPad2;
+    DirectX::XMFLOAT4 fogColor_ = { 0.7f, 0.7f, 0.7f, 1.0f };
+    float fogStart_ = 5.0f;
+    float fogRange_ = 150.0f;
+    DirectX::XMFLOAT2 cbPerObjectPad2_;
 
-    Light Lights[MaxLights];
+    Light lights_[MaxLights];
 };
 
 // CPU가 한 프레임의 명령 목록들을 구축하는 데 필요한 자원들을 대표하는 클래스

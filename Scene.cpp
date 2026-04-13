@@ -344,31 +344,58 @@ void Scene::BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandLi
 	meshes_[geo->name_] = move(geo);
 }
 
+void Scene::BuildMaterial(const string& name, const string& textureName, const XMFLOAT4& diffuseAlbedo, 
+	const XMFLOAT3& fresnelR0, float roughness, const XMFLOAT4X4& matTransform)
+{
+    if (textures_.find(textureName) == textures_.end()) {
+        // Handle the case where the texture is not found
+        return;
+    }
+
+    const auto& textrue = textures_[textureName];
+
+    materials_.insert({ name, 
+		make_unique<Material>(name, materials_.size(), textrue->srvHeapIndex_, textrue->normalSrvHeapIndex_,
+			diffuseAlbedo, fresnelR0, roughness, textrue->width_, textrue->height_, matTransform) });
+}
+
 void Scene::BuildMaterials()
 {
-	materials_.insert({ "bricks0",	make_unique<Material>("bricks0", materials_.size(),
-		textures_["bricksTex"]->srvHeapIndex_, -1,
-		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f), 0.1f) });
+	materials_.clear();
 
-	materials_.insert({ "stone0",	make_unique<Material>("stone0", materials_.size(),
-		textures_["stoneTex"]->srvHeapIndex_, -1,
-		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.05f, 0.05f, 0.05f), 0.3f) });
+	BuildMaterial("bricks0",	"bricksTex",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f),	0.1f, 
+		MathHelper::Identity4x4());
 
-	materials_.insert({ "tile0",	make_unique<Material>("tile0", materials_.size(),
-		textures_["tileTex"]->srvHeapIndex_, -1,
-		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f), 0.3f) });
+	BuildMaterial("stone0",		"stoneTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.05f, 0.05f, 0.05f),	0.3f, 
+		MathHelper::Identity4x4());
 
-	materials_.insert({ "ice0",		make_unique<Material>("ice0", materials_.size(),
-		textures_["iceTex"]->srvHeapIndex_, -1,
-		XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.0f) });
+	BuildMaterial("tile0",		"tileTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f),	0.3f, 
+		MathHelper::Identity4x4());
+	
+	BuildMaterial("ice0",		"iceTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.0f, 
+		MathHelper::Identity4x4());
 
-	materials_.insert({ "wirefence", make_unique<Material>("wirefence",	materials_.size(),
-		textures_["fenceTex"]->srvHeapIndex_, -1,
-		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.25f) });
+	BuildMaterial("wirefence",	"fenceTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f, 
+		MathHelper::Identity4x4());
 
-	materials_.insert({ "soldier",	make_unique<Material>("soldier", materials_.size(),
-		textures_["soldierTex"]->srvHeapIndex_, -1,
-		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.25f) });
+	BuildMaterial("soldier",	"soldierTex",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f, 
+		MathHelper::Identity4x4());
+	
+	BuildMaterial("knight",		"knightTex",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f, 
+		MathHelper::Identity4x4());
+
+	BuildMaterial("tree",		"treeTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f,
+		MathHelper::Identity4x4());
+
+	/*
+	for (auto& pair : textures_) {
+		cout<< "Texture Name: " << pair.first << ", Index: " << pair.second->srvHeapIndex_ <<'\n';
+	}
+
+	for (auto& pair : materials_) {
+        cout << "Material Name: " << pair.first << ", Index: " << pair.second->matCBIndex_ << '\n';
+	}
+	*/
 }
 
 void Scene::BuildGameObjects()
@@ -395,9 +422,9 @@ void Scene::BuildGameObjects()
 	go->GetRigidbody()->GetFixture()->SetFriction(0.5);
 
 	BuildBillboardRenderItem(RenderLayer::RENDER_ALPHATESTED_BILLBOARD,
-		meshes_["billboardGeo"].get(), meshes_["billboardGeo"]->subMeshes_["tree1"], materials_["soldier"].get(),
+		meshes_["billboardGeo"].get(), meshes_["billboardGeo"]->subMeshes_["tree1"], materials_["knight"].get(),
 		XMMatrixTranslation(0.f, 0.f, 20.f), XMMatrixIdentity(), true);
-
+	
 	// build wall
 	/*
 	renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
@@ -743,20 +770,26 @@ void Scene::LoadModels(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 
 void Scene::LoadTextures(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
-	vector<pair<string, wstring>> texNames = {
-		{"bricksTex",	L"Textures/d3d12/bricks.dds"},
-		{"stoneTex",	L"Textures/d3d12/stone.dds"},
-		{"tileTex",		L"Textures/d3d12/tile.dds"},
-		{"iceTex",		L"Textures/d3d12/ice.dds"},
-		{"fenceTex",	L"Textures/d3d12/WireFence.dds"},
-		{"soldierTex",	L"Textures/soldier.dds"},
-	};
+    textures_.clear();
 
-	for (auto& [name, fileName] : texNames)
-		LoadTexture(device, cmdList, name, fileName);
+    // Texture name, file path, atlasWidth, atlasHeight	(atlasTexture가 아닐 경우 1, 1로 설정)
+	vector<tuple<string, wstring, uint16_t, uint16_t>> texNames = {
+		{"bricksTex",	L"Textures/d3d12/bricks.dds",		1, 1},
+		{"stoneTex",	L"Textures/d3d12/stone.dds",		1, 1},
+		{"tileTex",		L"Textures/d3d12/tile.dds",			1, 1},
+		{"iceTex",		L"Textures/d3d12/ice.dds",			1, 1},
+		{"fenceTex",	L"Textures/d3d12/WireFence.dds",	1, 1},
+		{"soldierTex",	L"Textures/soldier.dds",			1, 1},
+		{"knightTex",	L"Textures/KnightAtlas.dds",		6, 8},
+		{"treeTex",		L"Textures/d3d12/tree01S.dds",		1, 1},
+	};
+	
+	for (auto& [name, fileName, width, height] : texNames)
+		LoadTexture(device, cmdList, name, fileName, width, height);
 }
 
-void Scene::LoadTexture(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, const string& name, const wstring& fileName)
+void Scene::LoadTexture(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, 
+	const string& name, const wstring& fileName, uint16_t atlasWidth , uint16_t atlasHeight)
 {
 	unique_ptr<Texture>& tex = make_unique<Texture>();
 
@@ -767,6 +800,9 @@ void Scene::LoadTexture(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList
 		tex->name_ = name;
 		tex->fileName_ = fileName;
 		tex->srvHeapIndex_ = textures_.size();
+		tex->normalSrvHeapIndex_ = -1;
+        tex->width_ = atlasWidth;
+        tex->height_ = atlasHeight;
 		textures_[tex->name_] = move(tex);
 	}
 }

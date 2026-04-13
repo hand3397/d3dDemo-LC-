@@ -35,9 +35,9 @@ struct MaterialData
     float    Roughness;
     float4x4 MatTransform;
     uint     DiffuseMapIndex;
-    uint     MatPad0;
-    uint     MatPad1;
-    uint     MatPad2;
+    uint     AtlasWidth;
+    uint     AtlasHeight;
+    uint MatPad0;
 };
 
 // An array of textures, which is only supported in shader model 5.1+.  Unlike Texture2DArray, the textures

@@ -348,8 +348,6 @@ void Renderer::BuildDescriptorHeaps(Scene* scene)
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(d3dDevice_->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvDescriptorHeap_)));
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(srvDescriptorHeap_->GetCPUDescriptorHandleForHeapStart());
-
 	for (auto& [name, tex] : textures) {
 		const auto& resource = tex->resource_;
 		const D3D12_RESOURCE_DESC resDesc = resource->GetDesc();
@@ -374,9 +372,9 @@ void Renderer::BuildDescriptorHeaps(Scene* scene)
 			srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 		}
 
+		CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(srvDescriptorHeap_->GetCPUDescriptorHandleForHeapStart(), 
+			tex->srvHeapIndex_, cbvSrvDescriptorSize_);
 		d3dDevice_->CreateShaderResourceView(resource.Get(), &srvDesc, hDescriptor);
-
-		hDescriptor.Offset(1, cbvSrvDescriptorSize_);
 	}
 }
 
@@ -589,7 +587,12 @@ void Renderer::BuildPSOs()
 		reinterpret_cast<BYTE*>(shaders_["billboardGS"]->GetBufferPointer()),
 		shaders_["billboardGS"]->GetBufferSize()
 	};
-	billboardPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+	billboardPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(shaders_["alphaTestedPS"]->GetBufferPointer()),
+		shaders_["alphaTestedPS"]->GetBufferSize()
+	};
+    billboardPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT; // 빌보드의 입력은 점이므로, 점으로 설정한다.(기하셰이더로 빌보드 사각형 생성)
 	billboardPsoDesc.InputLayout = { inputLayouts_["billboard"].data(), (UINT)inputLayouts_["billboard"].size() };
 	billboardPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 
@@ -1014,12 +1017,18 @@ void Renderer::UpdateObjectCBs(const GameTimer& gt, Scene* scene)
 			XMMATRIX texTransform = XMLoadFloat4x4(&e->texTransform_);
 
 			ObjectConstants objConstants;
-			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
-			XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
-			objConstants.MaterialIndex = e->material_->matCBIndex_;
+			XMStoreFloat4x4(&objConstants.world_, XMMatrixTranspose(world));
+			XMStoreFloat4x4(&objConstants.texTransform_, XMMatrixTranspose(texTransform));
+			objConstants.materialIndex_ = e->material_->matCBIndex_;
 			
+            objConstants.atlasIndex_ = e->atlasIndex_;
 			// billboard Data
-            objConstants.IsBillboardYAxisFixed = e->isBillboardYAxisFixed_ ? 1 : 0;
+            objConstants.isBillboardYAxisFixed_ = e->isBillboardYAxisFixed_ ? 1 : 0;
+
+			if (e->isBillboardYAxisFixed_) {
+				objConstants.atlasIndex_ = gt.TotalTime() * 10.0f;
+				e->numFramesDirty_ = NUM_FRAME_RESOURCES + 1;
+            }
 
 			currObjectCB->CopyData(e->objCBIndex_, objConstants);
 
@@ -1048,7 +1057,7 @@ void Renderer::UpdateInstanceData(const GameTimer& gt, Scene* scene)
 
 		int visibleInstanceCount = 0;
 		for (UINT i = 0; i < (UINT)instanceData.size(); ++i) {
-			XMMATRIX world = XMLoadFloat4x4(&instanceData[i].World);
+			XMMATRIX world = XMLoadFloat4x4(&instanceData[i].world_);
 
 			BoundingSphere bs;
 			boundingSphere.Transform(bs, world);
@@ -1060,12 +1069,12 @@ void Renderer::UpdateInstanceData(const GameTimer& gt, Scene* scene)
 			if (worldFrustum.Contains(bb) == DISJOINT)
 				continue;
 
-			XMMATRIX texTransform = XMLoadFloat4x4(&instanceData[i].TexTransform);
+			XMMATRIX texTransform = XMLoadFloat4x4(&instanceData[i].texTransform_);
 			InstanceData data;
 
-			XMStoreFloat4x4(&data.World, XMMatrixTranspose(world));
-			XMStoreFloat4x4(&data.TexTransform, XMMatrixTranspose(texTransform));
-			data.MaterialIndex = instanceData[i].MaterialIndex;
+			XMStoreFloat4x4(&data.world_, XMMatrixTranspose(world));
+			XMStoreFloat4x4(&data.texTransform_, XMMatrixTranspose(texTransform));
+			data.materialIndex_ = instanceData[i].materialIndex_;
 
 			// Write the instance data to structured buffer for the visible objects.
 			currInstanceBuffer->CopyData(visibleInstanceCount++, data);
@@ -1094,11 +1103,11 @@ void Renderer::UpdateSkinnedCBs(const GameTimer& gt, Scene* scene)
 
 	SkinnedConstants skinnedConstants = {};
 	copy(skinnedModelInsts["Vanguard"]->finalTransforms_.begin(), skinnedModelInsts["Vanguard"]->finalTransforms_.end(),
-		&skinnedConstants.BoneTransforms[0]);
+		&skinnedConstants.boneTransforms_[0]);
 
 	//for (int i = 0; i < 96; i++)
-	//	XMStoreFloat4x4(&skinnedConstants.BoneTransforms[i], XMMatrixTranspose(XMLoadFloat4x4(&MathHelper::Identity4x4())));
-	//XMStoreFloat4x4(&skinnedConstants.BoneTransforms[0], XMMatrixTranspose(XMMatrixTranslation(0.0f, 10.0f, 0.0f)));
+	//	XMStoreFloat4x4(&skinnedConstants.boneTransforms_[i], XMMatrixTranspose(XMLoadFloat4x4(&MathHelper::Identity4x4())));
+	//XMStoreFloat4x4(&skinnedConstants.boneTransforms_[0], XMMatrixTranspose(XMMatrixTranslation(0.0f, 10.0f, 0.0f)));
 
 	currSkinnedCB->CopyData(0, skinnedConstants);
 }
@@ -1115,11 +1124,14 @@ void Renderer::UpdateMaterialBuffer(const GameTimer& gt, Scene* scene)
 			XMMATRIX matTransform = XMLoadFloat4x4(&mat->matTransform_);
 
 			MaterialData matData;
-			matData.DiffuseAlbedo = mat->diffuseAlbedo_;
-			matData.FresnelR0 = mat->fresnelR0_;
-			matData.Roughness = mat->roughness_;
-			XMStoreFloat4x4(&matData.MatTransform, XMMatrixTranspose(matTransform));
-			matData.DiffuseMapIndex = mat->diffuseSrvHeapIndex_;
+			matData.diffuseAlbedo_ = mat->diffuseAlbedo_;
+			matData.fresnelR0_ = mat->fresnelR0_;
+			matData.roughness_ = mat->roughness_;
+			XMStoreFloat4x4(&matData.matTransform_, XMMatrixTranspose(matTransform));
+			matData.diffuseMapIndex_ = mat->diffuseSrvHeapIndex_;
+
+            matData.atlasWidth_ = mat->width_;
+            matData.atlasHeight_ = mat->height_;
 
 			currMaterialCB->CopyData(mat->matCBIndex_, matData);
 
@@ -1131,34 +1143,36 @@ void Renderer::UpdateMaterialBuffer(const GameTimer& gt, Scene* scene)
 
 void Renderer::UpdateMainPassCB(const GameTimer& gt, Scene* scene)
 {
-	XMMATRIX view = scene->GetCamera()->GetView();
-	XMMATRIX proj = scene->GetCamera()->GetProj();
+    const Camera* mainCamera = scene->GetCamera();
+
+	XMMATRIX view = mainCamera->GetView();
+	XMMATRIX proj = mainCamera->GetProj();
 
 	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
 	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
 	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
 
-	XMStoreFloat4x4(&mainPassCB_.View, XMMatrixTranspose(view));
-	XMStoreFloat4x4(&mainPassCB_.InvView, XMMatrixTranspose(invView));
-	XMStoreFloat4x4(&mainPassCB_.Proj, XMMatrixTranspose(proj));
-	XMStoreFloat4x4(&mainPassCB_.InvProj, XMMatrixTranspose(invProj));
-	XMStoreFloat4x4(&mainPassCB_.ViewProj, XMMatrixTranspose(viewProj));
-	XMStoreFloat4x4(&mainPassCB_.InvViewProj, XMMatrixTranspose(invViewProj));
-	mainPassCB_.EyePosW = scene->GetCamera()->GetPosition3f();
-	mainPassCB_.RenderTargetSize = XMFLOAT2((float)clientWidth_, (float)clientHeight_);
-	mainPassCB_.InvRenderTargetSize = XMFLOAT2(1.0f / clientWidth_, 1.0f / clientHeight_);
-	mainPassCB_.NearZ = scene->GetCamera()->GetNearZ();
-	mainPassCB_.FarZ = scene->GetCamera()->GetFarZ();
-	mainPassCB_.TotalTime = gt.TotalTime();
-	mainPassCB_.DeltaTime = gt.DeltaTime();
-	mainPassCB_.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
-	mainPassCB_.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
-	mainPassCB_.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
-	mainPassCB_.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
-	mainPassCB_.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
-	mainPassCB_.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
-	mainPassCB_.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+	XMStoreFloat4x4(&mainPassCB_.view_, XMMatrixTranspose(view));
+	XMStoreFloat4x4(&mainPassCB_.invView_, XMMatrixTranspose(invView));
+	XMStoreFloat4x4(&mainPassCB_.proj_, XMMatrixTranspose(proj));
+	XMStoreFloat4x4(&mainPassCB_.invProj_, XMMatrixTranspose(invProj));
+	XMStoreFloat4x4(&mainPassCB_.viewProj_, XMMatrixTranspose(viewProj));
+	XMStoreFloat4x4(&mainPassCB_.invViewProj_, XMMatrixTranspose(invViewProj));
+	mainPassCB_.eyePosW_ = mainCamera->GetPosition3f();
+	mainPassCB_.renderTargetSize_ = XMFLOAT2((float)clientWidth_, (float)clientHeight_);
+	mainPassCB_.invRenderTargetSize_ = XMFLOAT2(1.0f / clientWidth_, 1.0f / clientHeight_);
+	mainPassCB_.nearZ_ = mainCamera->GetNearZ();
+	mainPassCB_.farZ_ = mainCamera->GetFarZ();
+	mainPassCB_.totalTime_ = gt.TotalTime();
+	mainPassCB_.deltaTime_ = gt.DeltaTime();
+	mainPassCB_.ambientLight_ = { 0.25f, 0.25f, 0.35f, 1.0f };
+	mainPassCB_.lights_[0].direction_ = { 0.57735f, -0.57735f, 0.57735f };
+	mainPassCB_.lights_[0].strength_ = { 0.6f, 0.6f, 0.6f };
+	mainPassCB_.lights_[1].direction_ = { -0.57735f, -0.57735f, 0.57735f };
+	mainPassCB_.lights_[1].strength_ = { 0.3f, 0.3f, 0.3f };
+	mainPassCB_.lights_[2].direction_ = { 0.0f, -0.707f, -0.707f };
+	mainPassCB_.lights_[2].strength_ = { 0.15f, 0.15f, 0.15f };
 
 	auto currPassCB = currFrameResource_->passCB_.get();
 	currPassCB->CopyData(0, mainPassCB_);

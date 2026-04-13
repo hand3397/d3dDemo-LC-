@@ -25,9 +25,9 @@ struct MaterialData
     float Roughness;
     float4x4 MatTransform;
     uint DiffuseMapIndex;
+    uint AtlasWidth;
+    uint AtlasHeight;
     uint MatPad0;
-    uint MatPad1;
-    uint MatPad2;
 };
 
 // An array of textures, which is only supported in shader model 5.1+.  Unlike Texture2DArray, the textures
@@ -51,9 +51,9 @@ cbuffer cbPerObject : register(b0)
     float4x4 gWorld;
 	float4x4 gTexTransform;
     uint gMaterialIndex;
-    uint gObjPad0;
+    uint gAtlasIndex; 
+    uint gObjPad0; // union with gIsBillboardYAxisFixed in billboard shader
     uint gObjPad1;
-    uint gObjPad2;
 };
 
 cbuffer cbSkinned : register(b1)
@@ -156,12 +156,28 @@ VertexOut VS(VertexIn vin)
     // Transform to homogeneous clip space.
     vout.PosH = mul(posW, gViewProj);
 	
-	// Output vertex attributes for interpolation across triangle.
-	float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
-    vout.TexC = mul(texC, matData.MatTransform).xy;
-	
+    // 기본 텍스처 변환 (애니메이션, 타일링 등) 먼저 수행
+    float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
+    float2 finalTexC = mul(texC, matData.MatTransform).xy;
+
+    // atlas 텍스처 좌표 계산
+    if (matData.AtlasWidth > 1 || matData.AtlasHeight > 1)
+    {
+        uint x = gAtlasIndex % matData.AtlasWidth;
+        uint y = gAtlasIndex / matData.AtlasWidth;
+
+        float2 scale = float2(1.0f / (float) matData.AtlasWidth, 1.0f / (float) matData.AtlasHeight);
+        float2 offset = float2(x * scale.x, y * scale.y);
+       
+        finalTexC = frac(finalTexC) * scale + offset;
+        // Tip: frac()을 써주면 타일링 옵션이 켜져있어도 아틀라스 조각 내부에서 반복됩니다.
+    }
+
+    vout.TexC = finalTexC;
+    
     return vout;
 }
+
 float4 PS(VertexOut pin) : SV_Target
 {
     // 재질 데이터 가져오기
