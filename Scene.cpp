@@ -166,6 +166,7 @@ void Scene::BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
 	BuildShapeGeometry(device, cmdList);
 	BuildBillboardGeometry(device, cmdList);
+    BuildStageGeometry(device, cmdList);
 	BuildMaterials();
 	BuildGameObjects();
 }
@@ -344,6 +345,86 @@ void Scene::BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandLi
 	meshes_[geo->name_] = move(geo);
 }
 
+void Scene::BuildStageGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
+{
+    const float tileSize = stage_.GetTileSize();
+    const float tileHeight = stage_.GetTileHeight();
+
+	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData box = geoGen.CreateBox(tileSize, tileHeight, tileSize, 0);
+	
+	// -z +z +y -y -x +x
+	const int direction[6][3] = {
+		{ 0, 0, -1 }, { 0, 0, 1 }, { 0, 1, 0 },
+		{ 0, -1, 0 }, { -1, 0, 0 }, { 1, 0, 0 }
+    };
+	const int vertex[6][4] = {
+		{0, 1, 2, 3}, {4, 5, 6, 7}, {8, 9, 10, 11},
+        {12, 13, 14, 15}, {16, 17, 18, 19}, {20, 21, 22, 23}
+	};
+    // 각 면을 이루는 vertex의 index (GeometryGenerator의 면 생성 방식대로 따라감)
+	int index[6] = {0, 1, 2, 0, 2, 3};
+
+	const uint32_t stageWidth = stage_.GetStageWidth();
+	const uint32_t stageLength = stage_.GetStageLength();
+	const uint32_t stageHeight = stage_.GetStageHeight();
+
+	vector<VertexTexArray> vertices;
+	vector<uint32_t> indices;
+
+    // stage가 world의 중심에 위치하도록 vertex의 offset을 계산한다. (바닥은 y = 0에 맞춘다)
+	XMFLOAT3 vertexOffset = { -tileSize * 0.5f * stageWidth, tileHeight * 0.5f, -tileSize * 0.5f * stageLength };
+
+	for (int x = 0; x < stageWidth; ++x) {
+		for (int y = 0; y < stageHeight; ++y) {
+			for (int z = 0; z < stageLength; ++z) {
+                // x, y, z 위치에 블록이 존재하는지 확인한다. 만약 존재한다면, 해당 위치에 box를 그린다.
+				for (int dir = 0; dir < 6; ++dir) {
+					int dx = x + direction[dir][0];
+					int dy = y + direction[dir][1];
+					int dz = z + direction[dir][2];
+
+                    // 현재 블록의 인접한 블록이 solid인지 확인한다. 만약 solid하다면, 현재 블록의 해당 방향 면을 그린다.
+					if (!stage_.IsBlockSolid(dx, dy, dz)) {
+						uint32_t numVertices = vertices.size();
+						uint32_t numIndices = indices.size();
+						vertices.reserve(numVertices + 4);
+                        indices.reserve(numIndices + 6);
+
+						for (int vi = 0; vi < 4; ++vi) {
+                            const auto& v = box.Vertices[vertex[dir][vi]];
+                            XMFLOAT3 dPos = { 
+								v.Position.x + x * tileSize + vertexOffset.x, 
+								v.Position.y + y * tileHeight + vertexOffset.y, 
+								v.Position.z + z * tileSize + vertexOffset.z };
+                            vertices.emplace_back(dPos, v.Normal, v.TexC, 1);
+						}
+						for (int ii = 0; ii < 6; ++ii) {
+							indices.emplace_back(index[ii] + numVertices);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	const float widthHalf = tileSize * 0.5f * stageWidth;
+	const float lengthHalf = tileSize * 0.5f * stageLength;
+	const float heightHalf = tileHeight * 0.5f * stageHeight;
+    const XMFLOAT3 terrainCenter = { 0.f, heightHalf, 0.f };
+	
+	Submesh terrainSubmesh((uint32_t)indices.size(), 0, 0);
+	terrainSubmesh.boundingBox_ = BoundingBox(terrainCenter,
+		XMFLOAT3(widthHalf, heightHalf, lengthHalf));
+	terrainSubmesh.boundingSphere_ = BoundingSphere(terrainCenter, 
+		sqrtf(widthHalf * widthHalf + heightHalf * heightHalf + lengthHalf * lengthHalf));
+
+	auto geo = make_unique<MeshGeometry>();
+	geo->BuildMeshGeo("terrainGeo", vertices, indices, device, cmdList);
+	geo->AddSubmesh("terrain", terrainSubmesh);
+	meshes_[geo->name_] = move(geo);
+}
+
 void Scene::BuildMaterial(const string& name, const string& textureName, const XMFLOAT4& diffuseAlbedo, 
 	const XMFLOAT3& fresnelR0, float roughness, const XMMATRIX& matTransform)
 {
@@ -363,14 +444,15 @@ void Scene::BuildMaterials()
 {
 	materials_.clear();
 
-	BuildMaterial("bricks0",	"bricksTex",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f),	0.1f);
-	BuildMaterial("stone0",		"stoneTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.05f, 0.05f, 0.05f),	0.3f);
-	BuildMaterial("tile0",		"tileTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f),	0.3f);
-	BuildMaterial("ice0",		"iceTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.0f);
-	BuildMaterial("wirefence",	"fenceTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f);
-	BuildMaterial("soldier",	"soldierTex",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f);
-	BuildMaterial("knight",		"knightTex",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f);
-	BuildMaterial("tree",		"treeTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f);
+	BuildMaterial("bricks0",	"bricksTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f),	0.1f);
+	BuildMaterial("stone0",		"stoneTex",			XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.05f, 0.05f, 0.05f),	0.3f);
+	BuildMaterial("tile0",		"tileTex",			XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.02f, 0.02f, 0.02f),	0.3f);
+	BuildMaterial("ice0",		"iceTex",			XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.0f);
+	BuildMaterial("wirefence",	"fenceTex",			XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f);
+	BuildMaterial("soldier",	"soldierTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f);
+	BuildMaterial("knight",		"knightTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f);
+	BuildMaterial("tree",		"treeTex",			XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f);
+	BuildMaterial("terrain",	"terrainTexArray",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f);
 
 	/*
 	for (auto& pair : textures_) {
@@ -405,6 +487,9 @@ void Scene::BuildGameObjects()
 	GameObject* go = BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
 		renderItems, spe::RigidbodyType::STATIC);
 	go->GetRigidbody()->GetFixture()->SetFriction(0.5);
+
+	BuildRenderItem(RenderLayer::RENDER_TEX_ARRAY_OPAQUE,
+		meshes_["terrainGeo"].get(), meshes_["terrainGeo"]->subMeshes_["terrain"], materials_["terrain"].get());
 
 	BuildBillboardRenderItem(RenderLayer::RENDER_ALPHATESTED_BILLBOARD,
 		meshes_["billboardGeo"].get(), meshes_["billboardGeo"]->subMeshes_["character0"], materials_["knight"].get(),
@@ -758,23 +843,28 @@ void Scene::LoadTextures(ID3D12Device* device, ID3D12GraphicsCommandList* cmdLis
     textures_.clear();
 
     // Texture name, file path, atlasWidth, atlasHeight	(atlasTexture가 아닐 경우 1, 1로 설정)
-	vector<tuple<string, wstring, uint16_t, uint16_t>> texNames = {
-		{"bricksTex",	L"Textures/d3d12/bricks.dds",		1, 1},
-		{"stoneTex",	L"Textures/d3d12/stone.dds",		1, 1},
-		{"tileTex",		L"Textures/d3d12/tile.dds",			1, 1},
-		{"iceTex",		L"Textures/d3d12/ice.dds",			1, 1},
-		{"fenceTex",	L"Textures/d3d12/WireFence.dds",	1, 1},
-		{"soldierTex",	L"Textures/soldier.dds",			1, 1},
-		{"knightTex",	L"Textures/KnightAtlas.dds",		6, 8},
-		{"treeTex",		L"Textures/d3d12/tree01S.dds",		1, 1},
+	vector<tuple<string, wstring, uint16_t, uint16_t, bool>> texNames = {
+		{"bricksTex",	L"Textures/d3d12/bricks.dds",		1, 1, false},
+		{"stoneTex",	L"Textures/d3d12/stone.dds",		1, 1, false},
+		{"tileTex",		L"Textures/d3d12/tile.dds",			1, 1, false},
+		{"iceTex",		L"Textures/d3d12/ice.dds",			1, 1, false},
+		{"fenceTex",	L"Textures/d3d12/WireFence.dds",	1, 1, false},
+		{"soldierTex",	L"Textures/soldier.dds",			1, 1, false},
+		{"knightTex",	L"Textures/KnightAtlas.dds",		6, 8, false},
+		{"treeTex",		L"Textures/d3d12/tree01S.dds",		1, 1, false},
+
+        // terrainTexArray는 atlasTexture가 아니라 texture array이므로 isTexArray를 true로 설정한다. 
+		// (LoadTexture에서 텍스처 배열로 로드하기 위해)
+        // srvHeapIndex를 가장 크게 만들기 위해 texNames 벡터의 마지막에 위치시킨다.
+		{"terrainTexArray", L"Textures/TerrainArray.dds",	1, 1, true}
 	};
 	
-	for (auto& [name, fileName, width, height] : texNames)
-		LoadTexture(device, cmdList, name, fileName, width, height);
+	for (auto& [name, fileName, width, height, isTexArray] : texNames)
+		LoadTexture(device, cmdList, name, fileName, width, height, isTexArray);
 }
 
 void Scene::LoadTexture(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, 
-	const string& name, const wstring& fileName, uint16_t atlasWidth , uint16_t atlasHeight)
+	const string& name, const wstring& fileName, uint16_t atlasWidth , uint16_t atlasHeight, bool isTexArray)
 {
 	unique_ptr<Texture>& tex = make_unique<Texture>();
 

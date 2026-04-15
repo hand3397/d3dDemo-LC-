@@ -1,7 +1,3 @@
-//***************************************************************************************
-// Default.hlsl by Frank Luna (C) 2015 All Rights Reserved.
-//***************************************************************************************
-
 // Defaults for number of lights.
 #ifndef NUM_DIR_LIGHTS
     #define NUM_DIR_LIGHTS 3
@@ -29,14 +25,15 @@ struct MaterialData
     uint AtlasHeight;
     uint MatPad0;
 };
-
-// An array of textures, which is only supported in shader model 5.1+.  Unlike Texture2DArray, the textures
-// in this array can be different sizes and formats, making it more flexible than texture arrays.
+#ifdef TEX_ARRAY
+Texture2DArray gDiffuseMapArray : register(t0, space1); 
+#else
 Texture2D gDiffuseMap[16] : register(t0, space0);
+#endif
 
 // Put in space1, so the texture array does not overlap with these resources.  
 // The texture array will occupy registers t0, t1, ..., t3 in space0. 
-StructuredBuffer<MaterialData> gMaterialData : register(t1, space1);
+StructuredBuffer<MaterialData> gMaterialData : register(t16, space1);
 
 SamplerState gsamPointWrap        : register(s0);
 SamplerState gsamPointClamp       : register(s1);
@@ -103,6 +100,9 @@ struct VertexIn
 	float3 PosL    : POSITION;
     float3 NormalL : NORMAL;
 	float2 TexC    : TEXCOORD;
+#ifdef TEX_ARRAY
+    uint TexIndex   : TEXINDEX; // Material index for texture array access
+#endif
 #ifdef SKINNED
     float3 BoneWeights : WEIGHTS;
     uint4 BoneIndices  : BONEINDICES;
@@ -115,6 +115,10 @@ struct VertexOut
     float3 PosW    : POSITION;
     float3 NormalW : NORMAL;
 	float2 TexC    : TEXCOORD;
+#ifdef TEX_ARRAY
+    // 보간 방지: 지형 인덱스는 정수값 그대로 전달되어야 함
+    nointerpolation uint TexIndex : TEXINDEX;
+#endif
 };
 
 VertexOut VS(VertexIn vin)
@@ -175,6 +179,11 @@ VertexOut VS(VertexIn vin)
 
     vout.TexC = finalTexC;
     
+#ifdef TEX_ARRAY
+    // 정점의 인덱스를 픽셀 셰이더로 전달
+    vout.TexIndex = vin.TexIndex;
+#endif
+    
     return vout;
 }
 
@@ -186,9 +195,14 @@ float4 PS(VertexOut pin) : SV_Target
     float3 fresnelR0 = matData.FresnelR0;
     float roughness = matData.Roughness;
     uint diffuseTexIndex = matData.DiffuseMapIndex;
-
+    
+#ifdef TEX_ARRAY
+    // float3(U, V, SliceIndex)를 사용하여 샘플링
+    diffuseAlbedo *= gDiffuseMapArray.Sample(gsamLinearWrap, float3(pin.TexC, pin.TexIndex));
+#else
     // 텍스처 샘플링 (Texture2D 배열에서 인덱스로 접근)
     diffuseAlbedo *= gDiffuseMap[diffuseTexIndex].Sample(gsamLinearWrap, pin.TexC);
+#endif
     
 #ifdef ALPHA_TEST
     // 알파 테스트: 투명도 0.1 미만 픽셀 제거 (조기 종료 최적화)

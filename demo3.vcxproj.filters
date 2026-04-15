@@ -141,6 +141,12 @@
     <ClCompile Include="SphereToCylinderContact.cpp">
       <Filter>소스 파일\Physics\Contacts</Filter>
     </ClCompile>
+    <ClCompile Include="Stage.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Tile.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dApp.h">
@@ -256,6 +262,12 @@
     </ClInclude>
     <ClInclude Include="SphereToCylinderContact.h">
       <Filter>헤더 파일\Physics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="Stage.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Tile.h">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

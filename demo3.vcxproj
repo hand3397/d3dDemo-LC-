@@ -194,6 +194,8 @@
     <ClCompile Include="SphereToBoxContact.cpp" />
     <ClCompile Include="SphereToCylinderContact.cpp" />
     <ClCompile Include="SphereToSphereContact.cpp" />
+    <ClCompile Include="Stage.cpp" />
+    <ClCompile Include="Tile.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BoxToBoxContact.h" />
@@ -233,6 +235,8 @@
     <ClInclude Include="SphereToBoxContact.h" />
     <ClInclude Include="SphereToCylinderContact.h" />
     <ClInclude Include="SphereToSphereContact.h" />
+    <ClInclude Include="Stage.h" />
+    <ClInclude Include="Tile.h" />
     <ClInclude Include="UploadBuffer.h" />
   </ItemGroup>
   <ItemGroup>

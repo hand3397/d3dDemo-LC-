@@ -20,6 +20,26 @@ struct Vertex
     XMFLOAT2 TexC = XMFLOAT2(0.0f, 0.0f);
 };
 
+struct VertexTexArray
+{
+    VertexTexArray() = default;
+    VertexTexArray(const XMFLOAT3& p, const XMFLOAT3& n, const XMFLOAT2& t, uint32_t texIndex) :
+        Pos(p), Normal(n), TexC(t), TexArrayIndex(texIndex)
+    {
+    }
+    VertexTexArray(float px, float py, float pz,
+        float nx, float ny, float nz,
+        float tx, float ty, uint32_t texIndex) :
+        Pos({ px, py, pz }), Normal({ nx, ny,nz }), TexC({ tx, ty }), TexArrayIndex(texIndex)
+    {
+    }
+
+    XMFLOAT3 Pos = XMFLOAT3(0.0f, 0.0f, 0.0f);
+    XMFLOAT3 Normal = XMFLOAT3(0.0f, 0.0f, 0.0f);
+    XMFLOAT2 TexC = XMFLOAT2(0.0f, 0.0f);
+    uint32_t TexArrayIndex = 0;
+};
+
 struct ColorVertex
 {
     ColorVertex() = default;
@@ -53,7 +73,7 @@ struct Submesh
 {
     Submesh() = default;
     Submesh(uint32_t indexCount, uint32_t baseIndex, uint32_t baseVertex, 
-        const BoundingBox& boundingBox, const BoundingSphere& boundingSphere) :
+        const BoundingBox& boundingBox = BoundingBox(), const BoundingSphere& boundingSphere = BoundingSphere()) :
         numIndices_(indexCount), baseIndex_(baseIndex), baseVertex_(baseVertex), 
         boundingBox_(boundingBox), boundingSphere_(boundingSphere){}
 

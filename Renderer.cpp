@@ -1,6 +1,8 @@
 #include "Renderer.h"
 
 Renderer::Renderer()
+	: clientHeight_(0), clientWidth_(0), countDebugVertices_(0),
+	  scissorRect_({ 0, 0, 0, 0 }), screenViewport_({ 0, 0, 0, 0, 0.0f, 1.0f })
 {
 }
 
@@ -238,21 +240,34 @@ void Renderer::Draw(const Scene* scene)
 	auto matBuffer = currFrameResource_->materialBuffer_->Resource();
 	commandList_->SetGraphicsRootShaderResourceView(4, matBuffer->GetGPUVirtualAddress());
 
-	// Bind all the textures used in this scene.  Observe
-	// that we only have to specify the first descriptor in the table.  
-	// The root signature knows how many descriptors are expected in the table.
+	// Slot 5: 모든 일반 텍스처 (space0)
 	commandList_->SetGraphicsRootDescriptorTable(5, srvDescriptorHeap_->GetGPUDescriptorHandleForHeapStart());
 
+	// Slot 6: 지형 전용 Texture2DArray (space1)
+	// 힙의 가장 마지막 칸 주소를 계산해서 바인딩합니다.
+	auto hDescriptorStart = srvDescriptorHeap_->GetGPUDescriptorHandleForHeapStart();
+	int terrainIdx = static_cast<int>(scene->GetTextures().size()) - 1;
+
+	CD3DX12_GPU_DESCRIPTOR_HANDLE hTerrain(hDescriptorStart);
+	hTerrain.Offset(terrainIdx, cbvSrvDescriptorSize_);
+
+	commandList_->SetGraphicsRootDescriptorTable(6, hTerrain);
+
+	// ---------------------------------------------------------
+    // Render the scene objects.
 	// ---------------------------------------------------------
 
 	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_OPAQUE));
-
+	
+	commandList_->SetPipelineState(PSOs_["texArrayOpaque"].Get());
+	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_TEX_ARRAY_OPAQUE));
+	
 	//commandList_->SetPipelineState(PSOs_["skinnedOpaque"].Get());
 	//DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_SKINNED));
 
 	commandList_->SetPipelineState(PSOs_["instance"].Get());
 	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_INSTANCE));
-
+	
 	commandList_->SetPipelineState(PSOs_["alphaTested"].Get());
 	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_ALPHATESTED));
 	
@@ -298,24 +313,35 @@ void Renderer::BuildRootSignature()
 	// the input resources as function parameters, then the root signature can be
 	// thought of as defining the function signature.  
 
-	CD3DX12_DESCRIPTOR_RANGE texTable = {};
-	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 16, 0);
+	// 1. 일반 텍스처 (t0, space0) -> HLSL의 gDiffuseMap[16]
+	CD3DX12_DESCRIPTOR_RANGE texTableObj[1] = {};
+	texTableObj[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 16, 0, 0);
 
-	// Root parameter can be a table, root descriptor or root constants.
-	CD3DX12_ROOT_PARAMETER slotRootParameter[6] = {};
+	// 2. 지형 Array (t0, space1) -> HLSL의 gDiffuseMapArray
+	CD3DX12_DESCRIPTOR_RANGE texTableTerrain[1] = {};
+	texTableTerrain[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 1);
 
-	// Create root CBVs.
-	slotRootParameter[0].InitAsConstantBufferView(0);		//objectCB
-	slotRootParameter[1].InitAsConstantBufferView(1);		//boneTransformCB
-	slotRootParameter[2].InitAsConstantBufferView(2);		//mainPassCB
-	slotRootParameter[3].InitAsShaderResourceView(0, 1);	//instanceData
-	slotRootParameter[4].InitAsShaderResourceView(1, 1);	//matData
-	slotRootParameter[5].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	CD3DX12_ROOT_PARAMETER slotRootParameter[7] = {};
+
+	slotRootParameter[0].InitAsConstantBufferView(0);    // b0, space0
+	slotRootParameter[1].InitAsConstantBufferView(1);    // b1, space0
+	slotRootParameter[2].InitAsConstantBufferView(2);    // b2, space0
+
+	// 3. instanceData (t16, space0) -> HLSL의 StructuredBuffer 대응
+	slotRootParameter[3].InitAsShaderResourceView(16, 0);
+	// 4. matData (t16, space1) -> HLSL의 gMaterialData : register(t16, space1)
+	// **중요**: 여기가 t16, space1이어야 셰이더의 t16, space1과 매칭됩니다.
+	slotRootParameter[4].InitAsShaderResourceView(16, 1);
+
+	// 5. Descriptor Table (space0) -> 일반 텍스처용
+	slotRootParameter[5].InitAsDescriptorTable(1, texTableObj, D3D12_SHADER_VISIBILITY_PIXEL);
+	// 6. Descriptor Table (space1) -> 지형 Array용
+	slotRootParameter[6].InitAsDescriptorTable(1, texTableTerrain, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	auto staticSamplers = GetStaticSamplers();
 
 	// A root signature is an array of root parameters.
-	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(6, slotRootParameter,
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(7, slotRootParameter,
 		(UINT)staticSamplers.size(), staticSamplers.data(),
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
@@ -340,7 +366,9 @@ void Renderer::BuildRootSignature()
 void Renderer::BuildDescriptorHeaps(Scene* scene)
 {
 	const auto& textures = scene->GetTextures();
-	if (textures.empty()) return;
+	
+	if (textures.empty()) 
+		return;
 
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
 	srvHeapDesc.NumDescriptors = static_cast<UINT>(textures.size());
@@ -360,6 +388,7 @@ void Renderer::BuildDescriptorHeaps(Scene* scene)
 
 		if (resDesc.DepthOrArraySize > 1) {
 			// Texture 2D Array
+            // 마지막 texture는 Texture2DArray이므로 SRV를 생성할 때 뷰 차원을 D3D12_SRV_DIMENSION_TEXTURE2DARRAY로 설정한다.
 			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
 			srvDesc.Texture2DArray.MostDetailedMip = 0;
 			srvDesc.Texture2DArray.MipLevels = resDesc.MipLevels;
@@ -387,6 +416,12 @@ void Renderer::BuildShadersAndInputLayout()
 		{ NULL, NULL }
 	};
 
+	const D3D_SHADER_MACRO texArrayDefines[] =
+	{
+		{ "TEX_ARRAY", "1" },
+		{ NULL, NULL }
+	};
+
 	const D3D_SHADER_MACRO alphaTestDefines[] =
 	{
 		//"FOG", "1",
@@ -402,6 +437,7 @@ void Renderer::BuildShadersAndInputLayout()
 
 	shaders_["colorVS"]			= d3dUtil::CompileShader(L"Shaders/color.hlsl",		nullptr,			"VS", "vs_5_1");
 	shaders_["standardVS"]		= d3dUtil::CompileShader(L"Shaders/Default.hlsl",	nullptr,			"VS", "vs_5_1");
+	shaders_["texArrayVS"]		= d3dUtil::CompileShader(L"Shaders/Default.hlsl",	texArrayDefines,	"VS", "vs_5_1");
 	shaders_["skinnedVS"]		= d3dUtil::CompileShader(L"Shaders/Default.hlsl",	skinnedDefines,		"VS", "vs_5_1");
 	shaders_["instanceVS"]		= d3dUtil::CompileShader(L"Shaders/Instance.hlsl",	defines,			"VS", "vs_5_1");
 	shaders_["billboardVS"]		= d3dUtil::CompileShader(L"Shaders/Billboard.hlsl", defines,			"VS", "vs_5_1");
@@ -410,6 +446,7 @@ void Renderer::BuildShadersAndInputLayout()
 
 	shaders_["colorPS"]			= d3dUtil::CompileShader(L"Shaders/color.hlsl",		nullptr,			"PS", "ps_5_1");
 	shaders_["opaquePS"]		= d3dUtil::CompileShader(L"Shaders/Default.hlsl",	defines,			"PS", "ps_5_1");
+	shaders_["texArrayOpaquePS"]= d3dUtil::CompileShader(L"Shaders/Default.hlsl",	texArrayDefines,	"PS", "ps_5_1");
 	shaders_["instancePS"]		= d3dUtil::CompileShader(L"Shaders/Instance.hlsl",	defines,			"PS", "ps_5_1");
 	shaders_["alphaTestedPS"]	= d3dUtil::CompileShader(L"Shaders/Default.hlsl",	alphaTestDefines,	"PS", "ps_5_1");
 
@@ -420,6 +457,14 @@ void Renderer::BuildShadersAndInputLayout()
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, (UINT)offsetof(Vertex, TexC), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
 	
+	inputLayouts_["texArray"] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(VertexTexArray, Pos), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(VertexTexArray, Normal), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, (UINT)offsetof(VertexTexArray, TexC), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXINDEX", 0, DXGI_FORMAT_R32_UINT, 0, (UINT)offsetof(VertexTexArray, TexArrayIndex), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
+
 	inputLayouts_["color"] =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)offsetof(ColorVertex, Pos), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -508,6 +553,24 @@ void Renderer::BuildPSOs()
 		shaders_["colorPS"]->GetBufferSize()
 	};
 	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&colorWireFramePsoDesc, IID_PPV_ARGS(&PSOs_["color"])));
+
+	//
+	// PSO for texArraay & opaque wireframe objects.
+	//
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC texArrayOpaquePsoDesc = opaquePsoDesc;
+	texArrayOpaquePsoDesc.InputLayout = { inputLayouts_["texArray"].data(), (UINT)inputLayouts_["texArray"].size() };
+	texArrayOpaquePsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(shaders_["texArrayVS"]->GetBufferPointer()),
+		shaders_["texArrayVS"]->GetBufferSize()
+	};
+	texArrayOpaquePsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(shaders_["texArrayOpaquePS"]->GetBufferPointer()),
+		shaders_["texArrayOpaquePS"]->GetBufferSize()
+	};
+	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&texArrayOpaquePsoDesc, IID_PPV_ARGS(&PSOs_["texArrayOpaque"])));
 
 	//
 	// PSO for opaque instance objects.
@@ -1205,7 +1268,11 @@ void Renderer::DrawRenderItems(const vector<RenderItem*>& ritems)
 		commandList_->IASetVertexBuffers(0, 1, &ri->mesh_->VertexBufferView());
 		commandList_->IASetIndexBuffer(&ri->mesh_->IndexBufferView());
 		commandList_->IASetPrimitiveTopology(ri->primitiveType_);
-
+		/*
+		CD3DX12_GPU_DESCRIPTOR_HANDLE texHandle(srvDescriptorHeap_->GetGPUDescriptorHandleForHeapStart());
+		texHandle.Offset(ri->material_->diffuseSrvHeapIndex_, cbvSrvDescriptorSize_);
+		commandList_->SetGraphicsRootDescriptorTable(5, texHandle);
+		*/
 		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->objCBIndex_ * objCBByteSize;
 		commandList_->SetGraphicsRootConstantBufferView(0, objCBAddress);
 

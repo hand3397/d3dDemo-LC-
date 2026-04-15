@@ -1,13 +1,12 @@
 #pragma once
 #include "KeyInputManager.h"
 #include "GameTimer.h"
-#include "GameObject.h"
 #include "Player.h"
 #include "ModelLoader.h"
 #include "GeometryGenerator.h"
 #include "PhysicsWorld.h"
 #include "ObjectManager.h"
-#include "Rigidbody.h"
+#include "Stage.h"
 
 class Scene
 {
@@ -48,6 +47,7 @@ private:
     void BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void BuildShapeGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
+    void BuildStageGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void BuildMaterial(const string& name, const string& textureName, const XMFLOAT4& diffuseAlbedo,
         const XMFLOAT3& fresnelR0, float roughness, const XMMATRIX& matTransform = XMMatrixIdentity());
     void BuildMaterials();
@@ -82,7 +82,7 @@ private:
     void LoadModels(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void LoadTextures(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void LoadTexture(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList,
-        const string& name, const wstring& fileName, uint16_t atlasWidth, uint16_t atlasHeight);
+        const string& name, const wstring& fileName, uint16_t atlasWidth, uint16_t atlasHeight, bool IsTexArray = false);
 
     void AnimateMaterials(float dt);
 
@@ -108,6 +108,8 @@ private:
     unordered_map<string, unique_ptr<SkinnedModelInstance>> skinnedModelInsts_;
 
     spe::PhysicsWorld physicsWorld_;
+
+    Stage stage_;
 
     int clientWidth_, clientHeight_;
 };
