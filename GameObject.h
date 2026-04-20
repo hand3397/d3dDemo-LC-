@@ -11,7 +11,7 @@ class GameObject
 {
 public:
     GameObject(const spe::RigidbodyType rigidbodyType);
-    GameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position, 
+    GameObject(const XMFLOAT3& rotate, const XMFLOAT3& position, 
         const spe::RigidbodyType rigidbodyType);
     virtual ~GameObject() {}
 
@@ -50,6 +50,5 @@ protected:
 
     XMFLOAT3 position_ = { 0.0f, 0.0f, 0.0f };
     XMFLOAT4 rotateQuat_ = { 0.0f, 0.0f, 0.0f, 1.0f };
-    XMFLOAT3 scale_ = { 1.0f, 1.0f, 1.0f };
 };
 

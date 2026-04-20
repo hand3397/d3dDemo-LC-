@@ -55,7 +55,7 @@ private:
     void BuildGameObjects();
 
     // build game object and add to game object manager
-    GameObject* BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& transform,
+    GameObject* BuildGameObject(const XMFLOAT3& rotate, const XMFLOAT3& transform,
         vector<RenderItem*>& rItems, spe::RigidbodyType rigidbodyType);
 
     // build render item and add to render item layer

@@ -16,7 +16,7 @@ void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, 
 {
 	OnResize(clientWidth, clientHeight);
 
-	player_ = make_unique<Player>(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 5.0f, -10.0f));
+	player_ = make_unique<Player>(XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 5.0f, -10.0f));
 	mainCamera_ = player_->GetCamera();
 	mainCamera_->RotatePitch(0.4f);
 
@@ -310,7 +310,7 @@ void Scene::BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandLi
 
 	const vector<BillboardGeometryDesc> billboardGeometries = {
 		{"test",		XMFLOAT3(0.f, 0.f, 0.f),	XMFLOAT2(1.0f, 1.0f)},
-		{"character0",	XMFLOAT3(0.f, 0.2f, 0.f),	XMFLOAT2(1.0f, 1.0f)},
+		{"character0",	XMFLOAT3(0.f, 1.0f, 0.f),	XMFLOAT2(2.0f, 2.0f)},
 		{"character1",	XMFLOAT3(0.f, 0.75f, 0.f),	XMFLOAT2(1.0f, 1.5f)},
 		{"tree3",		XMFLOAT3(0.f, 7.0f, 0.f),	XMFLOAT2(5.0f, 15.0f)},
 	};
@@ -358,6 +358,9 @@ void Scene::BuildStageGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 		{ 0, 0, -1 }, { 0, 0, 1 }, { 0, 1, 0 },
 		{ 0, -1, 0 }, { -1, 0, 0 }, { 1, 0, 0 }
     };
+	const string dirString[6] = {
+        "side", "side", "up", "bottom", "side", "side"
+	};
 	const int vertex[6][4] = {
 		{0, 1, 2, 3}, {4, 5, 6, 7}, {8, 9, 10, 11},
         {12, 13, 14, 15}, {16, 17, 18, 19}, {20, 21, 22, 23}
@@ -379,12 +382,16 @@ void Scene::BuildStageGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 		for (int y = 0; y < stageHeight; ++y) {
 			for (int z = 0; z < stageLength; ++z) {
                 // x, y, z 위치에 블록이 존재하는지 확인한다. 만약 존재한다면, 해당 위치에 box를 그린다.
+                TileType tileType = stage_.GetTileType(x, y, z);
+				if (tileType == TileType::TILE_TYPE_AIR)
+                    continue;
+
 				for (int dir = 0; dir < 6; ++dir) {
 					int dx = x + direction[dir][0];
 					int dy = y + direction[dir][1];
 					int dz = z + direction[dir][2];
 
-                    // 현재 블록의 인접한 블록이 solid인지 확인한다. 만약 solid하다면, 현재 블록의 해당 방향 면을 그린다.
+                    // 현재 블록의 인접한 블록이 solid인지 확인한다. 만약 solid하지 않다면, 현재 블록의 해당 방향 면을 그린다.
 					if (!stage_.IsBlockSolid(dx, dy, dz)) {
 						uint32_t numVertices = vertices.size();
 						uint32_t numIndices = indices.size();
@@ -397,7 +404,7 @@ void Scene::BuildStageGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 								v.Position.x + x * tileSize + vertexOffset.x, 
 								v.Position.y + y * tileHeight + vertexOffset.y, 
 								v.Position.z + z * tileSize + vertexOffset.z };
-                            vertices.emplace_back(dPos, v.Normal, v.TexC, 1);
+                            vertices.emplace_back(dPos, v.Normal, v.TexC, stage_.GetTextureIndex(tileType, dirString[dir]));
 						}
 						for (int ii = 0; ii < 6; ++ii) {
 							indices.emplace_back(index[ii] + numVertices);
@@ -407,6 +414,9 @@ void Scene::BuildStageGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 			}
 		}
 	}
+
+	if (vertices.empty() || indices.empty())
+        return;
 
 	const float widthHalf = tileSize * 0.5f * stageWidth;
 	const float lengthHalf = tileSize * 0.5f * stageLength;
@@ -450,82 +460,33 @@ void Scene::BuildMaterials()
 	BuildMaterial("ice0",		"iceTex",			XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.0f);
 	BuildMaterial("wirefence",	"fenceTex",			XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f);
 	BuildMaterial("soldier",	"soldierTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.1f, 0.1f, 0.1f),		0.25f);
-	BuildMaterial("knight",		"knightTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f);
-	BuildMaterial("tree",		"treeTex",			XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f);
-	BuildMaterial("terrain",	"terrainTexArray",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		1.0f);
+	BuildMaterial("knight",		"knightTex",		XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		0.9f);
+	BuildMaterial("tree",		"treeTex",			XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		0.9f);
+	BuildMaterial("terrain",	"terrainTexArray",	XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),		0.9f);
 
-	/*
-	for (auto& pair : textures_) {
-		cout<< "Texture Name: " << pair.first << ", Index: " << pair.second->srvHeapIndex_ <<'\n';
-	}
-
-	for (auto& pair : materials_) {
-        cout << "Material Name: " << pair.first << ", Index: " << pair.second->matCBIndex_ << '\n';
-	}
-	*/
 }
 
 void Scene::BuildGameObjects()
 {
 	vector<RenderItem*> renderItems;
-	/*
-	renderItems = { BuildRenderItem((uint8_t)RenderLayer::AlphaTested,
-		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["box"], materials_["wirefence"].get(),
-		XMMatrixScaling(3.0f, 3.0f, 3.0f) * XMMatrixTranslation(0.0f, 3.0f, 0.0f), XMMatrixIdentity()) };
-	BuildGameObject(XMFLOAT3(3.0f, 3.0f, 3.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 3.0f, 0.0f), 
-		renderItems, RigidbodyType::Static);
-	
-	renderItems = { BuildRenderItem((uint8_t)RenderLayer::Transparent,
-		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["box"], materials_["ice0"].get(),
-		XMMatrixTranslation(0.0f, 4.0f, 0.0f), XMMatrixIdentity()) };
-	BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 4.0f, 0.0f),
-		renderItems, RigidbodyType::Static);
-	*/
+	GameObject* go;
+
 	renderItems = { BuildRenderItem(RenderLayer::RENDER_OPAQUE,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"]->subMeshes_["grid"], materials_["tile0"].get(),
 		XMMatrixIdentity(), XMMatrixScaling(50.0f, 50.0f, 1.0f)) };
-	GameObject* go = BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
+	go = BuildGameObject(XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
 		renderItems, spe::RigidbodyType::STATIC);
 	go->GetRigidbody()->GetFixture()->SetFriction(0.5);
 
 	BuildRenderItem(RenderLayer::RENDER_TEX_ARRAY_OPAQUE,
 		meshes_["terrainGeo"].get(), meshes_["terrainGeo"]->subMeshes_["terrain"], materials_["terrain"].get());
 
-	BuildBillboardRenderItem(RenderLayer::RENDER_ALPHATESTED_BILLBOARD,
+	renderItems = { BuildBillboardRenderItem(RenderLayer::RENDER_ALPHATESTED_BILLBOARD,
 		meshes_["billboardGeo"].get(), meshes_["billboardGeo"]->subMeshes_["character0"], materials_["knight"].get(),
-		XMMatrixTranslation(0.f, 0.f, 20.f), XMMatrixIdentity(), true);
-	
-	// build wall
-	/*
-	renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
-		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["box"], materials_["soldier"].get(),
-		XMMatrixIdentity(), XMMatrixIdentity()) };
-	BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f),
-		renderItems, RigidbodyType::Static);
-	
-	auto wall = BuildRenderItem((uint8_t)RenderLayer::Instance,
-		meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["wall"], materials_["stone0"].get(),
-		XMMatrixIdentity(), XMMatrixIdentity());
-	renderItems = { wall };
-	const int n = 5;
-	wall->instanceCount_ = n * n * n;
-	numInstances += wall->instanceCount_;
-	wall->instanceOffset_ = 0;
-	wall->instances_.resize(numInstances);
-	
-	for (int x = 0; x < n; x++) {
-		for (int y = 0; y < n; y++) {
-			for (int z = 0; z < n; z++) {
-				int index = x * n * n + y * n + z;
-				XMStoreFloat4x4(&wall->instances_[index].World,
-					XMMatrixTranslation(3.0f * x - 6.f, y * 4.0f, -2.0f * z));
-				wall->instances_[index].MaterialIndex = index % materials_.size();
-				BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(3.0f * x - 6.f, y * 4.0f, -2.0f * z),
-					renderItems, RigidbodyType::Static);
-			}
-		}
-	}
-	*/
+		XMMatrixTranslation(0.f, 0.f, 0.f), XMMatrixIdentity(), true) };
+	go = BuildGameObject(XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 20.0f),
+		renderItems, spe::RigidbodyType::KINEMATIC);
+    go->SetRenderItems(renderItems);
 	
 	renderItems = { BuildSkinnedRenderItem(RenderLayer::RENDER_SKINNED,
 		meshes_["skinnedGeo"].get(), meshes_["skinnedGeo"].get()->subMeshes_["0"], materials_["soldier"].get(),
@@ -538,62 +499,22 @@ void Scene::BuildGameObjects()
 		skinnedModelInsts_["Vanguard"].get(), 0) };
 	player_->SetRenderItems(renderItems);
 	
-	/*
-	for (int i = 0; i < 5; ++i) {
-		XMFLOAT3 leftCylPos = XMFLOAT3(-5.0f, 1.5f, -10.0f + i * 5.0f);
-		XMFLOAT3 rightCylPos = XMFLOAT3(+5.0f, 1.5f, -10.0f + i * 5.0f);
-		XMMATRIX leftCylWorld = XMMatrixTranslation(-5.0f, 1.5f, -10.0f + i * 5.0f);
-		XMMATRIX rightCylWorld = XMMatrixTranslation(+5.0f, 1.5f, -10.0f + i * 5.0f);
-
-		XMFLOAT3 leftSpherePos = XMFLOAT3(-5.0f, 3.5f, -10.0f + i * 5.0f);
-		XMFLOAT3 rightSpherePos = XMFLOAT3(+5.0f, 3.5f, -10.0f + i * 5.0f);
-		XMMATRIX leftSphereWorld = XMMatrixTranslation(-5.0f, 3.5f, -10.0f + i * 5.0f);
-		XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f, 3.5f, -10.0f + i * 5.0f);
-
-		renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
-			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["cylinder"], materials_["bricks0"].get(),
-			leftCylWorld, XMMatrixIdentity()) };
-		BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), leftCylPos,
-			renderItems, RigidbodyType::Static);
-
-		renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
-			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["cylinder"], materials_["bricks0"].get(),
-			rightCylWorld, XMMatrixIdentity()) };
-		BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), rightCylPos,
-			renderItems, RigidbodyType::Static);
-
-		renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
-			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["sphere"], materials_["stone0"].get(),
-			leftSphereWorld, XMMatrixIdentity()) };
-		BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), leftSpherePos,
-			renderItems, RigidbodyType::Static);
-
-		renderItems = { BuildRenderItem((uint8_t)RenderLayer::Opaque,
-			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["sphere"], materials_["stone0"].get(),
-			rightSphereWorld, XMMatrixIdentity()) };
-		BuildGameObject(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), rightSpherePos,
-			renderItems, RigidbodyType::Static);
-	}
-	*/
-
 	AddBoxObject(XMFLOAT3(-5.0f, 1.0f, 0.f));
 	AddBoxObject(XMFLOAT3(-5.3f, 3.0f, 0.f));
 	AddBoxObject(XMFLOAT3(-5.6f, 5.0f, 0.f));
-
 }
 
-GameObject* Scene::BuildGameObject(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& transform, 
+GameObject* Scene::BuildGameObject(const XMFLOAT3& rotate, const XMFLOAT3& transform, 
 	vector<RenderItem*>& rItems, spe::RigidbodyType rigidbodyType)
 {
 	XMFLOAT4 rotateQuat;
 	XMStoreFloat4(&rotateQuat, XMQuaternionRotationRollPitchYaw(rotate.x, rotate.y, rotate.z));
 	
-	XMMATRIX S = XMMatrixScaling(scale.x, scale.y, scale.z);
 	XMMATRIX R = XMMatrixRotationQuaternion(XMLoadFloat4(&rotateQuat));
 	XMMATRIX T = XMMatrixTranslation(transform.x, transform.y, transform.z);
-	XMMATRIX world = S * R * T;
+	XMMATRIX world = R * T;
 	
-	GameObject* gameObject = gameObejctManager_.CreateObject(scale, rotate, transform, rigidbodyType);
+	GameObject* gameObject = gameObejctManager_.CreateObject(rotate, transform, rigidbodyType);
 	
 	auto rigidbody = gameObject->GetRigidbody();
 	for (RenderItem* ri : rItems) {
@@ -671,8 +592,7 @@ GameObject* Scene::AddCylinderObject(const XMFLOAT3& pos, const XMFLOAT3& rotate
 	XMMATRIX T = XMMatrixTranslation(pos.x, pos.y, pos.z);
 	XMMATRIX world = R * T;
 
-	GameObject* gameObject = gameObejctManager_.CreateObject(
-		XMFLOAT3(1.0f, 1.0f, 1.0f), rotate, pos, spe::RigidbodyType::DYNAMIC);
+	GameObject* gameObject = gameObejctManager_.CreateObject(rotate, pos, spe::RigidbodyType::DYNAMIC);
 
 	auto renderItems = { BuildRenderItem(RenderLayer::RENDER_OPAQUE,
 			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["cylinder"], materials_["stone0"].get(),
@@ -704,8 +624,7 @@ GameObject* Scene::AddBoxObject(const XMFLOAT3& pos, const XMFLOAT3& rotate)
 	XMMATRIX T = XMMatrixTranslation(pos.x, pos.y, pos.z);
 	XMMATRIX world = R * T;
 
-	GameObject* gameObject = gameObejctManager_.CreateObject(
-		XMFLOAT3(1.0f, 1.0f, 1.0f), rotate, pos, spe::RigidbodyType::DYNAMIC);
+	GameObject* gameObject = gameObejctManager_.CreateObject(rotate, pos, spe::RigidbodyType::DYNAMIC);
 
 	auto renderItems = { BuildRenderItem(RenderLayer::RENDER_OPAQUE,
 			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["box"], materials_["stone0"].get(),
@@ -737,8 +656,7 @@ GameObject* Scene::AddBallObject(const XMFLOAT3& pos)
 	XMMATRIX T = XMMatrixTranslation(pos.x, pos.y, pos.z);
 	XMMATRIX world = T;
 
-	GameObject* gameObject = gameObejctManager_.CreateObject(
-		XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), pos, spe::RigidbodyType::DYNAMIC);
+	GameObject* gameObject = gameObejctManager_.CreateObject(XMFLOAT3(0.0f, 0.0f, 0.0f), pos, spe::RigidbodyType::DYNAMIC);
 	
 	auto renderItems = { BuildRenderItem(RenderLayer::RENDER_OPAQUE,
 			meshes_["shapeGeo"].get(), meshes_["shapeGeo"].get()->subMeshes_["sphere"], materials_["bricks0"].get(),

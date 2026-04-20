@@ -1,7 +1,7 @@
 #include "Player.h"
 
-Player::Player(const XMFLOAT3& scale, const XMFLOAT3& rotate, const XMFLOAT3& position) : 
-    GameObject(scale, rotate, position, spe::RigidbodyType::KINEMATIC), fsm_(this)
+Player::Player(const XMFLOAT3& rotate, const XMFLOAT3& position) : 
+    GameObject(rotate, position, spe::RigidbodyType::KINEMATIC), fsm_(this)
 {
     SetAnimation({ "Idle" });
     fsm_.Change(IdleState::Instance());
