@@ -5,6 +5,7 @@
 #include "CylinderToCylinderContact.h"
 #include "SphereToCylinderContact.h"
 #include "BoxToCylinderContact.h"
+#include "ShapeContact.h"
 
 namespace spe {
     ;
@@ -15,38 +16,38 @@ namespace spe {
     const uint32_t Contact::MAX_GJK_ITERATION = 64;
 
     const ContactMemberFunction Contact::createContactFunctions_[32] = {
-        nullptr,							// 0
-        &SphereToSphereContact::Create,		// 01
-        &BoxToBoxContact::Create,			// 10
-        &SphereToBoxContact::Create,		// 11
-        &BoxToBoxContact::Create,			// 100
-        &SphereToBoxContact::Create,		// 101
-        &BoxToBoxContact::Create,			// 110
-        nullptr,							// 111
-        &CylinderToCylinderContact::Create, // 1000
-        &SphereToCylinderContact::Create,	// 1001
-        &BoxToCylinderContact::Create,		// 1010
-        nullptr,							// 1011
-        &BoxToCylinderContact::Create,		// 1100
-        nullptr,							// 1101
-        nullptr,							// 1110
-        nullptr,							// 1111
-        nullptr,//&CapsuleToCapsuleContact::create,	// 10000
-        nullptr,//&SphereToCapsuleContact::create,	// 10001
-        nullptr,//&BoxToCapsuleContact::create,		// 10010
-        nullptr,							// 10011
-        nullptr,//&BoxToCapsuleContact::create,		// 10100
-        nullptr,							// 10101
-        nullptr,							// 10110
-        nullptr,							// 10111
-        nullptr,//&CylinderToCapsuleContact::create,	// 11000
-        nullptr,							// 11001
-        nullptr,							// 11010
-        nullptr,							// 11011
-        nullptr,							// 11100
-        nullptr,							// 11101
-        nullptr,							// 11110
-        nullptr,							// 11111
+        nullptr,							                                // 0
+        &SphereToSphereContact::Create,		                                // 01    sphere   | sphere
+        &ClippingContact<ShapeType::BOX, ShapeType::BOX>::Create,           // 10    box      | box
+        &SphereToConvexContact::Create,		                                // 11    sphere   | box
+        &ClippingContact<ShapeType::BOX, ShapeType::BOX>::Create,           // 100   box      | box
+        &SphereToConvexContact::Create,		                                // 101   sphere   | box
+        &ClippingContact<ShapeType::BOX, ShapeType::BOX>::Create,           // 110   box      | box
+        nullptr,						                                    // 111
+        &ClippingContact<ShapeType::CYLINDER, ShapeType::CYLINDER>::Create, // 1000  cylinder | cylinder
+        &SphereToConvexContact::Create,	                                    // 1001  sphere   | cylinder
+        &ClippingContact<ShapeType::BOX, ShapeType::CYLINDER>::Create,      // 1010  box      | cylinder
+        nullptr,							                                // 1011
+        &ClippingContact<ShapeType::BOX, ShapeType::CYLINDER>::Create,		// 1100  box      | cylinder
+        nullptr,						                                    // 1101
+        nullptr,						                                    // 1110
+        nullptr,						                                    // 1111
+        &ClippingContact<ShapeType::CAPSULE, ShapeType::CAPSULE>::Create,   // 10000 capsule  | capsule
+        &SphereToConvexContact::Create,                                     // 10001 sphere   | capsule
+        &ClippingContact<ShapeType::BOX, ShapeType::CAPSULE>::Create,       // 10010 box      | capsule
+        nullptr,							                                // 10011
+        &ClippingContact<ShapeType::BOX, ShapeType::CAPSULE>::Create,       // 10100 box      | capsule
+        nullptr,							                                // 10101
+        nullptr,							                                // 10110
+        nullptr,							                                // 10111
+        &ClippingContact<ShapeType::CYLINDER, ShapeType::CAPSULE>::Create, // 11000 cylinder | capsule
+        nullptr,							                                // 11001
+        nullptr,							                                // 11010
+        nullptr,							                                // 11011
+        nullptr,							                                // 11100
+        nullptr,						                                    // 11101
+        nullptr,						                                    // 11110
+        nullptr,						                                    // 11111
     };
 
     Contact::~Contact()
@@ -896,9 +897,8 @@ namespace spe {
         }
     }
 
-    void Contact::SetCapsuleFace(Face& face, const ConvexInfo& capsule, const XMFLOAT3& normal)
+    void Contact::SetCapsuleFace(Face& face, const ConvexInfo& capsule, const XMVECTOR& normal)
     {
-        XMVECTOR n = XMLoadFloat3(&normal);
         XMVECTOR axis = XMLoadFloat3(&capsule.axes[0]); // Up Axis (Y)
         XMVECTOR center = XMLoadFloat3(&capsule.center);
 
@@ -906,7 +906,7 @@ namespace spe {
         float halfHeight = capsule.height * 0.5f; // 실린더 부분의 절반 높이 (반구 제외)
 
         // 법선과 축의 내적 (CosTheta)
-        float dot = XMVectorGetX(XMVector3Dot(axis, n));
+        float dot = XMVectorGetX(XMVector3Dot(axis, normal));
         float absDot = fabsf(dot);
 
         // ---------------------------------------------------
@@ -915,7 +915,7 @@ namespace spe {
         // ---------------------------------------------------
         if (absDot < 0.99f) {
             // 1. 순수한 측면 법선 계산 (축 성분 제거 및 정규화)
-            XMVECTOR sideNormal = n - axis * dot;
+            XMVECTOR sideNormal = normal - axis * dot;
             sideNormal = XMVector3Normalize(sideNormal);
 
             XMStoreFloat3(&face.normal, sideNormal);
@@ -1023,8 +1023,8 @@ namespace spe {
 
     void Contact::FreeConvexInfo(ConvexInfo& convexA, ConvexInfo& convexB) const
     {
-        delete[] convexA.points;
-        delete[] convexB.points;
+        // delete[] convexA.points;
+        // delete[] convexB.points;
     }
 
 } // naemspace spe

@@ -172,7 +172,7 @@ protected:
 
 	void SetBoxFace(Face& face, const ConvexInfo& box, const XMVECTOR& normal);
 	void SetCylinderFace(Face& face, const ConvexInfo& cylinder, const XMVECTOR& normal);
-	void SetCapsuleFace(Face& face, const ConvexInfo& capsule, const XMFLOAT3& normal);
+	void SetCapsuleFace(Face& face, const ConvexInfo& capsule, const XMVECTOR& normal);
 
 	//bool isCollideToHemisphere(const ConvexInfo& capsule, const XMFLOAT3& dir);
 	void MergeFaceArray(FaceArray& faceArray, FaceArray& newFaceArray) const;

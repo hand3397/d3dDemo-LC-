@@ -189,6 +189,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Shape.cpp" />
+    <ClCompile Include="ShapeContact.cpp" />
     <ClCompile Include="SkinnedData.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -233,6 +234,7 @@
     <ClInclude Include="Rigidbody.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="Shape.h" />
+    <ClInclude Include="ShapeContact.h" />
     <ClInclude Include="SkinnedData.h" />
     <ClInclude Include="SphereToBoxContact.h" />
     <ClInclude Include="SphereToCylinderContact.h" />
