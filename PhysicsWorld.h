@@ -25,6 +25,9 @@ public:
     void RemoveRigidbody(Rigidbody* rigidbody);
     void Clear();
 
+    Rigidbody* GetRigidbodies()const;
+    uint32_t GetNumRigidbodies()const;
+
     // picking
     Rigidbody* RayCast(const Ray& ray);
 

@@ -752,78 +752,155 @@ void Renderer::UpdateDebugMesh(Scene* scene)
 		pushEdge(corner, 3, 7, color);
 		};
 
-	// staticObjects가 실제로 존재해도 나오지 않는 문제가 있음
-	const auto& staticObjects = scene->GetGameObjects(spe::RigidbodyType::STATIC);
-	const auto& dynamicObjects = scene->GetGameObjects(spe::RigidbodyType::DYNAMIC);
-    const auto& allRenderItems = scene->GetAllRenderItems();
+	// 좌표계 그리기
+	CreatePoint(XMFLOAT3(0.f, 0.f, 0.f), DirectX::Colors::Black);
+	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(10.f, 0.f, 0.f), DirectX::Colors::Red);
+	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(0.f, 10.f, 0.f), DirectX::Colors::Green);
+	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(0.f, 0.f, 10.f), DirectX::Colors::Blue);
 
-	for (const auto& ri : allRenderItems) {
-		BoundingBox worldBox;
-		ri->boundingBox_.Transform(worldBox, XMLoadFloat4x4(&ri->world_));
-		XMFLOAT3 worldCorners[8];
-		worldBox.GetCorners(worldCorners);
-		CreateBox(worldCorners, DirectX::Colors::DarkBlue);
+    // renderItem의 AABB 그리기 DirectX::Colors::Orange
+	for (const auto& renderItem : scene->GetAllRenderItems()) 
+	{
+		if (renderItem) {
+			BoundingBox worldBounds;
+            XMFLOAT3 corner[8];
+			renderItem->boundingBox_.Transform(worldBounds, XMLoadFloat4x4(&renderItem->world_));
+			worldBounds.GetCorners(corner);
+			CreateBox(corner, DirectX::Colors::Orange);
+		}
 	}
 
-	auto player = scene->GetPlayer();
-	/*
-	if (player && (vertices.size() + 24 <= maxDebugVertices_)) {
-		bool isCollide = false;
+	// rigidbody의 shape그리기 DirectX::Colors::Teal
+    spe::Rigidbody* rb = scene->GetPhysicsWorld().GetRigidbodies();
+    uint32_t numRbs = scene->GetPhysicsWorld().GetNumRigidbodies();
+	
+	while (numRbs--) {
+		spe::Fixture* fixture = rb->GetFixture();
+		if (fixture) {
+			spe::ConvexInfo info;
+			fixture->GetShape()->GetConvexInfo(rb->GetTransformMatrix(), info);
+            
+			XMVECTOR center = XMLoadFloat3(&info.center);
+			switch (info.type) {
+				case spe::ShapeType::BOX:
+				{
+					const XMFLOAT3* p = info.points;
 
-		for (auto& go : staticObjects) {
-			if (player->GetRigidbody().boundingSphere_.Intersects(go->GetRigidbody().boundingSphere_))
-				if (player->GetRigidbody().boundingBox_.Intersects(go->GetRigidbody().boundingBox_)) {
-					isCollide = true;
+					// 1. -X 면 사각형 (0, 1, 3, 2 순서로 연결하면 루프가 생성됨)
+					pushLine(p[0], p[1], DirectX::Colors::Teal);
+					pushLine(p[1], p[3], DirectX::Colors::Teal);
+					pushLine(p[3], p[2], DirectX::Colors::Teal);
+					pushLine(p[2], p[0], DirectX::Colors::Teal);
+
+					// 2. +X 면 사각형 (4, 5, 7, 6 순서로 연결)
+					pushLine(p[4], p[5], DirectX::Colors::Teal);
+					pushLine(p[5], p[7], DirectX::Colors::Teal);
+					pushLine(p[7], p[6], DirectX::Colors::Teal);
+					pushLine(p[6], p[4], DirectX::Colors::Teal);
+
+					// 3. 두 면을 잇는 4개의 선 (세로/가로 기둥)
+					pushLine(p[0], p[4], DirectX::Colors::Teal);
+					pushLine(p[1], p[5], DirectX::Colors::Teal);
+					pushLine(p[2], p[6], DirectX::Colors::Teal);
+					pushLine(p[3], p[7], DirectX::Colors::Teal);
 					break;
-				}
+                }
+				case spe::ShapeType::SPHERE:
+				{
+
+					break;
+                }
+				case spe::ShapeType::CYLINDER:
+				{
+
+					break;
+                }
+				case spe::ShapeType::CAPSULE:
+				{
+					// 캡슐의 기준 축(Y축)을 로드
+					XMVECTOR axisUp = XMVector3Normalize(XMLoadFloat3(&info.axes[0]));
+
+					// Y축과 수직인 임의의 두 축(Right, Forward) 생성하여 로컬 기저 벡터 완성
+					XMVECTOR axisRight;
+					if (fabs(XMVectorGetY(axisUp)) < 0.999f)
+						axisRight = XMVector3Normalize(XMVector3Cross(axisUp, XMVectorSet(0, 1, 0, 0)));
+					else
+						axisRight = XMVector3Normalize(XMVector3Cross(axisUp, XMVectorSet(0, 0, 1, 0)));
+					XMVECTOR axisForward = XMVector3Normalize(XMVector3Cross(axisRight, axisUp));
+
+					float halfH = info.height * 0.5f;
+					float r = info.radius;
+					XMVECTOR topCenter = center + axisUp * halfH;
+					XMVECTOR botCenter = center - axisUp * halfH;
+
+					const int segments = 16;
+					for (int i = 0; i < segments; ++i) {
+						float a1 = (float)i / segments * XM_2PI;
+						float a2 = (float)(i + 1) / segments * XM_2PI;
+
+						float s1, c1, s2, c2;
+						XMScalarSinCos(&s1, &c1, a1);
+						XMScalarSinCos(&s2, &c2, a2);
+
+						// 원형 링 위의 로컬 오프셋
+						XMVECTOR p1 = (axisRight * c1 + axisForward * s1) * r;
+						XMVECTOR p2 = (axisRight * c2 + axisForward * s2) * r;
+
+						XMFLOAT3 t1, t2, b1, b2;
+						XMStoreFloat3(&t1, topCenter + p1);
+						XMStoreFloat3(&t2, topCenter + p2);
+						XMStoreFloat3(&b1, botCenter + p1);
+						XMStoreFloat3(&b2, botCenter + p2);
+
+						// 1. 상단/하단 원형 링 그리기
+						pushLine(t1, t2, DirectX::Colors::Teal);
+						pushLine(b1, b2, DirectX::Colors::Teal);
+
+						// 2. 실린더 부분 세로 기둥 (90도 간격으로 4개)
+						if (i % 4 == 0) {
+							pushLine(t1, b1, DirectX::Colors::Teal);
+						}
+
+						// 3. 캡슐 양 끝단 반구(Dome) 아치 그리기
+						if (i < segments / 2) {
+							float b1_ang = (float)i / (segments / 2) * XM_PI;
+							float b2_ang = (float)(i + 1) / (segments / 2) * XM_PI;
+							float rs1, rc1, rs2, rc2;
+							XMScalarSinCos(&rs1, &rc1, b1_ang);
+							XMScalarSinCos(&rs2, &rc2, b2_ang);
+
+							XMFLOAT3 dt1_r, dt2_r, dt1_f, dt2_f;
+							XMFLOAT3 db1_r, db2_r, db1_f, db2_f;
+
+							// 상단 돔 (Right & Forward 방향 아치)
+							XMStoreFloat3(&dt1_r, topCenter + axisRight * rc1 * r + axisUp * rs1 * r);
+							XMStoreFloat3(&dt2_r, topCenter + axisRight * rc2 * r + axisUp * rs2 * r);
+							XMStoreFloat3(&dt1_f, topCenter + axisForward * rc1 * r + axisUp * rs1 * r);
+							XMStoreFloat3(&dt2_f, topCenter + axisForward * rc2 * r + axisUp * rs2 * r);
+
+							pushLine(dt1_r, dt2_r, DirectX::Colors::Teal);
+							pushLine(dt1_f, dt2_f, DirectX::Colors::Teal);
+
+							// 하단 돔 (Right & Forward 방향 아치)
+							XMStoreFloat3(&db1_r, botCenter + axisRight * rc1 * r - axisUp * rs1 * r);
+							XMStoreFloat3(&db2_r, botCenter + axisRight * rc2 * r - axisUp * rs2 * r);
+							XMStoreFloat3(&db1_f, botCenter + axisForward * rc1 * r - axisUp * rs1 * r);
+							XMStoreFloat3(&db2_f, botCenter + axisForward * rc2 * r - axisUp * rs2 * r);
+
+							pushLine(db1_r, db2_r, DirectX::Colors::Teal);
+							pushLine(db1_f, db2_f, DirectX::Colors::Teal);
+						}
+					}
+					break;
+                }
+			default:
+				break;
+			}
 		}
 
-		player->GetRigidbody().boundingBox_.GetCorners(corner);
-		if (isCollide)
-			CreateBox(corner, red);
-		else
-			CreateBox(corner, orange);
-	}
-	*/
+		rb = rb->GetNext();
+    }
 
-	for (auto& go : staticObjects) {
-		spe::AABB aabb = go->GetAABB();
-		pushAABB(aabb.lowerBound, aabb.upperBound, DirectX::Colors::DarkRed);
-	}
-
-	// Contact DynamicToStatic
-	for (GameObject* go : dynamicObjects) {
-		spe::AABB aabb = go->GetAABB();
-		if (go->GetRigidbody()->HasFlag(spe::RigidbodyFlag::AWAKE))
-			pushAABB(aabb.lowerBound, aabb.upperBound, DirectX::Colors::DarkRed);
-		else
-			pushAABB(aabb.lowerBound, aabb.upperBound, DirectX::Colors::DarkBlue);
-	}
-
-	//---------------------------
-	CreatePoint(XMFLOAT3(0.f, 0.f, 0.f), DirectX::Colors::Black);
-	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(5.f, 0.f, 0.f), DirectX::Colors::Red);
-	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(0.f, 5.f, 0.f), DirectX::Colors::Green);
-	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(0.f, 0.f, 5.f), DirectX::Colors::Blue);
-
-	// pickingRay
-	/*
-	XMFLOAT3 p1, p2;
-	XMStoreFloat3(&p1, XMLoadFloat3(&scene->ray.vertex));
-	XMStoreFloat3(&p2, XMLoadFloat3(&scene->ray.vertex) + XMLoadFloat3(&scene->ray.dir) * 1000);
-	pushLine(p1, p2, DirectX::Colors::Orange);
-	*/
-	//---------------------------
-
-	/*
-	for (auto& go : staticObjects)
-	{
-		if (vertices.size() + 24 > maxDebugVertices_)
-			break;
-		go->GetRigidbody().boundingBox_.GetCorners(corner);
-		CreateBox(corner, blue);
-	}
-	*/
 	memcpy(mappedData_, vertices.data(), sizeof(ColorVertex) * vertices.size());
 
 	debugMesh_.vertexByteStride_ = sizeof(ColorVertex);

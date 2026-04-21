@@ -48,6 +48,6 @@ private:
     const uint32_t stageHeight_; // y축 방향 타일 수 (높이)
 
     const float tileSize_ = 1.0f;
-    const float tileHeight_ = 1.0f;
+    const float tileHeight_ = 0.5f;
 };
 

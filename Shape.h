@@ -17,6 +17,13 @@ int32_t operator|(ShapeType type1, ShapeType type2);
 
 struct ConvexInfo
 {
+	~ConvexInfo() {
+		if (points) {
+			delete[] points;
+			points = nullptr;
+		}
+    }
+
 	XMFLOAT3* points = nullptr;	// box, cylinder, capsule
 	XMFLOAT3 axes[3];	// box, cylinder, capsule
 

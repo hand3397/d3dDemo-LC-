@@ -63,7 +63,9 @@ void Scene::Update(const GameTimer& gt)
 		player_->GetRigidbody()->Integrate(dt);
 		player_->Update(dt);
 	}
-		
+	if (character_)
+		character_->Update(dt);
+
 	AnimateMaterials(dt);
 }
 
@@ -105,6 +107,11 @@ const vector<unique_ptr<RenderItem>>& Scene::GetAllRenderItems() const
 const vector<RenderItem*>& Scene::GetRenderItems(RenderLayer layer) const
 {
 	return renderItemLayer_[(uint8_t)layer];
+}
+
+const spe::PhysicsWorld& Scene::GetPhysicsWorld() const
+{
+    return physicsWorld_;
 }
 
 const unordered_map<string, unique_ptr<MeshGeometry>>& Scene::GetMeshes() const
@@ -347,8 +354,10 @@ void Scene::BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandLi
 
 void Scene::BuildStageGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
-    const float tileSize = stage_.GetTileSize();
-    const float tileHeight = stage_.GetTileHeight();
+    stage_ = new Stage(10, 10, 5);
+
+    const float tileSize = stage_->GetTileSize();
+    const float tileHeight = stage_->GetTileHeight();
 
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData box = geoGen.CreateBox(tileSize, tileHeight, tileSize, 0);
@@ -368,21 +377,21 @@ void Scene::BuildStageGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
     // 각 면을 이루는 vertex의 index (GeometryGenerator의 면 생성 방식대로 따라감)
 	int index[6] = {0, 1, 2, 0, 2, 3};
 
-	const uint32_t stageWidth = stage_.GetStageWidth();
-	const uint32_t stageLength = stage_.GetStageLength();
-	const uint32_t stageHeight = stage_.GetStageHeight();
+	const uint32_t stageWidth = stage_->GetStageWidth();
+	const uint32_t stageLength = stage_->GetStageLength();
+	const uint32_t stageHeight = stage_->GetStageHeight();
 
 	vector<VertexTexArray> vertices;
 	vector<uint32_t> indices;
 
     // stage가 world의 중심에 위치하도록 vertex의 offset을 계산한다. (바닥은 y = 0에 맞춘다)
-	XMFLOAT3 vertexOffset = { -tileSize * 0.5f * stageWidth, tileHeight * 0.5f, -tileSize * 0.5f * stageLength };
+	XMFLOAT3 vertexOffset = { -tileSize * 0.5f * (stageWidth - 1), tileHeight * 0.5f, -tileSize * 0.5f * (stageLength - 1) };
 
 	for (int x = 0; x < stageWidth; ++x) {
 		for (int y = 0; y < stageHeight; ++y) {
 			for (int z = 0; z < stageLength; ++z) {
                 // x, y, z 위치에 블록이 존재하는지 확인한다. 만약 존재한다면, 해당 위치에 box를 그린다.
-                TileType tileType = stage_.GetTileType(x, y, z);
+                TileType tileType = stage_->GetTileType(x, y, z);
 				if (tileType == TileType::TILE_TYPE_AIR)
                     continue;
 
@@ -392,7 +401,7 @@ void Scene::BuildStageGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 					int dz = z + direction[dir][2];
 
                     // 현재 블록의 인접한 블록이 solid인지 확인한다. 만약 solid하지 않다면, 현재 블록의 해당 방향 면을 그린다.
-					if (!stage_.IsBlockSolid(dx, dy, dz)) {
+					if (!stage_->IsBlockSolid(dx, dy, dz)) {
 						uint32_t numVertices = vertices.size();
 						uint32_t numIndices = indices.size();
 						vertices.reserve(numVertices + 4);
@@ -404,7 +413,7 @@ void Scene::BuildStageGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 								v.Position.x + x * tileSize + vertexOffset.x, 
 								v.Position.y + y * tileHeight + vertexOffset.y, 
 								v.Position.z + z * tileSize + vertexOffset.z };
-                            vertices.emplace_back(dPos, v.Normal, v.TexC, stage_.GetTextureIndex(tileType, dirString[dir]));
+                            vertices.emplace_back(dPos, v.Normal, v.TexC, stage_->GetTextureIndex(tileType, dirString[dir]));
 						}
 						for (int ii = 0; ii < 6; ++ii) {
 							indices.emplace_back(index[ii] + numVertices);
@@ -470,6 +479,12 @@ void Scene::BuildGameObjects()
 {
 	vector<RenderItem*> renderItems;
 	GameObject* go;
+
+	renderItems = { BuildBillboardRenderItem(RenderLayer::RENDER_ALPHATESTED_BILLBOARD,
+		meshes_["billboardGeo"].get(), meshes_["billboardGeo"]->subMeshes_["character0"], materials_["knight"].get(),
+		XMMatrixTranslation(0.f, 0.f, 0.f), XMMatrixIdentity(), true) };
+    character_ = new Character(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 30.0f));
+	character_->SetRenderItems(renderItems);
 
 	renderItems = { BuildRenderItem(RenderLayer::RENDER_OPAQUE,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"]->subMeshes_["grid"], materials_["tile0"].get(),

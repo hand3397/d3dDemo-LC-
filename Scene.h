@@ -6,6 +6,7 @@
 #include "GeometryGenerator.h"
 #include "PhysicsWorld.h"
 #include "ObjectManager.h"
+#include "Character.h"
 #include "Stage.h"
 
 class Scene
@@ -30,6 +31,7 @@ public:
     const vector<GameObject*>& GetGameObjects(const spe::RigidbodyType layer);
     const vector<unique_ptr<RenderItem>>& GetAllRenderItems()const;
     const vector<RenderItem*>& GetRenderItems(const RenderLayer layer) const;
+    const spe::PhysicsWorld& GetPhysicsWorld() const;
 
     const unordered_map<string, unique_ptr<MeshGeometry>>& GetMeshes() const;
     const MeshGeometry* GetMesh(const string& name) const;
@@ -42,6 +44,8 @@ public:
     unordered_map<string, unique_ptr<SkinnedModelInstance>>& GetSkinnedModelInsts();
     SkinnedModelInstance* GetSkinnedModelInst(const string& name);
 
+    // ¿”Ω√ ∞¥√º
+    Character* character_ = nullptr;
 private:
 
     void BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
@@ -109,7 +113,7 @@ private:
 
     spe::PhysicsWorld physicsWorld_;
 
-    Stage stage_;
+    Stage* stage_ = nullptr;
 
     int clientWidth_, clientHeight_;
 };

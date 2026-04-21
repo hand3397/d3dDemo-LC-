@@ -179,6 +179,8 @@ void PhysicsWorld::InitSceneObjects()
 
         AddRigidbody(go->GetRigidbody());
     }
+
+	AddRigidbody(scene_->character_->GetRigidbody());
 }
 
 void PhysicsWorld::AddRigidbody(Rigidbody* rigidbody)
@@ -256,6 +258,16 @@ void PhysicsWorld::Clear()
 	contactManager_.ClearContact();
     numRigidbodies_ = 0;
     rigidbodies_ = nullptr;
+}
+
+Rigidbody* PhysicsWorld::GetRigidbodies() const
+{
+	return rigidbodies_;
+}
+
+uint32_t PhysicsWorld::GetNumRigidbodies() const
+{
+	return numRigidbodies_;
 }
 
 Rigidbody* PhysicsWorld::RayCast(const Ray& ray)
