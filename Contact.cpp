@@ -1,10 +1,5 @@
 #include "Contact.h"
 #include "SphereToSphereContact.h"
-#include "SphereToBoxContact.h"
-#include "BoxToBoxContact.h"
-#include "CylinderToCylinderContact.h"
-#include "SphereToCylinderContact.h"
-#include "BoxToCylinderContact.h"
 #include "ShapeContact.h"
 
 namespace spe {

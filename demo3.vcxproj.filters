@@ -111,12 +111,6 @@
     <ClCompile Include="Contact.cpp">
       <Filter>소스 파일\Physics\Contacts</Filter>
     </ClCompile>
-    <ClCompile Include="SphereToBoxContact.cpp">
-      <Filter>소스 파일\Physics\Contacts</Filter>
-    </ClCompile>
-    <ClCompile Include="BoxToBoxContact.cpp">
-      <Filter>소스 파일\Physics\Contacts</Filter>
-    </ClCompile>
     <ClCompile Include="ContactSolver.cpp">
       <Filter>소스 파일\Physics</Filter>
     </ClCompile>
@@ -131,15 +125,6 @@
     </ClCompile>
     <ClCompile Include="ContactManager.cpp">
       <Filter>소스 파일\Physics</Filter>
-    </ClCompile>
-    <ClCompile Include="CylinderToCylinderContact.cpp">
-      <Filter>소스 파일\Physics\Contacts</Filter>
-    </ClCompile>
-    <ClCompile Include="BoxToCylinderContact.cpp">
-      <Filter>소스 파일\Physics\Contacts</Filter>
-    </ClCompile>
-    <ClCompile Include="SphereToCylinderContact.cpp">
-      <Filter>소스 파일\Physics\Contacts</Filter>
     </ClCompile>
     <ClCompile Include="Stage.cpp">
       <Filter>소스 파일</Filter>
@@ -239,12 +224,6 @@
     <ClInclude Include="SphereToSphereContact.h">
       <Filter>헤더 파일\Physics\Contacts</Filter>
     </ClInclude>
-    <ClInclude Include="SphereToBoxContact.h">
-      <Filter>헤더 파일\Physics\Contacts</Filter>
-    </ClInclude>
-    <ClInclude Include="BoxToBoxContact.h">
-      <Filter>헤더 파일\Physics\Contacts</Filter>
-    </ClInclude>
     <ClInclude Include="Island.h">
       <Filter>헤더 파일\Physics</Filter>
     </ClInclude>
@@ -259,15 +238,6 @@
     </ClInclude>
     <ClInclude Include="ContactManager.h">
       <Filter>헤더 파일\Physics</Filter>
-    </ClInclude>
-    <ClInclude Include="BoxToCylinderContact.h">
-      <Filter>헤더 파일\Physics\Contacts</Filter>
-    </ClInclude>
-    <ClInclude Include="CylinderToCylinderContact.h">
-      <Filter>헤더 파일\Physics\Contacts</Filter>
-    </ClInclude>
-    <ClInclude Include="SphereToCylinderContact.h">
-      <Filter>헤더 파일\Physics\Contacts</Filter>
     </ClInclude>
     <ClInclude Include="Stage.h">
       <Filter>헤더 파일</Filter>
