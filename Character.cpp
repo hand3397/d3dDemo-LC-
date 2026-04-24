@@ -16,13 +16,43 @@ Character::Character(const XMFLOAT3& position) :
 
 void Character::Update(float dt)
 {
+    MoveTargetPosXZ(dt);
 
 	GameObject::Update(dt);
 }
 
-void Character::MoveTargetPos(float dt)
+void Character::MoveTargetPosXZ(float dt)
 {
-	
+    XMVECTOR curPos = XMLoadFloat3(&position_);
+    XMVECTOR targetPos = XMLoadFloat3(&targetPos_);
+
+    XMVECTOR diff = targetPos - curPos;
+    diff = XMVectorSetY(diff, 0.0f); // Y축 이동은 무시
+
+    float distance = XMVectorGetX(XMVector3Length(diff));
+
+    if (distance < 0.001f) {
+        XMFLOAT3 currentPosF3 = position_;
+        currentPosF3.x = targetPos_.x;
+        currentPosF3.z = targetPos_.z;
+        SetPosition(currentPosF3);
+        return;
+    }
+
+    XMVECTOR direction = XMVector3Normalize(diff);
+    float moveDist = moveSpeed_ * dt;
+
+    if (moveDist > distance) {
+        // 이번 프레임에 도착 가능한 경우
+        XMFLOAT3 finalPosF3 = position_;
+        finalPosF3.x = targetPos_.x;
+        finalPosF3.z = targetPos_.z;
+        SetPosition(finalPosF3);
+    }
+    else {
+        // 방향에 따라 XZ 평면으로 이동
+        rigidbody_.SetLinearVelocity(XMFLOAT3(XMVectorGetX(direction) * moveSpeed_, 0.0f, XMVectorGetZ(direction) * moveSpeed_));
+    }
 }
 
 void Character::SetTargetPos(const XMFLOAT3& targetPos)

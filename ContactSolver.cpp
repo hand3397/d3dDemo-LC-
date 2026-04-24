@@ -30,6 +30,11 @@ ContactSolver::ContactSolver(float duration, Contact** contacts,
 		Rigidbody* bodyB = fixtureB->GetRigidbody();
 		Manifold& manifold = contact->GetManifold();
 
+        // Character의 충돌은 따로 처리
+		if (contact->HasFlag(ContactFlag::CHARACTER)) {
+			contactConstraints_[i].isKinematicContact_ = true;
+		}
+
 		contactConstraints_[i].points = manifold.points;
 		contactConstraints_[i].numPoints = manifold.numPoints;
 		XMStoreFloat3(&contactConstraints_[i].worldCenterA,
@@ -61,6 +66,10 @@ void ContactSolver::SolveVelocityConstraints()
 	for (uint32_t i = 0; i < numContacts_; ++i) {
 		Contact* contact = contacts_[i];
 		ContactConstraint& contactConstraint = contactConstraints_[i];
+        // kinematic과 kinematic의 contact는 속도 처리 x, 위치 보간만
+		if (contactConstraint.isKinematicContact_) {
+			continue;
+        }
 		int32_t numPoints = contactConstraint.numPoints;
 		int32_t idxA = contactConstraint.bodyIdA;
 		int32_t idxB = contactConstraint.bodyIdB;
@@ -231,6 +240,12 @@ void ContactSolver::SolvePositionConstraints()
 		Contact* contact = contacts_[i];
 		ContactConstraint& contactConstraint = contactConstraints_[i];
 
+        // kinematic과 kinematic의 contact는 따로 처리
+		if (contactConstraint.isKinematicContact_) {
+			SolveKinematicPositionConstraints(i);
+			continue;
+        }
+
 		int32_t numPoints = contactConstraint.numPoints;
 		int32_t indexA = contactConstraint.bodyIdA;
 		int32_t indexB = contactConstraint.bodyIdB;
@@ -270,6 +285,61 @@ void ContactSolver::SolvePositionConstraints()
 		XMStoreFloat3(&positions_[indexA].positionBuffer, positionBufferA);
 		XMStoreFloat3(&positions_[indexB].positionBuffer, positionBufferB);
 	}
+}
+
+void ContactSolver::SolveKinematicVelocityConstraints(uint32_t i)
+{
+
+}
+
+void ContactSolver::SolveKinematicPositionConstraints(uint32_t i)
+{
+	Contact* contact = contacts_[i];
+	ContactConstraint& contactConstraint = contactConstraints_[i];
+
+	float sumMass = contactConstraint.invMassA + contactConstraint.invMassB;
+	float ratioA = contactConstraint.invMassA / sumMass;
+	float ratioB = contactConstraint.invMassB / sumMass;
+
+	int32_t indexA = contactConstraint.bodyIdA;
+	int32_t indexB = contactConstraint.bodyIdB;
+
+	// 현재까지 누적된 위치 보정량(Buffer) 로드
+	XMVECTOR positionBufferA = XMLoadFloat3(&positions_[indexA].positionBuffer);
+	XMVECTOR positionBufferB = XMLoadFloat3(&positions_[indexB].positionBuffer);
+
+	ManifoldPoint& manifoldPoint = contactConstraint.points[0];
+	const XMVECTOR contactNormal = XMLoadFloat3(&manifoldPoint.normal);
+
+	// --- 2. 최신 충돌 지점 및 분리 거리 계산 ---
+	// pointA, pointB는 충돌 지점이며, 여기에 현재 보정량을 더해 실시간 위치를 시뮬레이션합니다.
+	XMVECTOR movedPointA = XMLoadFloat3(&manifoldPoint.pointA) + positionBufferA;
+	XMVECTOR movedPointB = XMLoadFloat3(&manifoldPoint.pointB) + positionBufferB;
+
+	// (A - B)를 노멀에 투영. 충돌 시 separation은 음수입니다.
+	float currentSeparation = VecDot(contactNormal, movedPointA - movedPointB);
+
+	// 관통되지 않았거나(양수), 무시할 수준(Slop)이면 종료
+	if (currentSeparation > -CONTACT_SLOP) {
+		return;
+	}
+
+	// --- 3. 보정량 계산 및 XZ 평면 제한 ---
+	// 보정량은 음수인 currentSeparation을 0으로 만들기 위한 값입니다.
+	float correction = (currentSeparation + CONTACT_SLOP) * POSITION_SOLVE_ALPHA;
+	XMVECTOR correctionVector = correction * contactNormal;
+
+	// 사용자 요청: 밀려나는 것은 XZ 방향으로 한정 (Y축 보정 제거)
+	correctionVector = XMVectorSetY(correctionVector, 0.0f);
+
+	// --- 4. 최종 위치 보정 적용 ---
+	// correction이 음수이므로 -= 를 통해 A를 밀어내고 += 를 통해 B를 밀어냅니다.
+	positionBufferA -= correctionVector * ratioA;
+	positionBufferB += correctionVector * ratioB;
+
+	// 결과 저장
+	XMStoreFloat3(&positions_[indexA].positionBuffer, positionBufferA);
+	XMStoreFloat3(&positions_[indexB].positionBuffer, positionBufferB);
 }
 
 void ContactSolver::CheckSleepContact()

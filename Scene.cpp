@@ -841,11 +841,10 @@ void Scene::Pick(int mouseX, int mouseY)
 		const spe::Ray ray = mainCamera_->GetPickingRay(mouseX, mouseY, clientWidth_, clientHeight_);
 		spe::Rigidbody* rigidbody = physicsWorld_.RayCast(ray);
 
-		if (rigidbody != nullptr) {
-			if (rigidbody->GetType() == spe::RigidbodyType::STATIC)
-				return;
-			
-			RemoveGameObject(rigidbody->GetGameObject());
+		float t = -ray.origin.y * ray.invDir.y;
+		XMFLOAT3 targetPos(ray.origin.x + t * ray.dir.x, 0.f, ray.origin.z + t * ray.dir.z);
+		for (int i = 0; i < NUM_CHARACTERS; ++i) {
+            characters_[i]->SetTargetPos(targetPos);
 		}
 	}
 }

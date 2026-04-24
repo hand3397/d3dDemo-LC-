@@ -9,7 +9,7 @@ class Character : public GameObject
 
     virtual void Update(float dt) override;
 
-    void MoveTargetPos(float dt);
+    void MoveTargetPosXZ(float dt);
 
     void SetTargetPos(const XMFLOAT3& targetPos);
 private:

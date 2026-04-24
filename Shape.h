@@ -119,7 +119,7 @@ public:
 	void SetHeight(float height);
 protected:
 	float radius_;
-	float height_; // cylinder height (capsule height = cylinder + radius * 2)
+	float height_; // cylinder height (capsule height = cylinder height + radius * 2)
 };
 
 }

@@ -109,29 +109,29 @@ namespace spe {
         manifold_.numPoints = 0;
         Evaluate(manifold_, transformA, transformB);
 
-        // [Warm Starting 2단계] 이전 프레임의 충격량을 현재 프레임으로 계승
+        if (!HasFlag(ContactFlag::CHARACTER)) {
+            // 매칭 거리 허용치 (너무 크면 엉뚱한 점의 힘을 가져오므로 작게 설정)
+            const float matchThresholdSq = 0.05f * 0.05f;
 
-        // 매칭 거리 허용치 (너무 크면 엉뚱한 점의 힘을 가져오므로 작게 설정)
-        const float matchThresholdSq = 0.05f * 0.05f;
+            for (uint32_t i = 0; i < manifold_.numPoints; ++i) {
+                ManifoldPoint& newPoint = manifold_.points[i];
 
-        for (uint32_t i = 0; i < manifold_.numPoints; ++i) {
-            ManifoldPoint& newPoint = manifold_.points[i];
+                // 기본적으로는 0으로 시작 (새로운 접촉점일 경우)
+                newPoint.normalImpulse = 0.0f;
+                newPoint.tangentImpulse = 0.0f;
 
-            // 기본적으로는 0으로 시작 (새로운 접촉점일 경우)
-            newPoint.normalImpulse = 0.0f;
-            newPoint.tangentImpulse = 0.0f;
+                // 이전 프레임의 접촉점 중 위치가 비슷한 점을 찾음 (Nearest Neighbor Matching)
+                for (uint32_t j = 0; j < oldManifold.numPoints; ++j) {
+                    ManifoldPoint& oldPoint = oldManifold.points[j];
 
-            // 이전 프레임의 접촉점 중 위치가 비슷한 점을 찾음 (Nearest Neighbor Matching)
-            for (uint32_t j = 0; j < oldManifold.numPoints; ++j) {
-                ManifoldPoint& oldPoint = oldManifold.points[j];
-
-                // World Space 상의 접촉점 거리 비교
-                XMVECTOR diff = XMLoadFloat3(&newPoint.pointA) - XMLoadFloat3(&oldPoint.pointA);
-                if (XMVectorGetX(XMVector3LengthSq(diff)) < matchThresholdSq) {
-                    // 매칭 성공: 이전 프레임의 누적 충격량을 가져옴
-                    newPoint.normalImpulse = oldPoint.normalImpulse;
-                    newPoint.tangentImpulse = oldPoint.tangentImpulse;
-                    break;
+                    // World Space 상의 접촉점 거리 비교
+                    XMVECTOR diff = XMLoadFloat3(&newPoint.pointA) - XMLoadFloat3(&oldPoint.pointA);
+                    if (XMVectorGetX(XMVector3LengthSq(diff)) < matchThresholdSq) {
+                        // 매칭 성공: 이전 프레임의 누적 충격량을 가져옴
+                        newPoint.normalImpulse = oldPoint.normalImpulse;
+                        newPoint.tangentImpulse = oldPoint.tangentImpulse;
+                        break;
+                    }
                 }
             }
         }
@@ -361,6 +361,9 @@ namespace spe {
                     ++newFaceArray.numFaces;
                 }
 
+                if (polytope.numSupports + 1 >= MAX_NUM_SUPPORTS) {
+                    break;
+                }
                 polytope.supports[polytope.numSupports++] = support;
 
                 uint32_t newMinFace = GetFaceNormals(polytope, newFaceArray);

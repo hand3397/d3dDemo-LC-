@@ -16,6 +16,8 @@ struct ContactConstraint
 	float friction;
 	float restitution;
 
+    bool isKinematicContact_ = false;	// kinematic 과 kinematic의 contact인지 여부
+
 	~ContactConstraint() = default;
 };
 
@@ -28,6 +30,8 @@ public:
 
 	void SolveVelocityConstraints();
 	void SolvePositionConstraints();
+	void SolveKinematicVelocityConstraints(uint32_t i);
+	void SolveKinematicPositionConstraints(uint32_t i);	
 	void CheckSleepContact();
 
 	static const float NORMAL_STOP_VELOCITY;

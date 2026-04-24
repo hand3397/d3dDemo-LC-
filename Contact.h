@@ -106,6 +106,7 @@ enum class ContactFlag : uint32_t
 	ISLAND = (1 << 0),
 	TOUCHING = (1 << 1),
 	SENSOR = (1 << 2),
+	CHARACTER = (1 << 3),	// 캐릭터간의 충돌
 };
 
 class Contact
