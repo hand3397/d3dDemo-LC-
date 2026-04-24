@@ -23,6 +23,8 @@ void Character::Update(float dt)
 
 void Character::MoveTargetPosXZ(float dt)
 {
+    rigidbody_.SetAwake(true);
+
     XMVECTOR curPos = XMLoadFloat3(&position_);
     XMVECTOR targetPos = XMLoadFloat3(&targetPos_);
 
@@ -31,11 +33,17 @@ void Character::MoveTargetPosXZ(float dt)
 
     float distance = XMVectorGetX(XMVector3Length(diff));
 
+    // 현재 Y축 속력 백업 (중력이나 점프 등 기존 물리값 유지)
+    float currentVelocityY = rigidbody_.GetLinearVelocity().y;
+
     if (distance < 0.001f) {
         XMFLOAT3 currentPosF3 = position_;
         currentPosF3.x = targetPos_.x;
         currentPosF3.z = targetPos_.z;
         SetPosition(currentPosF3);
+
+        // [핵심] 완전히 도착했을 때, XZ 속력을 0으로 초기화하여 더 이상 밀려나지 않게 합니다.
+        rigidbody_.SetLinearVelocity(XMFLOAT3(0.0f, currentVelocityY, 0.0f));
         return;
     }
 
@@ -48,10 +56,16 @@ void Character::MoveTargetPosXZ(float dt)
         finalPosF3.x = targetPos_.x;
         finalPosF3.z = targetPos_.z;
         SetPosition(finalPosF3);
+
+        rigidbody_.SetLinearVelocity(XMFLOAT3(0.0f, currentVelocityY, 0.0f));
     }
     else {
-        // 방향에 따라 XZ 평면으로 이동
-        rigidbody_.SetLinearVelocity(XMFLOAT3(XMVectorGetX(direction) * moveSpeed_, 0.0f, XMVectorGetZ(direction) * moveSpeed_));
+        // 방향에 따라 XZ 평면으로 이동 (Y축 속력은 기존 값 유지)
+        rigidbody_.SetLinearVelocity(XMFLOAT3(
+            XMVectorGetX(direction) * moveSpeed_,
+            currentVelocityY,
+            XMVectorGetZ(direction) * moveSpeed_
+        ));
     }
 }
 

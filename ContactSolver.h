@@ -30,7 +30,6 @@ public:
 
 	void SolveVelocityConstraints();
 	void SolvePositionConstraints();
-	void SolveKinematicVelocityConstraints(uint32_t i);
 	void SolveKinematicPositionConstraints(uint32_t i);	
 	void CheckSleepContact();
 

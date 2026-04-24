@@ -287,11 +287,6 @@ void ContactSolver::SolvePositionConstraints()
 	}
 }
 
-void ContactSolver::SolveKinematicVelocityConstraints(uint32_t i)
-{
-
-}
-
 void ContactSolver::SolveKinematicPositionConstraints(uint32_t i)
 {
 	Contact* contact = contacts_[i];
