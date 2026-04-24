@@ -44,8 +44,8 @@ public:
     unordered_map<string, unique_ptr<SkinnedModelInstance>>& GetSkinnedModelInsts();
     SkinnedModelInstance* GetSkinnedModelInst(const string& name);
 
-    // ¿”Ω√ ∞¥√º
-    Character* character_ = nullptr;
+    Character* GetCharacters(int i) const;
+    const uint32_t NumCharacters() const;
 private:
 
     void BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
@@ -92,6 +92,10 @@ private:
 
     void Pick(int mouseX, int mouseY);
 private:
+    // ¿”Ω√ ∞¥√º
+    const uint32_t NUM_CHARACTERS = 10;
+    unique_ptr<Character> characters_[10];
+
     unique_ptr<Player> player_;
 
     Camera* mainCamera_ = nullptr;

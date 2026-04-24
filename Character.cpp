@@ -1,6 +1,6 @@
 #include "Character.h"
 
-Character::Character(const XMFLOAT3& scale, const XMFLOAT3& position) : 
+Character::Character(const XMFLOAT3& position) : 
     GameObject(XMFLOAT3(0.f, 0.f, 0.f), position, spe::RigidbodyType::KINEMATIC)
 {
     // characterÀÇ Ãæµ¹Ã¼´Â Ä¸½¶
@@ -22,5 +22,10 @@ void Character::Update(float dt)
 
 void Character::MoveTargetPos(float dt)
 {
+	
+}
 
+void Character::SetTargetPos(const XMFLOAT3& targetPos)
+{
+    targetPos_ = targetPos;
 }

@@ -180,7 +180,10 @@ void PhysicsWorld::InitSceneObjects()
         AddRigidbody(go->GetRigidbody());
     }
 
-	AddRigidbody(scene_->character_->GetRigidbody());
+	for (int i = 0; i < scene_->NumCharacters(); ++i) {
+		AddRigidbody(scene_->GetCharacters(i)->GetRigidbody());
+	}
+
 }
 
 void PhysicsWorld::AddRigidbody(Rigidbody* rigidbody)

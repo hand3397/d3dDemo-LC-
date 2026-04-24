@@ -3,6 +3,7 @@
 Stage::Stage(uint32_t stageWidth, uint32_t stageLength, uint32_t stageHeight) :
     stageWidth_(stageWidth), stageLength_(stageLength), stageHeight_(stageHeight)
 {
+    tiles_.clear();
     tiles_.resize(stageWidth_ * stageLength_ * stageHeight_, TileType::TILE_TYPE_AIR);
     
     for (int dy = 0; dy < stageHeight; dy++) {
@@ -29,6 +30,7 @@ Stage::Stage(uint32_t stageWidth, uint32_t stageLength, uint32_t stageHeight) :
 Stage::~Stage()
 {
     tiles_.clear();
+    tileToTextureIndex_.clear();
 }
 
 bool Stage::IsBlockSolid(int x, int y, int z) const

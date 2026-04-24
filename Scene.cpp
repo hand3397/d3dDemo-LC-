@@ -1,8 +1,10 @@
 #include "Scene.h"
 
 Scene::Scene() : 
-	gameObejctManager_(MAX_NUM_OBJECTS), physicsWorld_(spe::PhysicsWorld(this))
+	gameObejctManager_(MAX_NUM_OBJECTS), physicsWorld_(spe::PhysicsWorld(this)), 
+    clientWidth_(0), clientHeight_(0)
 {
+	//_CrtSetBreakAlloc(826741);
 }
 
 Scene::~Scene()
@@ -10,6 +12,9 @@ Scene::~Scene()
 	allRenderItems_.clear();
 	for (auto& layer : renderItemLayer_)
 		layer.clear();
+
+	if (stage_)
+        delete stage_;
 }
 
 void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, int clientWidth, int clientHeight)
@@ -20,6 +25,10 @@ void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, 
 	mainCamera_ = player_->GetCamera();
 	mainCamera_->RotatePitch(0.4f);
 
+	for (int i = 0; i < NUM_CHARACTERS; ++i) {
+        characters_[i] = make_unique<Character>(XMFLOAT3(1.0f * i - (NUM_CHARACTERS / 2), 0.0f, 20.0f));
+	}
+	
 	LoadScene(device, cmdList);
 	BuildScene(device, cmdList);
 
@@ -63,8 +72,11 @@ void Scene::Update(const GameTimer& gt)
 		player_->GetRigidbody()->Integrate(dt);
 		player_->Update(dt);
 	}
-	if (character_)
-		character_->Update(dt);
+
+	for (int i = 0; i < NUM_CHARACTERS; ++i) {
+        if (characters_[i])
+		    characters_[i]->Update(dt);
+    }
 
 	AnimateMaterials(dt);
 }
@@ -167,6 +179,16 @@ SkinnedModelInstance* Scene::GetSkinnedModelInst(const string& name)
 {
 	auto it = skinnedModelInsts_.find(name);
 	return (it != skinnedModelInsts_.end()) ? it->second.get() : nullptr;
+}
+
+Character* Scene::GetCharacters(int i) const
+{
+    return characters_[i].get();
+}
+
+const uint32_t Scene::NumCharacters() const
+{
+	return NUM_CHARACTERS;
 }
 
 void Scene::BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
@@ -480,11 +502,12 @@ void Scene::BuildGameObjects()
 	vector<RenderItem*> renderItems;
 	GameObject* go;
 
-	renderItems = { BuildBillboardRenderItem(RenderLayer::RENDER_ALPHATESTED_BILLBOARD,
+	for (int i = 0; i < NUM_CHARACTERS; ++i) {
+		renderItems = { BuildBillboardRenderItem(RenderLayer::RENDER_ALPHATESTED_BILLBOARD,
 		meshes_["billboardGeo"].get(), meshes_["billboardGeo"]->subMeshes_["character0"], materials_["knight"].get(),
 		XMMatrixTranslation(0.f, 0.f, 0.f), XMMatrixIdentity(), true) };
-    character_ = new Character(XMFLOAT3(1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 30.0f));
-	character_->SetRenderItems(renderItems);
+		characters_[i]->SetRenderItems(renderItems);
+	}
 
 	renderItems = { BuildRenderItem(RenderLayer::RENDER_OPAQUE,
 		meshes_["shapeGeo"].get(), meshes_["shapeGeo"]->subMeshes_["grid"], materials_["tile0"].get(),
@@ -496,13 +519,6 @@ void Scene::BuildGameObjects()
 	BuildRenderItem(RenderLayer::RENDER_TEX_ARRAY_OPAQUE,
 		meshes_["terrainGeo"].get(), meshes_["terrainGeo"]->subMeshes_["terrain"], materials_["terrain"].get());
 
-	renderItems = { BuildBillboardRenderItem(RenderLayer::RENDER_ALPHATESTED_BILLBOARD,
-		meshes_["billboardGeo"].get(), meshes_["billboardGeo"]->subMeshes_["character0"], materials_["knight"].get(),
-		XMMatrixTranslation(0.f, 0.f, 0.f), XMMatrixIdentity(), true) };
-	go = BuildGameObject(XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 20.0f),
-		renderItems, spe::RigidbodyType::KINEMATIC);
-    go->SetRenderItems(renderItems);
-	
 	renderItems = { BuildSkinnedRenderItem(RenderLayer::RENDER_SKINNED,
 		meshes_["skinnedGeo"].get(), meshes_["skinnedGeo"].get()->subMeshes_["0"], materials_["soldier"].get(),
 		XMMatrixIdentity(), XMMatrixIdentity(),

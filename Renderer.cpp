@@ -807,14 +807,98 @@ void Renderer::UpdateDebugMesh(Scene* scene)
                 }
 				case spe::ShapeType::SPHERE:
 				{
+					float r = info.radius;
+					const int segments = 16;
 
+					// 월드 좌표계의 기본 3축 생성
+					XMVECTOR ax = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+					XMVECTOR ay = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+					XMVECTOR az = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+
+					for (int i = 0; i < segments; ++i) {
+						float a1 = (float)i / segments * XM_2PI;
+						float a2 = (float)(i + 1) / segments * XM_2PI;
+
+						float s1, c1, s2, c2;
+						XMScalarSinCos(&s1, &c1, a1);
+						XMScalarSinCos(&s2, &c2, a2);
+
+						// 1. XY 평면 링 (Z축 법선)
+						XMVECTOR p1_xy = center + (ax * c1 + ay * s1) * r;
+						XMVECTOR p2_xy = center + (ax * c2 + ay * s2) * r;
+
+						// 2. XZ 평면 링 (Y축 법선)
+						XMVECTOR p1_xz = center + (ax * c1 + az * s1) * r;
+						XMVECTOR p2_xz = center + (ax * c2 + az * s2) * r;
+
+						// 3. YZ 평면 링 (X축 법선)
+						XMVECTOR p1_yz = center + (ay * c1 + az * s1) * r;
+						XMVECTOR p2_yz = center + (ay * c2 + az * s2) * r;
+
+						XMFLOAT3 t1, t2;
+
+						// XY 링 그리기
+						XMStoreFloat3(&t1, p1_xy); XMStoreFloat3(&t2, p2_xy);
+						pushLine(t1, t2, DirectX::Colors::Teal);
+
+						// XZ 링 그리기
+						XMStoreFloat3(&t1, p1_xz); XMStoreFloat3(&t2, p2_xz);
+						pushLine(t1, t2, DirectX::Colors::Teal);
+
+						// YZ 링 그리기
+						XMStoreFloat3(&t1, p1_yz); XMStoreFloat3(&t2, p2_yz);
+						pushLine(t1, t2, DirectX::Colors::Teal);
+					}
 					break;
-                }
+				}
 				case spe::ShapeType::CYLINDER:
 				{
+					// 원기둥의 기준 축(Y축)을 로드
+					XMVECTOR axisUp = XMVector3Normalize(XMLoadFloat3(&info.axes[0]));
 
+					// Y축과 수직인 임의의 두 축(Right, Forward) 생성 (캡슐과 동일한 로직)
+					XMVECTOR axisRight;
+					if (fabs(XMVectorGetY(axisUp)) < 0.999f)
+						axisRight = XMVector3Normalize(XMVector3Cross(axisUp, XMVectorSet(0, 1, 0, 0)));
+					else
+						axisRight = XMVector3Normalize(XMVector3Cross(axisUp, XMVectorSet(0, 0, 1, 0)));
+					XMVECTOR axisForward = XMVector3Normalize(XMVector3Cross(axisRight, axisUp));
+
+					float halfH = info.height * 0.5f;
+					float r = info.radius;
+					XMVECTOR topCenter = center + axisUp * halfH;
+					XMVECTOR botCenter = center - axisUp * halfH;
+
+					const int segments = 16;
+					for (int i = 0; i < segments; ++i) {
+						float a1 = (float)i / segments * XM_2PI;
+						float a2 = (float)(i + 1) / segments * XM_2PI;
+
+						float s1, c1, s2, c2;
+						XMScalarSinCos(&s1, &c1, a1);
+						XMScalarSinCos(&s2, &c2, a2);
+
+						// 원형 링 위의 로컬 오프셋
+						XMVECTOR p1 = (axisRight * c1 + axisForward * s1) * r;
+						XMVECTOR p2 = (axisRight * c2 + axisForward * s2) * r;
+
+						XMFLOAT3 t1, t2, b1, b2;
+						XMStoreFloat3(&t1, topCenter + p1);
+						XMStoreFloat3(&t2, topCenter + p2);
+						XMStoreFloat3(&b1, botCenter + p1);
+						XMStoreFloat3(&b2, botCenter + p2);
+
+						// 1. 상단/하단 원형 링 그리기
+						pushLine(t1, t2, DirectX::Colors::Teal);
+						pushLine(b1, b2, DirectX::Colors::Teal);
+
+						// 2. 실린더 부분 세로 기둥 (90도 간격으로 4개)
+						if (i % 4 == 0) {
+							pushLine(t1, b1, DirectX::Colors::Teal);
+						}
+					}
 					break;
-                }
+				}
 				case spe::ShapeType::CAPSULE:
 				{
 					// 캡슐의 기준 축(Y축)을 로드
