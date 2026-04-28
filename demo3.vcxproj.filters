@@ -138,6 +138,15 @@
     <ClCompile Include="ShapeContact.cpp">
       <Filter>소스 파일\Physics\Contacts</Filter>
     </ClCompile>
+    <ClCompile Include="AtlasAnimator.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="SkinnedAnimator.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="IAnimator.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dApp.h">
@@ -250,6 +259,15 @@
     </ClInclude>
     <ClInclude Include="ShapeContact.h">
       <Filter>헤더 파일\Physics\Contacts</Filter>
+    </ClInclude>
+    <ClInclude Include="AtlasAnimator.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="SkinnedAnimator.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="IAnimator.h">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -7,7 +7,7 @@ template<typename Owner>
 class FSM
 {
 public:
-    FSM(Owner* owner) : owner_(owner), current_(nullptr) {}
+    FSM(Owner* owner) : owner_(owner), current_(nullptr), previous_(nullptr) {}
 
     void Update()
     {
@@ -17,16 +17,19 @@ public:
 
     void Change(State<Owner>* next)
     {
-        if (current_) 
-            current_->Exit(owner_);
+        if (current_ == next) return;
+
+        previous_ = current_;
+
+        if (current_) current_->Exit(owner_);
         current_ = next;
-        if (current_) 
-            current_->Enter(owner_);
+        if (current_) current_->Enter(owner_);
     }
 
 private:
     Owner* owner_;
     State<Owner>* current_;
+    State<Owner>* previous_;
 };
 
 template<typename Owner>

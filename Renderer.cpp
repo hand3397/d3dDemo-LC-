@@ -1258,14 +1258,9 @@ void Renderer::UpdateObjectCBs(const GameTimer& gt, Scene* scene)
 			XMStoreFloat4x4(&objConstants.texTransform_, XMMatrixTranspose(texTransform));
 			objConstants.materialIndex_ = e->material_->matCBIndex_;
 			
-            objConstants.atlasIndex_ = e->atlasIndex_;
 			// billboard Data
+            objConstants.atlasIndex_ = e->atlasIndex_;
             objConstants.isBillboardYAxisFixed_ = e->isBillboardYAxisFixed_ ? 1 : 0;
-
-			if (e->isBillboardYAxisFixed_) {
-				objConstants.atlasIndex_ = gt.TotalTime() * 10.0f;
-				e->numFramesDirty_ = NUM_FRAME_RESOURCES + 1;
-            }
 
 			currObjectCB->CopyData(e->objCBIndex_, objConstants);
 

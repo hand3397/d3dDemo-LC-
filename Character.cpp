@@ -1,8 +1,11 @@
 #include "Character.h"
 
 Character::Character(const XMFLOAT3& position) : 
-    GameObject(XMFLOAT3(0.f, 0.f, 0.f), position, spe::RigidbodyType::KINEMATIC)
+    GameObject(XMFLOAT3(0.f, 0.f, 0.f), position, spe::RigidbodyType::KINEMATIC), fsm_(this)
 {
+    // 초기 상태는 Idle로 설정
+    fsm_.Change(CharacterIdleState::Instance());
+
     // character의 충돌체는 캡슐
 	spe::CapsuleShape* capsuleShape = new spe::CapsuleShape(XMFLOAT3(0.f, 1.f, 0.f), 0.1f, 0.3f);
 	spe::Fixture* fixture = new spe::Fixture(capsuleShape);
@@ -74,4 +77,50 @@ void Character::MoveTargetPosXZ(float dt)
 void Character::SetTargetPos(const XMFLOAT3& targetPos)
 {
     targetPos_ = targetPos;
+}
+
+// FSM States
+
+// CharacterIdleState는 캐릭터가 목표 위치에 도착하여 멈춰있는 상태입니다.
+CharacterIdleState* CharacterIdleState::Instance()
+{
+    static CharacterIdleState instance;
+    return &instance;
+}
+
+void CharacterIdleState::Enter(Character* owner)
+{
+
+}
+
+void CharacterIdleState::Update(Character* owner, FSM<Character>& fsm)
+{
+    
+}
+
+void CharacterIdleState::Exit(Character* owner)
+{
+
+}
+
+// CharacterMoveState는 캐릭터가 목표 위치를 향해 이동하는 상태입니다.
+CharacterMoveState* CharacterMoveState::Instance()
+{
+    static CharacterMoveState instance;
+    return &instance;
+}
+
+void CharacterMoveState::Enter(Character* owner)
+{
+
+}
+
+void CharacterMoveState::Update(Character* owner, FSM<Character>& fsm)
+{
+
+}
+
+void CharacterMoveState::Exit(Character* owner)
+{
+
 }

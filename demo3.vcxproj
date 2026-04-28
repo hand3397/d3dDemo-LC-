@@ -127,6 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AtlasAnimator.cpp" />
     <ClCompile Include="BroadPhase.cpp" />
     <ClCompile Include="Camera.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -155,6 +156,7 @@
     <ClCompile Include="GameObject.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="IAnimator.cpp" />
     <ClCompile Include="PhysicsWorld.cpp" />
     <ClCompile Include="GameTimer.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -187,6 +189,7 @@
     </ClCompile>
     <ClCompile Include="Shape.cpp" />
     <ClCompile Include="ShapeContact.cpp" />
+    <ClCompile Include="SkinnedAnimator.cpp" />
     <ClCompile Include="SkinnedData.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -195,6 +198,7 @@
     <ClCompile Include="Tile.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AtlasAnimator.h" />
     <ClInclude Include="BroadPhase.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Character.h" />
@@ -210,6 +214,7 @@
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="FSM.h" />
     <ClInclude Include="GameObject.h" />
+    <ClInclude Include="IAnimator.h" />
     <ClInclude Include="PhysicsWorld.h" />
     <ClInclude Include="GameTimer.h" />
     <ClInclude Include="GeometryGenerator.h" />
@@ -227,6 +232,7 @@
     <ClInclude Include="Scene.h" />
     <ClInclude Include="Shape.h" />
     <ClInclude Include="ShapeContact.h" />
+    <ClInclude Include="SkinnedAnimator.h" />
     <ClInclude Include="SkinnedData.h" />
     <ClInclude Include="SphereToSphereContact.h" />
     <ClInclude Include="Stage.h" />
