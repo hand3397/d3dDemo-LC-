@@ -659,7 +659,8 @@ void Renderer::BuildPSOs()
 	billboardPsoDesc.DepthStencilState.DepthEnable = false;
     billboardPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT; // 빌보드의 입력은 점이므로, 점으로 설정한다.(기하셰이더로 빌보드 사각형 생성)
 	billboardPsoDesc.InputLayout = { inputLayouts_["billboard"].data(), (UINT)inputLayouts_["billboard"].size() };
-	billboardPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	//billboardPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    billboardPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc; // 빌보드는 투명하게 그려야 하므로 블렌딩 설정을 투명 블렌딩으로 한다.
 
 	ThrowIfFailed(d3dDevice_->CreateGraphicsPipelineState(&billboardPsoDesc, IID_PPV_ARGS(&PSOs_["billboard"])));
 }

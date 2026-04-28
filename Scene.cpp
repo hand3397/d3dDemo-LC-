@@ -48,7 +48,25 @@ void Scene::KeyInput(const KeyInputManager& keyInput, float dt)
 	if (keyInput.WasMousePressed(MouseButton::LMB)) {
 		int dx, dy;
 		keyInput.GetMousePos(dx, dy);
-		Pick(dx, dy);
+		//Pick(dx, dy);
+        static bool isTile = false;
+
+        vector<XMFLOAT3> targetPos;
+
+		if (isTile) {
+			stage_->DeployTile(targetPos, 10, 1, 1);
+            stage_->UndeployTile(3, 2);
+			for (int i = 0; i < 10; ++i)
+				characters_[i]->SetTargetPos(targetPos[i]);
+		}
+		else {
+            stage_->DeployTile(targetPos, 10, 3, 2);
+            stage_->UndeployTile(1, 1);
+			for (int i = 0; i < 10; ++i)
+				characters_[i]->SetTargetPos(targetPos[i]);
+		}
+
+		isTile = !isTile;
 	}
 	
 	if (player_)
@@ -339,7 +357,7 @@ void Scene::BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandLi
 
 	const vector<BillboardGeometryDesc> billboardGeometries = {
 		{"test",		XMFLOAT3(0.f, 0.f, 0.f),	XMFLOAT2(1.0f, 1.0f)},
-		{"character0",	XMFLOAT3(0.f, 1.0f, 0.f),	XMFLOAT2(2.0f, 2.0f)},
+		{"character0",	XMFLOAT3(0.f, 0.9f, 0.f),	XMFLOAT2(1.0f, 1.0f)},
 		{"character1",	XMFLOAT3(0.f, 0.75f, 0.f),	XMFLOAT2(1.0f, 1.5f)},
 		{"tree3",		XMFLOAT3(0.f, 7.0f, 0.f),	XMFLOAT2(5.0f, 15.0f)},
 	};
@@ -378,8 +396,8 @@ void Scene::BuildStageGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 {
     stage_ = new Stage(10, 10, 5);
 
-    const float tileSize = stage_->GetTileSize();
-    const float tileHeight = stage_->GetTileHeight();
+    const float tileSize = stage_->GetBlockSize();
+    const float tileHeight = stage_->GetBlockHeight();
 
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData box = geoGen.CreateBox(tileSize, tileHeight, tileSize, 0);
@@ -413,8 +431,8 @@ void Scene::BuildStageGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* 
 		for (int y = 0; y < stageHeight; ++y) {
 			for (int z = 0; z < stageLength; ++z) {
                 // x, y, z 위치에 블록이 존재하는지 확인한다. 만약 존재한다면, 해당 위치에 box를 그린다.
-                TileType tileType = stage_->GetTileType(x, y, z);
-				if (tileType == TileType::TILE_TYPE_AIR)
+                BlockType tileType = stage_->GetBlockType(x, y, z);
+				if (tileType == BlockType::BLOCK_TYPE_AIR)
                     continue;
 
 				for (int dir = 0; dir < 6; ++dir) {

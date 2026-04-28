@@ -4,7 +4,7 @@ Character::Character(const XMFLOAT3& position) :
     GameObject(XMFLOAT3(0.f, 0.f, 0.f), position, spe::RigidbodyType::KINEMATIC)
 {
     // character의 충돌체는 캡슐
-	spe::CapsuleShape* capsuleShape = new spe::CapsuleShape(XMFLOAT3(0.f, 1.f, 0.f), 0.3f, 0.5f);
+	spe::CapsuleShape* capsuleShape = new spe::CapsuleShape(XMFLOAT3(0.f, 1.f, 0.f), 0.1f, 0.3f);
 	spe::Fixture* fixture = new spe::Fixture(capsuleShape);
 	fixture->SetFriction(0.4f);
 	fixture->SetRestitution(0.4f);
@@ -36,7 +36,7 @@ void Character::MoveTargetPosXZ(float dt)
     // 현재 Y축 속력 백업 (중력이나 점프 등 기존 물리값 유지)
     float currentVelocityY = rigidbody_.GetLinearVelocity().y;
 
-    if (distance < 0.001f) {
+    if (distance < 0.01f) {
         XMFLOAT3 currentPosF3 = position_;
         currentPosF3.x = targetPos_.x;
         currentPosF3.z = targetPos_.z;

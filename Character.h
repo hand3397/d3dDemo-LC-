@@ -14,6 +14,6 @@ class Character : public GameObject
     void SetTargetPos(const XMFLOAT3& targetPos);
 private:
     XMFLOAT3 targetPos_ = { 0.0f, 0.0f, 0.0f };
-    float moveSpeed_ = 1.0f;
+    float moveSpeed_ = 2.0f;
 };
 
