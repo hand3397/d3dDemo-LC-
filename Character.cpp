@@ -16,6 +16,8 @@ Character::Character(const XMFLOAT3& position) :
 
 void Character::Update(float dt)
 {
+    position_.y = -0.75f;
+
     MoveTargetPosXZ(dt);
 
 	GameObject::Update(dt);

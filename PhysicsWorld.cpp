@@ -157,7 +157,7 @@ void PhysicsWorld::OnGravity(float dt)
 	Rigidbody* body = rigidbodies_;
 	float gravityVel = gravity_ * dt;
 	while (body != nullptr) {
-		if (body->HasFlag(RigidbodyFlag::AWAKE) && body->GetType() != RigidbodyType::STATIC) {
+		if (body->HasFlag(RigidbodyFlag::AWAKE) && body->GetType() == RigidbodyType::DYNAMIC) {
 			body->AddLinearVelocity(XMFLOAT3(0.0f, gravityVel, 0.0f));
 		}
 
