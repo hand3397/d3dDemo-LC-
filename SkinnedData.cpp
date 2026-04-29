@@ -113,18 +113,6 @@ Keyframe BoneAnimation::InterpolateKeyframeAlpha(float alpha) const
 	return InterpolateKeyframe(alphaTime);
 }
 
-void AnimationClip::SetClipTime()
-{
-	// Find smallest start time over all bones in this clip.
-	float st = MathHelper::Infinity, et = 0.0f;
-	for (UINT i = 0; i < boneAnimations_.size(); ++i) {
-		st = MathHelper::Min(st, boneAnimations_[i].GetStartTime());
-		et = MathHelper::Max(et, boneAnimations_[i].GetEndTime());
-	}
-
-	startClipTime_ = st;
-	endClipTime_ = MathHelper::Max(et, duration_);
-}
 
 void AnimationClip::SetDuration(float duration, uint32_t tickPerSecond)
 {
@@ -154,16 +142,6 @@ uint32_t AnimationClip::GetTicksPerSecond() const
 	return ticksPerSecond_;
 }
 
-float AnimationClip::GetClipStartTime()const
-{
-	return startClipTime_;
-}
-
-float AnimationClip::GetClipEndTime()const
-{
-	return endClipTime_;
-}
-
 void AnimationClip::Interpolate(float t, vector<XMMATRIX>& boneTransforms)const
 {
 	int numBoenAnims = boneAnimations_.size();
@@ -171,18 +149,6 @@ void AnimationClip::Interpolate(float t, vector<XMMATRIX>& boneTransforms)const
 		if (!boneAnimations_[i].keyframes_.empty())
 			boneAnimations_[i].Interpolate(t, boneTransforms[i]);
 	}
-}
-
-float SkinnedData::GetClipStartTime(const string& clipName)const
-{
-	auto clip = animations_.find(clipName);
-	return clip->second.GetClipStartTime();
-}
-
-float SkinnedData::GetClipEndTime(const string& clipName)const
-{
-	auto clip = animations_.find(clipName);
-	return clip->second.GetClipEndTime();
 }
 
 void SkinnedData::SetNode(vector<uint32_t>& parentNode, vector<vector<uint32_t>>& childrenNode,
@@ -291,7 +257,7 @@ void SkinnedData::AddBlendingAnimation(const string& name, const string& clip1, 
 	const AnimationClip& anim2 = animations_[clip2];
 	
 	AnimationClip blendedAnimation;
-	// 애니메이션 길이가 다를 경우 길이가 짧은 애니메이션을 더 게 재생함.
+	// 애니메이션 길이가 다를 경우 길이가 짧은 애니메이션을 더 길게 재생함.
 	if (anim1.GetDuration() > anim2.GetDuration())
 		blendedAnimation.SetDuration(anim1.GetDuration(), anim1.GetTicksPerSecond());
 	else 
@@ -334,7 +300,7 @@ void SkinnedData::AddBlendingAnimation(const string& name, const string& clip1, 
 			XMStoreFloat3(& keyFrames[ti].translation_, XMVectorLerp(XMLoadFloat3(&key1.translation_), XMLoadFloat3(&key2.translation_), alpha));
 		}
 	}
-	blendedAnimation.SetClipTime();
+
 	AddAnimaiton(name, blendedAnimation);
 }
 

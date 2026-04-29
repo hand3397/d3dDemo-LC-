@@ -34,6 +34,12 @@
     <Filter Include="헤더 파일\Physics\Contacts">
       <UniqueIdentifier>{11c20fb3-c9db-4497-92f9-756bc7e9c00a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="소스 파일\Animation">
+      <UniqueIdentifier>{4416b61e-b6d3-47d7-892b-a35012d91bd3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="헤더 파일\Animation">
+      <UniqueIdentifier>{008d47ca-1f7b-4e89-9e26-1eb978b712f2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="d3dApp.cpp">
@@ -138,14 +144,14 @@
     <ClCompile Include="ShapeContact.cpp">
       <Filter>소스 파일\Physics\Contacts</Filter>
     </ClCompile>
-    <ClCompile Include="AtlasAnimator.cpp">
-      <Filter>소스 파일</Filter>
+    <ClCompile Include="IAnimator.cpp">
+      <Filter>소스 파일\Animation</Filter>
     </ClCompile>
     <ClCompile Include="SkinnedAnimator.cpp">
-      <Filter>소스 파일</Filter>
+      <Filter>소스 파일\Animation</Filter>
     </ClCompile>
-    <ClCompile Include="IAnimator.cpp">
-      <Filter>소스 파일</Filter>
+    <ClCompile Include="AtlasAnimator.cpp">
+      <Filter>소스 파일\Animation</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -260,14 +266,14 @@
     <ClInclude Include="ShapeContact.h">
       <Filter>헤더 파일\Physics\Contacts</Filter>
     </ClInclude>
-    <ClInclude Include="AtlasAnimator.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
     <ClInclude Include="SkinnedAnimator.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>헤더 파일\Animation</Filter>
     </ClInclude>
     <ClInclude Include="IAnimator.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>헤더 파일\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="AtlasAnimator.h">
+      <Filter>헤더 파일\Animation</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -37,14 +37,11 @@ struct BoneAnimation
 // 하나의 AnimationClip 객체는 애니메이션 클립을 구성하는 BoneAnimation 인스턴스들을 담는다.
 struct AnimationClip
 {
-	void SetClipTime();
 	void SetDuration(float duration, uint32_t tickPerSecond);
 	float SecondToTick(float& s);
 
 	float GetDuration() const;
 	uint32_t GetTicksPerSecond() const;
-	float GetClipStartTime() const;
-	float GetClipEndTime() const;
 
     void Interpolate(float t, vector<XMMATRIX>& boneTransforms) const;
 
@@ -54,9 +51,6 @@ private:
 
 	// 값이 0일 경우 keyframe의 timePos_를 tick이 아닌 초단위로 해석
 	float ticksPerSecond_ = 0.0f;
-
-	float startClipTime_ = 0.0f;
-	float endClipTime_ = 0.0f;
 };
 
 class SkinnedData
@@ -64,9 +58,6 @@ class SkinnedData
 public:
 	UINT NodeCount()const;
 	UINT BoneCount()const;
-
-	float GetClipStartTime(const string& clipName)const;
-	float GetClipEndTime(const string& clipName)const;
 
 	void SetNode(vector<uint32_t>& parentNode, vector<vector<uint32_t>>& childrenNode,
 		unordered_map<string, uint32_t> nameToIdx, vector<XMFLOAT4X4>& nodeTrnasforms);
