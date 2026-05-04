@@ -2,56 +2,10 @@
 
 #include "d3dUtil.h"
 #include "MathHelper.h"
+#include "SkinnedAnimator.h"
 
 using namespace std;
 using namespace DirectX;
-
-// Keyframe은 특정 시점에서의 본 변환 상태를 정의
-struct Keyframe
-{
-	Keyframe() = default;
-	~Keyframe() = default;
-
-    float timePos_ = 0.0f;
-	XMFLOAT3 translation_ = XMFLOAT3(0.0f, 0.0f, 0.0f);
-    XMFLOAT3 scale_ = XMFLOAT3(1.0f, 1.0f, 1.0f);
-    XMFLOAT4 rotationQuat_ = XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
-};
-
-// BoneAnimation은 키프레임들의 리스트로 정의된다.  
-// 특정 시간이 두 키프레임 사이에 있을 경우, 그 시간을 감싸고 있는 두 인접한 키프레임을 기준으로 보간한다.
-// 애니메이션은 항상 최소 두 개의 키프레임을 가진다고 가정한다.
-struct BoneAnimation
-{
-	float GetStartTime()const;
-	float GetEndTime()const;
-
-    void Interpolate(float t, XMMATRIX& M)const;
-	Keyframe InterpolateKeyframe(float t) const;
-	Keyframe InterpolateKeyframeAlpha(float alpha) const;
-
-	vector<Keyframe> keyframes_;
-};
-
-// AnimationClip은 '걷기','뛰기','공격' 같은 개별 애니메이션 클립을 대표한다.
-// 하나의 AnimationClip 객체는 애니메이션 클립을 구성하는 BoneAnimation 인스턴스들을 담는다.
-struct AnimationClip
-{
-	void SetDuration(float duration, uint32_t tickPerSecond);
-	float SecondToTick(float& s);
-
-	float GetDuration() const;
-	uint32_t GetTicksPerSecond() const;
-
-    void Interpolate(float t, vector<XMMATRIX>& boneTransforms) const;
-
-    vector<BoneAnimation> boneAnimations_;
-private:
-	float duration_ = 0.0f;
-
-	// 값이 0일 경우 keyframe의 timePos_를 tick이 아닌 초단위로 해석
-	float ticksPerSecond_ = 0.0f;
-};
 
 class SkinnedData
 {
@@ -64,7 +18,7 @@ public:
 
 	void SetBone(unordered_map<uint32_t, uint32_t> nodeToBone, vector<XMFLOAT4X4>& boneOffset);
 
-	void AddAnimaiton(const string& clipName, const AnimationClip& animationClip);
+	void AddAnimaiton(const string& clipName, const SkinnedAnimationClip& clip);
 
 	 // In a real project, you'd want to cache the result if there was a chance
 	 // that you were calling this several times with the same clipName at 
@@ -75,13 +29,11 @@ public:
 		const string& clipName2, float alpha, vector<XMFLOAT4X4>& finalTransforms)const;
 	
 	void AddBlendingAnimation(const string& name, const string& clip1, const string& clip2, float alpha = 0.5f);
-	void BlendInterpolate(const AnimationClip& clip1, const AnimationClip& clip2, float timePos,
+	void BlendInterpolate(const SkinnedAnimationClip& clip1, const SkinnedAnimationClip& clip2, float timePos,
 		vector<XMMATRIX>& transforms, float alpha = 0.5f)const;
 
 	int32_t NodeToIdx(const string& name) const;
 	int32_t NodeToBone(const uint32_t node) const;
-
-	float SecondToTick(const string& clipName, float& s);
 private:
 	// rootNode = 0;
 	vector<uint32_t> parentNode_;
@@ -93,7 +45,7 @@ private:
 	vector<XMFLOAT4X4> nodeTransforms_;
 	vector<XMFLOAT4X4> boneOffsets_;
     
-	unordered_map<string, AnimationClip> animations_;
+	unordered_map<string, SkinnedAnimationClip> animations_;
 };
 
 struct SkinnedModelInstance
@@ -128,7 +80,7 @@ struct SkinnedModelInstance
 	void UpdateSkinnedAnimation()
 	{
 		// Loop animation
-		float animationTick = skinnedInfo_->SecondToTick(clipName_, timePos_);
+		float animationTick = timePos_;
 
 		if (blendingClipName_.empty()) {
 			// Compute the final transforms for this time position.

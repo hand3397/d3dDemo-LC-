@@ -1,11 +1,13 @@
 #pragma once
 #include "GameObject.h"
 #include "FSM.h"
+#include "AtlasAnimator.h"
 
 class Character : public GameObject
 {
-    public:
-    Character(const XMFLOAT3& position);
+public:
+
+    Character(const XMFLOAT3& position, const AtlasAnimatorProfile* profile);
     virtual ~Character() {}
 
     virtual void Update(float dt) override;
@@ -13,8 +15,16 @@ class Character : public GameObject
     void MoveTargetPosXZ(float dt);
 
     void SetTargetPos(const XMFLOAT3& targetPos);
+
+    // animation
+    AtlasAnimator* GetAnimator();
+    uint32_t GetAtlasIndex() const;
+
 private:
+
     FSM<Character> fsm_;
+
+    AtlasAnimator animator_;
 
     XMFLOAT3 targetPos_ = { 0.0f, 0.0f, 0.0f };
     float moveSpeed_ = 2.0f;

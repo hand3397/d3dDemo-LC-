@@ -8,6 +8,8 @@
 #include "ObjectManager.h"
 #include "Character.h"
 #include "Stage.h"
+#include "Camera.h"
+#include "AnimationManager.h"
 
 class Scene
 {
@@ -84,6 +86,7 @@ private:
 
     void LoadScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void LoadModels(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
+    void LoadAnimations();
     void LoadTextures(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     void LoadTexture(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList,
         const string& name, const wstring& fileName, uint16_t atlasWidth, uint16_t atlasHeight, bool IsTexArray = false);
@@ -100,12 +103,18 @@ private:
 
     Camera* mainCamera_ = nullptr;
 
+    // gameObject
     const uint32_t MAX_NUM_OBJECTS = 128;
     LayeredObjectManager<GameObject, spe::RigidbodyType> gameObejctManager_;
 
+    // gameRenderitem
     vector<unique_ptr<RenderItem>> allRenderItems_;
     vector<RenderItem*> renderItemLayer_[static_cast<uint8_t>(RenderLayer::COUNT)];
 
+    // Animation
+    AnimationManager animationManager_;
+
+    // resources
     unordered_map<string, unique_ptr<MeshGeometry>> meshes_;
     unordered_map<string, unique_ptr<Material>> materials_;
     unordered_map<string, unique_ptr<Texture>> textures_;

@@ -288,20 +288,26 @@ void ModelLoader::ReadAnimations(const aiScene* scene, const string& animationNa
     for (uint32_t ai = 0; ai < numAnimations; ai++) {
         aiAnimation* anim = scene->mAnimations[ai];
         
+        // 애니메이션의 시간 단위는 anim->mTicksPerSecond에 의해 결정됨. 0이면 1으로 간주
+        const double secondPerTicks = anim->mTicksPerSecond == 0.0 ? 
+            1 : anim->mTicksPerSecond; // 애니메이션의 시간 단위 (틱당 초 수)
+
         string animName;
         if (numAnimations > 1) animName = animationName + to_string(ai);
         else animName = animationName;
 
-        AnimationClip animationClip;
-        animationClip.SetDuration(anim->mDuration, anim->mTicksPerSecond);
+        SkinnedAnimationClip clip(animName);
+        clip.SetDuration(anim->mDuration * secondPerTicks);
         
-        animationClip.boneAnimations_.resize(skinnedData_.NodeCount());
+        vector<BoneAnimation> boneAnimations(skinnedData_.NodeCount());
 
         uint32_t numChannels = anim->mNumChannels;
-        for (uint32_t ci = 0; ci < numChannels; ci++) {
+        for (uint32_t ci = 0; ci < numChannels; ++ci) {
             aiNodeAnim* channel = anim->mChannels[ci];
 
-            string nodeName = channel->mNodeName.C_Str();
+            vector<Keyframe> keyFrmaes; // timePos로 오름차순 정렬된 keyframe
+
+            const string nodeName = channel->mNodeName.C_Str();
             uint32_t nodeIdx = skinnedData_.NodeToIdx(nodeName);
             if (nodeIdx == -1)
                 continue;
@@ -324,12 +330,12 @@ void ModelLoader::ReadAnimations(const aiScene* scene, const string& animationNa
                 scales[pi] = { key.mTime, {key.mValue.x, key.mValue.y, key.mValue.z} };
             }
             
-            InterpolateKeyframes(animationClip.boneAnimations_[nodeIdx].keyframes_, 
-                positions, rotateQuats, scales);
+            InterpolateKeyframes(keyFrmaes, positions, rotateQuats, scales);
+            boneAnimations[nodeIdx].SetFrames(keyFrmaes);
         }
+        clip.SetBoneAnimaitions(boneAnimations);
 
-        animationClip.SetClipTime();
-        skinnedData_.AddAnimaiton(animName, animationClip);
+        skinnedData_.AddAnimaiton(animName, clip);
     }
 }
 

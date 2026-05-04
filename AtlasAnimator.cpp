@@ -2,12 +2,12 @@
 
 // AtlasClip
 
-AtlasClip::AtlasClip(const string& name) :
+AtlasAnimationClip::AtlasAnimationClip(const string& name) :
     name_(name)
 {
 }
 
-uint16_t AtlasClip::GetAtlasIndexAtTime(const float t, float& currentTimePos, float& nextTimePos) const
+uint16_t AtlasAnimationClip::GetAtlasIndexAtTime(const float t, float& currentTimePos, float& nextTimePos) const
 {
     if (keyFrames_.empty()) {
         nextTimePos = duration_;
@@ -39,22 +39,22 @@ uint16_t AtlasClip::GetAtlasIndexAtTime(const float t, float& currentTimePos, fl
     return prevIt->atlasIndex;
 }
 
-void AtlasClip::SetDuration(float duration)
+void AtlasAnimationClip::SetDuration(float duration)
 {
     duration_ = duration;
 }
 
-const string& AtlasClip::GetName() const
+const string& AtlasAnimationClip::GetName() const
 {
     return name_;
 }
 
-float AtlasClip::GetDuration() const
+float AtlasAnimationClip::GetDuration() const
 {
     return duration_;
 }
 
-void AtlasClip::SetFrames(vector<AtlasFrame>& frames)
+void AtlasAnimationClip::SetFrames(vector<AtlasFrame>& frames)
 {
     sort(frames.begin(), frames.end(), [](const AtlasFrame& a, const AtlasFrame& b) {
         return a.timePos < b.timePos; });
@@ -62,6 +62,11 @@ void AtlasClip::SetFrames(vector<AtlasFrame>& frames)
 }
 
 // AtlasAnimator
+
+void AtlasAnimator::SetAnimationProfile(const AtlasAnimatorProfile* animationProfile)
+{
+    animationProfile_ = animationProfile;
+}
 
 void AtlasAnimator::Update(float deltaTime)
 {
@@ -115,12 +120,14 @@ void AtlasAnimator::Update(float deltaTime)
 
 void AtlasAnimator::Play(const std::string& name, bool loop, float speed)
 {
-    auto it = AnimationClips_.find(name);
+    if (!animationProfile_)
+        return;
 
-    if (it != AnimationClips_.end()) {
+    const AtlasAnimationClip* clip = animationProfile_->GetClip(name);
+
+    if (clip) {
         currentClipName_ = name;
-        currentClip_ = it->second;
-
+        currentClip_ = clip;
         isLoop_ = loop;
         playSpeed_ = speed;
         currentTime_ = 0.0f;
@@ -157,14 +164,6 @@ float AtlasAnimator::GetProgress() const
 
     float clipDuration = currentClip_->GetDuration();
     return clipDuration > 0.0f ? min(currentTime_ / clipDuration, 1.0f) : 0.0f;
-}
-
-
-void AtlasAnimator::AddClip(const AtlasClip* clip)
-{
-    if (!clip)
-        return;
-    AnimationClips_[clip->GetName()] = clip;
 }
 
 uint16_t AtlasAnimator::GetCurrentAtlasIndex() const

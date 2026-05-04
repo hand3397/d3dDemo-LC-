@@ -153,6 +153,9 @@
     <ClCompile Include="AtlasAnimator.cpp">
       <Filter>소스 파일\Animation</Filter>
     </ClCompile>
+    <ClCompile Include="AnimationManager.cpp">
+      <Filter>소스 파일\Animation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dApp.h">
@@ -273,6 +276,9 @@
       <Filter>헤더 파일\Animation</Filter>
     </ClInclude>
     <ClInclude Include="AtlasAnimator.h">
+      <Filter>헤더 파일\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="AnimationManager.h">
       <Filter>헤더 파일\Animation</Filter>
     </ClInclude>
   </ItemGroup>

@@ -24,12 +24,13 @@ void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, 
 	player_ = make_unique<Player>(XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT3(0.0f, 5.0f, -10.0f));
 	mainCamera_ = player_->GetCamera();
 	mainCamera_->RotatePitch(0.4f);
-
-	for (int i = 0; i < NUM_CHARACTERS; ++i) {
-        characters_[i] = make_unique<Character>(XMFLOAT3(1.0f * i - (NUM_CHARACTERS / 2), 0.0f, 20.0f));
-	}
 	
 	LoadScene(device, cmdList);
+
+	for (int i = 0; i < NUM_CHARACTERS; ++i) {
+		characters_[i] = make_unique<Character>(XMFLOAT3(1.0f * i - (NUM_CHARACTERS / 2), 0.0f, 20.0f), animationManager_.GetAtlasProfile("Knight"));
+	}
+
 	BuildScene(device, cmdList);
 
 	// 현재 scene에 빌드된 rigidbody를 전부 등록한다.
@@ -525,6 +526,7 @@ void Scene::BuildGameObjects()
 		meshes_["billboardGeo"].get(), meshes_["billboardGeo"]->subMeshes_["character0"], materials_["knight"].get(),
 		XMMatrixTranslation(0.f, 0.f, 0.f), XMMatrixIdentity(), true) };
 		characters_[i]->SetRenderItems(renderItems);
+		characters_[i]->GetAnimator()->SetAnimationProfile(animationManager_.GetAtlasProfile("Knight"));
 	}
 
 	renderItems = { BuildRenderItem(RenderLayer::RENDER_OPAQUE,
@@ -765,6 +767,7 @@ void Scene::LoadScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
 	LoadTextures(device, cmdList);
 	LoadModels(device, cmdList);
+	LoadAnimations();
 }
 
 void Scene::LoadModels(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
@@ -803,6 +806,45 @@ void Scene::LoadModels(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 	geo->AddSubmesh("0", modelLoader.subMeshes_[0]);
 	geo->AddSubmesh("1", modelLoader.subMeshes_[1]);
 	meshes_[geo->name_] = move(geo);
+}
+
+void Scene::LoadAnimations()
+{
+    animationManager_.Clear();
+    // TODO: 애니메이션 매니저에 애니메이션 클립을 추가한다. 
+    // json 파일이나 다른 형식의 파일에서 애니메이션 클립 정보를 읽어와서 추가할 수 있도록 한다.
+
+	// Load Atlas Texture Animations
+	AtlasAnimationClip* atlasClip = nullptr;
+	vector<AtlasFrame> atlasFrmaes;
+
+	atlasFrmaes = {
+		{0, 0.0f},
+		{1, 0.25f},
+		{2, 0.5f},
+		{3, 0.75f},
+		{4, 1.0f},
+		{5, 1.25f},
+	};
+	atlasClip = new AtlasAnimationClip("KnightIdle");
+	atlasClip->SetFrames(atlasFrmaes);
+	atlasClip->SetDuration(1.5f);
+    animationManager_.AddAtlasClip(atlasClip);
+
+	atlasFrmaes = {
+		{6, 0.0f},
+		{7, 0.25f},
+		{8, 0.5f},
+		{9, 0.75f},
+		{10, 1.0f},
+		{11, 1.25f},
+	};
+	atlasClip = new AtlasAnimationClip("KnightMove");
+	atlasClip->SetFrames(atlasFrmaes);
+	atlasClip->SetDuration(1.5f);
+	animationManager_.AddAtlasClip(atlasClip);
+
+    animationManager_.AddAtlasProfile("Knight", { "KnightIdle", "KnightMove" });
 }
 
 void Scene::LoadTextures(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)

@@ -127,6 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AnimationManager.cpp" />
     <ClCompile Include="AtlasAnimator.cpp" />
     <ClCompile Include="BroadPhase.cpp" />
     <ClCompile Include="Camera.cpp">
@@ -198,6 +199,7 @@
     <ClCompile Include="Tile.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AnimationManager.h" />
     <ClInclude Include="AtlasAnimator.h" />
     <ClInclude Include="BroadPhase.h" />
     <ClInclude Include="Camera.h" />

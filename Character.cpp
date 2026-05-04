@@ -1,20 +1,21 @@
 #include "Character.h"
 
-Character::Character(const XMFLOAT3& position) : 
+Character::Character(const XMFLOAT3& position, const AtlasAnimatorProfile* profile) :
     GameObject(XMFLOAT3(0.f, 0.f, 0.f), position, spe::RigidbodyType::KINEMATIC), fsm_(this)
 {
-    // 초기 상태는 Idle로 설정
-    fsm_.Change(CharacterIdleState::Instance());
-
     // character의 충돌체는 캡슐
-	spe::CapsuleShape* capsuleShape = new spe::CapsuleShape(XMFLOAT3(0.f, 1.f, 0.f), 0.1f, 0.3f);
-	spe::Fixture* fixture = new spe::Fixture(capsuleShape);
-	fixture->SetFriction(0.4f);
-	fixture->SetRestitution(0.4f);
+    spe::CapsuleShape* capsuleShape = new spe::CapsuleShape(XMFLOAT3(0.f, 1.f, 0.f), 0.1f, 0.3f);
+    spe::Fixture* fixture = new spe::Fixture(capsuleShape);
+    fixture->SetFriction(0.4f);
+    fixture->SetRestitution(0.4f);
 
     rigidbody_.AddFixture(fixture);
 
-	targetPos_ = position;
+    targetPos_ = position;
+
+    // 초기 상태는 Idle로 설정
+    animator_.SetAnimationProfile(profile);
+    fsm_.Change(CharacterIdleState::Instance());
 }
 
 void Character::Update(float dt)
@@ -22,6 +23,12 @@ void Character::Update(float dt)
     position_.y = -0.75f;
 
     MoveTargetPosXZ(dt);
+
+    animator_.Update(dt);
+    fsm_.Update();
+    
+    for (const auto& ri : renderItems_)
+        ri->atlasIndex_ = animator_.GetCurrentAtlasIndex();
 
 	GameObject::Update(dt);
 }
@@ -79,6 +86,16 @@ void Character::SetTargetPos(const XMFLOAT3& targetPos)
     targetPos_ = targetPos;
 }
 
+AtlasAnimator* Character::GetAnimator()
+{
+    return &animator_;
+}
+
+uint32_t Character::GetAtlasIndex() const
+{
+    return animator_.GetCurrentAtlasIndex();
+}
+
 // FSM States
 
 // CharacterIdleState는 캐릭터가 목표 위치에 도착하여 멈춰있는 상태입니다.
@@ -90,17 +107,17 @@ CharacterIdleState* CharacterIdleState::Instance()
 
 void CharacterIdleState::Enter(Character* owner)
 {
-
+    owner->GetAnimator()->Play("KnightMove", true);
 }
 
 void CharacterIdleState::Update(Character* owner, FSM<Character>& fsm)
 {
-    
+
 }
 
 void CharacterIdleState::Exit(Character* owner)
 {
-
+    owner->GetAnimator()->Stop();
 }
 
 // CharacterMoveState는 캐릭터가 목표 위치를 향해 이동하는 상태입니다.

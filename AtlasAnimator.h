@@ -12,9 +12,10 @@ struct AtlasFrame
 	float timePos = 0.0f;
 };
 
-struct AtlasClip
+struct AtlasAnimationClip
 {
-	AtlasClip(const string& name);
+    AtlasAnimationClip() = default;
+    AtlasAnimationClip(const string& name);
 
     uint16_t GetAtlasIndexAtTime(const float time, float& currentTimePos, float& nextTimePos) const;
 
@@ -24,6 +25,7 @@ struct AtlasClip
 	float GetDuration() const;
 
     void SetFrames(vector<AtlasFrame>& frames);
+
 private:
 
 	string name_;
@@ -34,9 +36,13 @@ private:
 	float duration_ = 0.0f;
 };
 
+using AtlasAnimatorProfile = AnimatorProfile<AtlasAnimationClip>;
+
 class AtlasAnimator : public IAnimator
 {
 public:
+    void SetAnimationProfile(const AtlasAnimatorProfile* animationProfile);
+
     // 매 프레임 애니메이션 시간을 갱신하고 상태를 업데이트
     virtual void Update(float deltaTime) override;
 
@@ -52,13 +58,13 @@ public:
     // 현재 애니메이션의 진행률(0.0 ~ 1.0)을 반환
     virtual float GetProgress() const override;
 
-    void AddClip(const AtlasClip* clip);
     uint16_t GetCurrentAtlasIndex() const;
 
 private:
 
-    unordered_map<string, const AtlasClip*> AnimationClips_;
-    const AtlasClip* currentClip_ = nullptr;
+    // 애니메이션 클립 이름과 클립 객체를 매핑하는 객체
+    const AtlasAnimatorProfile* animationProfile_ = nullptr;
+    const AtlasAnimationClip* currentClip_ = nullptr;
 
     uint16_t currentAtlasIndex_ = 0;
     float nextTimePos_ = 0.f; // 다음 프레임의 시작 시간

@@ -42,9 +42,10 @@ private:
 // AnimationClip은 '걷기','뛰기','공격' 같은 개별 애니메이션 클립을 대표한다.
 // 하나의 AnimationClip 객체는 애니메이션 클립을 구성하는 각각의 BoneAnimation 인스턴스들을 담는다.
 // boneAnimations_.size()는 Bone Animation 을 구성하는 뼈대의 개수와 같다.
-struct AnimationClip
+struct SkinnedAnimationClip
 {
-	AnimationClip(const string& name);
+	SkinnedAnimationClip() = default;
+	SkinnedAnimationClip(const string& name);
 
 	// 인자로 들어오는 vector의 size가 이미 numBones 만큼 resize가 되어 있다고 가정함.
 	void InterpolateAll(float t, vector<XMFLOAT4X4>& boneTransforms) const;
@@ -65,9 +66,13 @@ private:
 	float duration_ = 0.0f; // 애니메이션 총 길이 (초 단위)
 };
 
+using SkinnedAnimatorProfile = AnimatorProfile<SkinnedAnimationClip>;
+
 class SkinnedAnimator : public IAnimator
 {
 public:
+
+    void SetAnimationProfile(const SkinnedAnimatorProfile* animationProfile);
 	// 매 프레임 애니메이션 시간을 갱신하고 상태를 업데이트
 	virtual void Update(float deltaTime) override;
 
@@ -83,14 +88,13 @@ public:
 	// 현재 애니메이션의 진행률(0.0 ~ 1.0)을 반환
 	virtual float GetProgress() const override;
 
-	void AddClip(const AnimationClip* clip);
 	const vector<XMFLOAT4X4>& GetBoneTransforms() const;
 	const XMFLOAT4X4& GetBoneTransform(uint32_t boneIdx) const;
 
 private:
 
-	unordered_map<string, const AnimationClip*> AnimationClips_;
-	const AnimationClip* currentClip_ = nullptr;
+	const SkinnedAnimatorProfile* animationProfile_ = nullptr;
+	const SkinnedAnimationClip* currentClip_ = nullptr;
 
 	vector<XMFLOAT4X4> currentBoneTransform_; // 본별 현재 tarnsformMatrix를 캐싱해둠
 };

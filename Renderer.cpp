@@ -656,7 +656,7 @@ void Renderer::BuildPSOs()
 		reinterpret_cast<BYTE*>(shaders_["alphaTestedPS"]->GetBufferPointer()),
 		shaders_["alphaTestedPS"]->GetBufferSize()
 	};
-	billboardPsoDesc.DepthStencilState.DepthEnable = false;
+	billboardPsoDesc.DepthStencilState.DepthEnable = true;
     billboardPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT; // 빌보드의 입력은 점이므로, 점으로 설정한다.(기하셰이더로 빌보드 사각형 생성)
 	billboardPsoDesc.InputLayout = { inputLayouts_["billboard"].data(), (UINT)inputLayouts_["billboard"].size() };
 	//billboardPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;

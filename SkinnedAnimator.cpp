@@ -68,50 +68,55 @@ void BoneAnimation::SetFrames(vector<Keyframe> frames)
 
 // AnimationClip
 
-AnimationClip::AnimationClip(const string& name) :
+SkinnedAnimationClip::SkinnedAnimationClip(const string& name) :
     name_(name)
 {
 }
 
-void AnimationClip::InterpolateAll(float t, vector<XMFLOAT4X4>& boneTransforms) const
+void SkinnedAnimationClip::InterpolateAll(float t, vector<XMFLOAT4X4>& boneTransforms) const
 {
     for (uint32_t i = 0; i < numBones; ++i) {
         boneAnimations_[i].Interpolate(t, boneTransforms[i]);
     }
 }
 
-void AnimationClip::Interpolate(float t, int i, XMFLOAT4X4& boneTransforms) const
+void SkinnedAnimationClip::Interpolate(float t, int i, XMFLOAT4X4& boneTransforms) const
 {
     boneAnimations_[i].Interpolate(t, boneTransforms);
 }
 
-void AnimationClip::SetBoneAnimaitions(const vector<BoneAnimation>& boneAnimations)
+void SkinnedAnimationClip::SetBoneAnimaitions(const vector<BoneAnimation>& boneAnimations)
 {
 	boneAnimations_ = boneAnimations;
     numBones = boneAnimations_.size();
 }
 
-const string& AnimationClip::GetName() const
+const string& SkinnedAnimationClip::GetName() const
 {
     return name_;
 }
 
-uint32_t AnimationClip::NumBones() const
+uint32_t SkinnedAnimationClip::NumBones() const
 {
     return numBones;
 }
 
-void AnimationClip::SetDuration(float duration)
+void SkinnedAnimationClip::SetDuration(float duration)
 {
 	duration_ = duration;
 }
 
-float AnimationClip::GetDuration() const
+float SkinnedAnimationClip::GetDuration() const
 {
 	return duration_;
 }
 
 // SkinnedAnimator
+
+void SkinnedAnimator::SetAnimationProfile(const SkinnedAnimatorProfile* animationProfile)
+{
+    animationProfile_ = animationProfile;
+}
 
 void SkinnedAnimator::Update(float deltaTime)
 {
@@ -158,20 +163,18 @@ void SkinnedAnimator::Update(float deltaTime)
     currentClip_->InterpolateAll(currentTime_, currentBoneTransform_);
 }
 
-void SkinnedAnimator::Play(const std::string& name, bool loop = true, float speed = 1.0f)
+void SkinnedAnimator::Play(const std::string& name, bool loop, float speed)
 {
-    auto it = AnimationClips_.find(name);
+    const SkinnedAnimationClip* clip = animationProfile_->GetClip(name);
 
-    if (it != AnimationClips_.end()) {
+    if (clip) {
         currentClipName_ = name;
-        currentClip_ = it->second;
-
+        currentClip_ = clip;
         isLoop_ = loop;
         playSpeed_ = speed;
         currentTime_ = 0.0f;
         isFinished_ = false;
 
-        currentBoneTransform_.clear();
         currentBoneTransform_.resize(currentClip_->NumBones());
         currentClip_->InterpolateAll(0.f, currentBoneTransform_);
     }
@@ -205,11 +208,6 @@ float SkinnedAnimator::GetProgress() const
 
     float clipDuration = currentClip_->GetDuration();
     return clipDuration > 0.0f ? min(currentTime_ / clipDuration, 1.0f) : 0.0f;
-}
-
-void SkinnedAnimator::AddClip(const AnimationClip* clip)
-{
-    AnimationClips_[clip->GetName()] = clip;
 }
 
 const vector<XMFLOAT4X4>& SkinnedAnimator::GetBoneTransforms() const
