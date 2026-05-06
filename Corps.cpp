@@ -10,6 +10,23 @@ Corps::~Corps()
 {
 }
 
+void Corps::Update(float dt)
+{
+    const vector<Nav::Dir>& currentFlowField = stage_->RequestFlowField(2, 2);
+    for (Character* unit : units_) {
+        if (!unit)
+            continue;
+        XMFLOAT3 pos = unit->GetPosition();
+        int tileIndex = stage_->GetTileIndexFromWorldPos(pos);
+        if (tileIndex == -1)
+            continue;
+        uint8_t dir = static_cast<uint8_t>(currentFlowField[tileIndex]);
+        
+        unit->GetRigidbody()->SetLinearVelocity(XMFLOAT3(Nav::dxf[dir], 0.0f, Nav::dzf[dir]));
+        unit->Update(dt);
+    }
+}
+
 void Corps::SetUnits(int numUnits, vector<Character*>& units)
 {
     numUnits_ = numUnits;
@@ -17,6 +34,11 @@ void Corps::SetUnits(int numUnits, vector<Character*>& units)
     for (int i = 0; i < numUnits && i < units.size() && i < MAX_CORPS_SIZE; ++i) {
         units_[i] = units[i];
     }
+}
+
+void Corps::SetStage(TStaeg* stage)
+{
+    stage_ = stage;
 }
 
 void Corps::CommandMove(const XMFLOAT3& destination)
@@ -44,16 +66,6 @@ bool Corps::IsEmpty() const
 XMFLOAT3 Corps::GetPosition() const
 {
     return currentPosition_;
-}
-
-void Corps::SetTileIndex(pair<int, int> tileIndex)
-{
-    tileIndex_ = tileIndex;
-}
-
-pair<int, int> Corps::GetTileIndex() const
-{
-    return tileIndex_;
 }
 
 void Corps::CalculateFormationPositions(const XMFLOAT3& targetDestination)

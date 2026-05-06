@@ -11,6 +11,7 @@
 #include "Camera.h"
 #include "AnimationManager.h"
 #include "Corps.h"
+#include "TStaeg.h"
 
 class Scene
 {
@@ -50,6 +51,7 @@ public:
     Character* GetCharacters(int i) const;
     const uint32_t NumCharacters() const;
 
+    TStaeg tStage;
     Corps* corps = nullptr;
 private:
 

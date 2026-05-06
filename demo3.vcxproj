@@ -159,6 +159,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="IAnimator.cpp" />
+    <ClCompile Include="NavDir.cpp" />
     <ClCompile Include="PhysicsWorld.cpp" />
     <ClCompile Include="GameTimer.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -198,6 +199,8 @@
     <ClCompile Include="SphereToSphereContact.cpp" />
     <ClCompile Include="Stage.cpp" />
     <ClCompile Include="Tile.cpp" />
+    <ClCompile Include="TStaeg.cpp" />
+    <ClCompile Include="NavEdges.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AnimationManager.h" />
@@ -219,6 +222,7 @@
     <ClInclude Include="FSM.h" />
     <ClInclude Include="GameObject.h" />
     <ClInclude Include="IAnimator.h" />
+    <ClInclude Include="NavDir.h" />
     <ClInclude Include="PhysicsWorld.h" />
     <ClInclude Include="GameTimer.h" />
     <ClInclude Include="GeometryGenerator.h" />
@@ -241,6 +245,8 @@
     <ClInclude Include="SphereToSphereContact.h" />
     <ClInclude Include="Stage.h" />
     <ClInclude Include="Tile.h" />
+    <ClInclude Include="TStaeg.h" />
+    <ClInclude Include="NavEdges.h" />
     <ClInclude Include="UploadBuffer.h" />
   </ItemGroup>
   <ItemGroup>

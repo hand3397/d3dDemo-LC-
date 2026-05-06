@@ -7,7 +7,7 @@ const float ContactSolver::NORMAL_STOP_VELOCITY = 0.01f;
 const float ContactSolver::TANGENT_STOP_VELOCITY = 0.01f;
 const float ContactSolver::NORMAL_SLEEP_VELOCITY_SQ = 1.0f;
 const float ContactSolver::TANGENT_SLEEP_VELOCITY_SQ = 1.0f;
-const float ContactSolver::POSITION_SOLVE_ALPHA = 0.5f;
+const float ContactSolver::POSITION_SOLVE_ALPHA = 0.25f;
 const float ContactSolver::CONTACT_SLOP = 0.01f;
 
 ContactSolver::ContactSolver(float duration, Contact** contacts,
@@ -66,9 +66,10 @@ void ContactSolver::SolveVelocityConstraints()
 	for (uint32_t i = 0; i < numContacts_; ++i) {
 		Contact* contact = contacts_[i];
 		ContactConstraint& contactConstraint = contactConstraints_[i];
-        // kinematic과 kinematic의 contact는 속도 처리 x, 위치 보간만
+        // kinematic과 kinematic의 contact는 노말방향 속도 처리, 노말방향 위치 보간만
 		if (contactConstraint.isKinematicContact_) {
-			continue;
+			SolveKinematicVelocityConstraints(i);
+            continue;
         }
 		int32_t numPoints = contactConstraint.numPoints;
 		int32_t idxA = contactConstraint.bodyIdA;
@@ -287,6 +288,68 @@ void ContactSolver::SolvePositionConstraints()
 	}
 }
 
+void ContactSolver::SolveKinematicVelocityConstraints(uint32_t i)
+{
+	Contact* contact = contacts_[i];
+	ContactConstraint& contactConstraint = contactConstraints_[i];
+
+	int32_t indexA = contactConstraint.bodyIdA;
+	int32_t indexB = contactConstraint.bodyIdB;
+
+	float sumMass = contactConstraint.invMassA + contactConstraint.invMassB;
+	if (sumMass <= 0.0f) {
+		return; // 둘 다 정적(Static) 물체라면 무시
+	}
+
+	float ratioA = contactConstraint.invMassA / sumMass;
+	float ratioB = contactConstraint.invMassB / sumMass;
+
+	// 현재 속도와 버퍼에 쌓인 속도를 모두 고려
+	XMVECTOR linearVelA = XMLoadFloat3(&velocities_[indexA].linearVelocity);
+	XMVECTOR linearVelB = XMLoadFloat3(&velocities_[indexB].linearVelocity);
+	XMVECTOR linearVelBufferA = XMLoadFloat3(&velocities_[indexA].linearVelocityBuffer);
+	XMVECTOR linearVelBufferB = XMLoadFloat3(&velocities_[indexB].linearVelocityBuffer);
+
+	XMVECTOR totalVelA = linearVelA + linearVelBufferA;
+	XMVECTOR totalVelB = linearVelB + linearVelBufferB;
+
+	// PositionSolver와 동일하게 첫 번째 접점의 노말만 사용하여 단순화
+	ManifoldPoint& manifoldPoint = contactConstraint.points[0];
+	XMVECTOR contactNormal = XMLoadFloat3(&manifoldPoint.normal);
+
+	// Position 제약과 동일하게 Y축 방향 충돌은 무시하고 XZ 평면에서만 속도를 제어
+	contactNormal = XMVectorSetY(contactNormal, 0.0f);
+
+	// 노말 벡터가 0이 아니라면 다시 정규화
+	if (XMVectorGetX(XMVector3LengthSq(contactNormal)) > 0.0001f) {
+		contactNormal = XMVector3Normalize(contactNormal);
+	}
+	else {
+		return;
+	}
+
+	// 상대 속도 계산 (B - A)
+	XMVECTOR relativeVel = totalVelB - totalVelA;
+
+	// 법선(Normal) 방향의 투영 속도
+	float normalSpeed = VecDot(contactNormal, relativeVel);
+
+	// normalSpeed가 음수이면 두 물체가 가까워지고 있다는 뜻
+	if (normalSpeed < 0.0f) {
+		// 캐릭터는 통통 튀지 않으므로(Restitution = 0), 파고드는 속도만큼 완벽하게 상쇄하는 충격량 벡터 계산
+		XMVECTOR impulseVector = normalSpeed * contactNormal;
+
+		// A는 충격량 방향으로 이동하고(밀리고), B는 반대 방향으로 이동하여 상쇄
+		// mass ratio를 곱하여 무거운 유닛이 덜 밀리도록 처리
+		linearVelBufferA += impulseVector * ratioA;
+		linearVelBufferB -= impulseVector * ratioB;
+
+		// 결과 저장 (회전 속도는 캐릭터이므로 변경하지 않음)
+		XMStoreFloat3(&velocities_[indexA].linearVelocityBuffer, linearVelBufferA);
+		XMStoreFloat3(&velocities_[indexB].linearVelocityBuffer, linearVelBufferB);
+	}
+}
+
 void ContactSolver::SolveKinematicPositionConstraints(uint32_t i)
 {
 	Contact* contact = contacts_[i];
@@ -306,7 +369,7 @@ void ContactSolver::SolveKinematicPositionConstraints(uint32_t i)
 	ManifoldPoint& manifoldPoint = contactConstraint.points[0];
 	const XMVECTOR contactNormal = XMLoadFloat3(&manifoldPoint.normal);
 
-	// --- 2. 최신 충돌 지점 및 분리 거리 계산 ---
+	// 최신 충돌 지점 및 분리 거리 계산
 	// pointA, pointB는 충돌 지점이며, 여기에 현재 보정량을 더해 실시간 위치를 시뮬레이션합니다.
 	XMVECTOR movedPointA = XMLoadFloat3(&manifoldPoint.pointA) + positionBufferA;
 	XMVECTOR movedPointB = XMLoadFloat3(&manifoldPoint.pointB) + positionBufferB;
@@ -319,12 +382,12 @@ void ContactSolver::SolveKinematicPositionConstraints(uint32_t i)
 		return;
 	}
 
-	// --- 3. 보정량 계산 및 XZ 평면 제한 ---
+	// 보정량 계산 및 XZ 평면 제한
 	// 보정량은 음수인 currentSeparation을 0으로 만들기 위한 값입니다.
 	float correction = (currentSeparation + CONTACT_SLOP) * POSITION_SOLVE_ALPHA;
 	XMVECTOR correctionVector = correction * contactNormal;
 
-	// 사용자 요청: 밀려나는 것은 XZ 방향으로 한정 (Y축 보정 제거)
+	// 밀려나는 것은 XZ 방향으로 한정 (Y축 보정 제거)
 	correctionVector = XMVectorSetY(correctionVector, 0.0f);
 
 	// --- 4. 최종 위치 보정 적용 ---

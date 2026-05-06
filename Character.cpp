@@ -20,9 +20,9 @@ Character::Character(const XMFLOAT3& position, const AtlasAnimatorProfile* profi
 
 void Character::Update(float dt)
 {
-    position_.y = -0.75f + 0.5f;
+    position_.y = -0.75f + 1.0f;
 
-    MoveTargetPosXZ(dt);
+    //MoveTargetPosXZ(dt);
 
     animator_.Update(dt);
     fsm_.Update();

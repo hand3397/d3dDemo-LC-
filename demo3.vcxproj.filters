@@ -40,6 +40,12 @@
     <Filter Include="헤더 파일\Animation">
       <UniqueIdentifier>{008d47ca-1f7b-4e89-9e26-1eb978b712f2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="소스 파일\Stage">
+      <UniqueIdentifier>{9afc0c8b-1a6b-4f94-9a4a-e052d5f1a2d8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="헤더 파일\Stage">
+      <UniqueIdentifier>{e49e6fc0-d105-4139-9581-8c8afe87f3e7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="d3dApp.cpp">
@@ -132,12 +138,6 @@
     <ClCompile Include="ContactManager.cpp">
       <Filter>소스 파일\Physics</Filter>
     </ClCompile>
-    <ClCompile Include="Stage.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
-    <ClCompile Include="Tile.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
     <ClCompile Include="Character.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
@@ -158,6 +158,21 @@
     </ClCompile>
     <ClCompile Include="Corps.cpp">
       <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="TStaeg.cpp">
+      <Filter>소스 파일\Stage</Filter>
+    </ClCompile>
+    <ClCompile Include="Tile.cpp">
+      <Filter>소스 파일\Stage</Filter>
+    </ClCompile>
+    <ClCompile Include="NavEdges.cpp">
+      <Filter>소스 파일\Stage</Filter>
+    </ClCompile>
+    <ClCompile Include="Stage.cpp">
+      <Filter>소스 파일\Stage</Filter>
+    </ClCompile>
+    <ClCompile Include="NavDir.cpp">
+      <Filter>소스 파일\Stage</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -260,12 +275,6 @@
     <ClInclude Include="ContactManager.h">
       <Filter>헤더 파일\Physics</Filter>
     </ClInclude>
-    <ClInclude Include="Stage.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="Tile.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
     <ClInclude Include="Character.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -286,6 +295,21 @@
     </ClInclude>
     <ClInclude Include="Corps.h">
       <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Tile.h">
+      <Filter>헤더 파일\Stage</Filter>
+    </ClInclude>
+    <ClInclude Include="TStaeg.h">
+      <Filter>헤더 파일\Stage</Filter>
+    </ClInclude>
+    <ClInclude Include="NavEdges.h">
+      <Filter>헤더 파일\Stage</Filter>
+    </ClInclude>
+    <ClInclude Include="Stage.h">
+      <Filter>헤더 파일\Stage</Filter>
+    </ClInclude>
+    <ClInclude Include="NavDir.h">
+      <Filter>헤더 파일\Stage</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -4,7 +4,6 @@ Scene::Scene() :
 	gameObejctManager_(MAX_NUM_OBJECTS), physicsWorld_(spe::PhysicsWorld(this)), 
     clientWidth_(0), clientHeight_(0)
 {
-	//_CrtSetBreakAlloc(826741);
 }
 
 Scene::~Scene()
@@ -31,12 +30,12 @@ void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, 
 	
 	vector<Character*> units(NUM_CHARACTERS);
 	for (int i = 0; i < NUM_CHARACTERS; ++i) {
-		characters_[i] = make_unique<Character>(XMFLOAT3(1.0f * i - (NUM_CHARACTERS / 2), 0.0f, 20.0f), animationManager_.GetAtlasProfile("Knight"));
+		characters_[i] = make_unique<Character>(XMFLOAT3(0.3f * i - (NUM_CHARACTERS / 4), 0.0f, 1.5f), animationManager_.GetAtlasProfile("Knight"));
 		units[i] = characters_[i].get();
 	}
 	corps = new Corps();
 	corps->SetUnits(NUM_CHARACTERS, units);
-	corps->SetTileIndex({4, 4});
+    corps->SetStage(&tStage);
 
 	BuildScene(device, cmdList);
 
@@ -64,7 +63,6 @@ void Scene::KeyInput(const KeyInputManager& keyInput, float dt)
 		int dx, dy;
 		keyInput.GetMousePos(dx, dy);
 		Pick(dx, dy);
-
 	}
 	
 	if (player_)
@@ -88,6 +86,8 @@ void Scene::Update(const GameTimer& gt)
 		player_->GetRigidbody()->Integrate(dt);
 		player_->Update(dt);
 	}
+
+    corps->Update(dt);
 
 	for (int i = 0; i < NUM_CHARACTERS; ++i) {
         if (characters_[i])
@@ -894,6 +894,7 @@ void Scene::AnimateMaterials(float dt)
 
 void Scene::Pick(int mouseX, int mouseY)
 {
+	/*
 	if (mainCamera_ != nullptr) {
 		const spe::Ray ray = mainCamera_->GetPickingRay(mouseX, mouseY, clientWidth_, clientHeight_);
 		
@@ -907,12 +908,10 @@ void Scene::Pick(int mouseX, int mouseY)
 			stage_->UndeployTile(tileIndex.first, tileIndex.second);
 			return;
         }
-		stage_->UndeployTile(corps->GetTileIndex().first, corps->GetTileIndex().second);
-		corps->SetTileIndex(tileIndex);
 
 		for (int i = 0; i < NUM_CHARACTERS; ++i) {
             characters_[i]->SetTargetPos(targetPos[i]);
 		}
-	}
+	}*/
 }
 

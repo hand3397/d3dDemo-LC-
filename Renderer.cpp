@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include "NavDir.h"
 
 Renderer::Renderer()
 	: clientHeight_(0), clientWidth_(0), countDebugVertices_(0),
@@ -259,8 +260,8 @@ void Renderer::Draw(const Scene* scene)
 
 	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_OPAQUE));
 	
-	commandList_->SetPipelineState(PSOs_["texArrayOpaque"].Get());
-	DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_TEX_ARRAY_OPAQUE));
+	//commandList_->SetPipelineState(PSOs_["texArrayOpaque"].Get());
+	//DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_TEX_ARRAY_OPAQUE));
 	
 	//commandList_->SetPipelineState(PSOs_["skinnedOpaque"].Get());
 	//DrawRenderItems(scene->GetRenderItems(RenderLayer::RENDER_SKINNED));
@@ -694,6 +695,49 @@ void Renderer::UpdateDebugMesh(Scene* scene)
 	auto pushLine = [&](const XMFLOAT3& a, const XMFLOAT3& b, const XMVECTOR& color) {
 		vertices.emplace_back(a, color);
 		vertices.emplace_back(b, color); };
+	auto CreateTile = [&](XMFLOAT3 pos, float tileSize, const XMVECTOR& color) {
+        pushLine(pos, XMFLOAT3(pos.x + tileSize, pos.y, pos.z), color);
+        pushLine(pos, XMFLOAT3(pos.x, pos.y, pos.z + tileSize), color);
+        pushLine(XMFLOAT3(pos.x + tileSize, pos.y, pos.z), XMFLOAT3(pos.x + tileSize, pos.y, pos.z + tileSize), color);
+        pushLine(XMFLOAT3(pos.x, pos.y, pos.z + tileSize), XMFLOAT3(pos.x + tileSize, pos.y, pos.z + tileSize), color);
+		};
+	auto CreateDirTile = [&](XMFLOAT3 pos, float tileSize, uint8_t dir, const XMVECTOR& color) {
+		pushLine(pos, XMFLOAT3(pos.x + tileSize, pos.y, pos.z), color);
+		pushLine(pos, XMFLOAT3(pos.x, pos.y, pos.z + tileSize), color);
+		pushLine(XMFLOAT3(pos.x + tileSize, pos.y, pos.z), XMFLOAT3(pos.x + tileSize, pos.y, pos.z + tileSize), color);
+		pushLine(XMFLOAT3(pos.x, pos.y, pos.z + tileSize), XMFLOAT3(pos.x + tileSize, pos.y, pos.z + tileSize), color);
+
+		if (dir != 255) {
+			
+			static constexpr int dx[8] = { 0,  1,  1,  1,  0, -1, -1, -1 };
+			static constexpr int dz[8] = { 1,  1,  0, -1, -1, -1,  0,  1 };
+
+			// 타일의 한가운데(Center) 좌표 계산
+			XMFLOAT3 center(
+				pos.x + tileSize * 0.5f,
+				pos.y, // Z-Fighting을 막기 위해 높이를 살짝 올리고 싶다면 pos.y + 0.05f 
+				pos.z + tileSize * 0.5f
+			);
+
+			// 방향을 가리키는 선의 길이 (타일 크기의 40% 정도 길이로 그어야 타일 밖으로 삐져나가지 않음)
+			float lineLength = tileSize * 0.4f;
+
+			// 도착점(End) 좌표 계산
+			// 대각선 이동 시(1, 3, 5, 7) 선 길이가 길어지는 것을 막기 위해 정규화 느낌으로 가중치를 줄 수도 있지만, 
+			// 디버그용이므로 단순 곱셈으로 처리해도 무방합니다.
+			float dirX = (dir % 2 == 0) ? dx[dir] : dx[dir] * 0.707f; // 대각선 길이 보정 (1/루트2)
+			float dirZ = (dir % 2 == 0) ? dz[dir] : dz[dir] * 0.707f;
+
+			XMFLOAT3 endPos(
+				center.x + dirX * lineLength,
+				center.y,
+				center.z + dirZ * lineLength
+			);
+
+			// 중앙에서 끝점을 향해 선 그리기 (이게 디버그 화살표 역할을 합니다)
+			pushLine(center, endPos, color);
+		}
+		};
 	auto CreateBox = [&](const XMFLOAT3 corner[8], const XMVECTOR& color) {
 		pushEdge(corner, 0, 1, color); pushEdge(corner, 1, 2, color); pushEdge(corner, 2, 3, color); pushEdge(corner, 3, 0, color); // bottom
 		pushEdge(corner, 4, 5, color); pushEdge(corner, 5, 6, color); pushEdge(corner, 6, 7, color); pushEdge(corner, 7, 4, color); // top
@@ -759,6 +803,7 @@ void Renderer::UpdateDebugMesh(Scene* scene)
 	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(0.f, 10.f, 0.f), DirectX::Colors::Green);
 	pushLine(XMFLOAT3(0.f, 0.f, 0.f), XMFLOAT3(0.f, 0.f, 10.f), DirectX::Colors::Blue);
 
+	/*
     // renderItem의 AABB 그리기 DirectX::Colors::Orange
 	for (const auto& renderItem : scene->GetAllRenderItems()) 
 	{
@@ -770,6 +815,7 @@ void Renderer::UpdateDebugMesh(Scene* scene)
 			CreateBox(corner, DirectX::Colors::Orange);
 		}
 	}
+	*/
 
 	// rigidbody의 shape그리기 DirectX::Colors::Teal
     spe::Rigidbody* rb = scene->GetPhysicsWorld().GetRigidbodies();
@@ -985,6 +1031,24 @@ void Renderer::UpdateDebugMesh(Scene* scene)
 
 		rb = rb->GetNext();
     }
+	
+    // 타일 그리기
+    TStaeg& tStage = scene->tStage;
+	uint32_t tileCountX = tStage.GetTileCountX();
+	uint32_t tileCountZ = tStage.GetTileCountZ();
+    float tileSize = tStage.GetTileSize();
+    XMFLOAT3 tileOffset = tStage.GetTileOffset();
+
+    const vector<Nav::Dir>& tileDirs = tStage.RequestFlowField(2, 2);
+	for (int x = 0; x < tileCountX; ++x) {
+		for (int z = 0; z < tileCountZ; ++z) {
+			int tileIndex = tStage.GetTileIndex(x, z);
+            XMFLOAT3 tilePos = XMFLOAT3(tileOffset.x + x * tileSize, tileOffset.y + tStage.GetTileHeight(x, z), tileOffset.z + z * tileSize);
+            tilePos.x -= tileSize * 0.5f;
+			tilePos.z -= tileSize * 0.5f;
+            CreateDirTile(tilePos, tileSize, static_cast<uint8_t>(tileDirs[tileIndex]), DirectX::Colors::LightGray);
+		}
+	}
 
 	memcpy(mappedData_, vertices.data(), sizeof(ColorVertex) * vertices.size());
 
