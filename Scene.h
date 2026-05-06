@@ -10,6 +10,7 @@
 #include "Stage.h"
 #include "Camera.h"
 #include "AnimationManager.h"
+#include "Corps.h"
 
 class Scene
 {
@@ -48,6 +49,8 @@ public:
 
     Character* GetCharacters(int i) const;
     const uint32_t NumCharacters() const;
+
+    Corps* corps = nullptr;
 private:
 
     void BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);

@@ -20,7 +20,7 @@ Character::Character(const XMFLOAT3& position, const AtlasAnimatorProfile* profi
 
 void Character::Update(float dt)
 {
-    position_.y = -0.75f;
+    position_.y = -0.75f + 0.5f;
 
     MoveTargetPosXZ(dt);
 
@@ -36,6 +36,7 @@ void Character::Update(float dt)
 void Character::MoveTargetPosXZ(float dt)
 {
     rigidbody_.SetAwake(true);
+    isMoving_ = true;
 
     XMVECTOR curPos = XMLoadFloat3(&position_);
     XMVECTOR targetPos = XMLoadFloat3(&targetPos_);
@@ -56,6 +57,7 @@ void Character::MoveTargetPosXZ(float dt)
 
         // [핵심] 완전히 도착했을 때, XZ 속력을 0으로 초기화하여 더 이상 밀려나지 않게 합니다.
         rigidbody_.SetLinearVelocity(XMFLOAT3(0.0f, currentVelocityY, 0.0f));
+        isMoving_ = false;
         return;
     }
 
@@ -70,6 +72,7 @@ void Character::MoveTargetPosXZ(float dt)
         SetPosition(finalPosF3);
 
         rigidbody_.SetLinearVelocity(XMFLOAT3(0.0f, currentVelocityY, 0.0f));
+        isMoving_ = false;
     }
     else {
         // 방향에 따라 XZ 평면으로 이동 (Y축 속력은 기존 값 유지)
@@ -96,6 +99,11 @@ uint32_t Character::GetAtlasIndex() const
     return animator_.GetCurrentAtlasIndex();
 }
 
+bool Character::IsMoving() const
+{
+    return isMoving_;
+}
+
 // FSM States
 
 // CharacterIdleState는 캐릭터가 목표 위치에 도착하여 멈춰있는 상태입니다.
@@ -107,12 +115,14 @@ CharacterIdleState* CharacterIdleState::Instance()
 
 void CharacterIdleState::Enter(Character* owner)
 {
-    owner->GetAnimator()->Play("KnightMove", true);
+    owner->GetAnimator()->Play("KnightIdle", true);
 }
 
 void CharacterIdleState::Update(Character* owner, FSM<Character>& fsm)
 {
-
+    if (owner->IsMoving()) {
+        fsm.Change(CharacterMoveState::Instance());
+    }   
 }
 
 void CharacterIdleState::Exit(Character* owner)
@@ -129,15 +139,17 @@ CharacterMoveState* CharacterMoveState::Instance()
 
 void CharacterMoveState::Enter(Character* owner)
 {
-
+    owner->GetAnimator()->Play("KnightMove", true);
 }
 
 void CharacterMoveState::Update(Character* owner, FSM<Character>& fsm)
 {
-
+    if (!owner->IsMoving()) {
+        fsm.Change(CharacterIdleState::Instance());
+    }
 }
 
 void CharacterMoveState::Exit(Character* owner)
 {
-
+    owner->GetAnimator()->Stop();
 }

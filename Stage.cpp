@@ -4,21 +4,24 @@ Stage::Stage(uint32_t stageWidth, uint32_t stageLength, uint32_t stageHeight) :
     stageWidth_(stageWidth), stageLength_(stageLength), stageHeight_(stageHeight)
 {
     // stage의 중심이 world의 중심이 되도록 하고, 바닥은 y = 0 평면에 맞춘다.
-    blockOffset_ = { -blockSize_ * 0.5f * (stageWidth - 1), blockHeight_ * 0.5f, -blockSize_ * 0.5f * (stageLength - 1) };
+    stageOffset_ = { -blockSize_ * 0.5f * (stageWidth - 1), blockHeight_ * 0.5f, -blockSize_ * 0.5f * (stageLength - 1) };
     
     blocks_.clear();
     blocks_.resize(stageWidth_ * stageLength_ * stageHeight_, BlockType::BLOCK_TYPE_AIR);
-    
-    for (int dy = 0; dy < stageHeight; dy++) {
-        for (int dx = 0; dx < stageWidth; dx++) {
-            for (int dz = 0; dz < stageLength; dz++) {
-                int dIndex = GetBlockIndex(dx, dy, dz);
-                if (dx >= dy)
-                    blocks_[dIndex] = BlockType::BLOCK_TYPE_GRASS;
-            }
+    isWalkebleTile_.assign(stageWidth_ * stageHeight_, true);
+
+    for (int dx = 0; dx < stageWidth; dx++) {
+        for (int dz = 0; dz < stageLength; dz++) {
+            int dIndex = GetBlockIndex(dx, 0, dz);
+            blocks_[dIndex] = BlockType::BLOCK_TYPE_GRASS;
         }
     }
     
+    for (int dz = 1; dz < stageLength; dz++) {
+        blocks_[GetBlockIndex(2, 1, dz)] = BlockType::BLOCK_TYPE_HILL;
+        isWalkebleTile_[GetTileIndex(2, dz)] = false;
+    }
+
     blockToTextureIndex_.clear();
     // BlockType과 텍스처 인덱스 매핑 초기화 (top, side, bottom)
     blockToTextureIndex_.push_back({ -1, -1, -1 }); // BlockType::BLOCK_TYPE_AIR
@@ -31,6 +34,8 @@ Stage::Stage(uint32_t stageWidth, uint32_t stageLength, uint32_t stageHeight) :
     tiles_.clear();
     // 각 타일마다 캐릭터 슬롯 정보를 초기화한다. (스테이지에는 지하나 동굴이 없다 stageHeigt는 비포함)
     tiles_.resize(stageWidth_ * stageLength_);
+
+    BuildAllPaths();
 }
 
 Stage::~Stage()
@@ -139,6 +144,26 @@ bool Stage::IsBlockSolid(int x, int y, int z) const
     return false;
 }
 
+float Stage::GetHeightAt(float x, float z) const
+{
+    // x, z 좌표에 해당하는 타일의 높이를 반환한다. (y 좌표)
+    // 타일의 높이는 해당 타일에서 가장 높은 블록의 y 좌표로 정의한다.
+    int tileX = static_cast<int>((x - stageOffset_.x + blockSize_ * 0.5f) / blockSize_);
+    int tileZ = static_cast<int>((z - stageOffset_.z + blockSize_ * 0.5f) / blockSize_);
+    if (tileX < 0 || tileX >= static_cast<int>(stageWidth_) ||
+        tileZ < 0 || tileZ >= static_cast<int>(stageLength_)) {
+        return 0.f; // 범위를 벋어난 경우는 높이가 0이라고 간주한다.
+    }
+    float height = 0.f;
+    for (int y = stageHeight_ - 1; y >= 0; y--) {
+        if (IsBlockSolid(tileX, y, tileZ)) {
+            height = stageOffset_.y + y * blockHeight_;
+            break;
+        }
+    }
+    return height;
+}
+
 uint32_t Stage::GetStageWidth() const
 {
     return stageWidth_;
@@ -174,6 +199,56 @@ inline uint32_t Stage::GetTileIndex(int x, int z) const
     return z * stageWidth_ + x;
 }
 
+pair<int, int> Stage::GetTileIndex(const spe::Ray& ray) const
+{
+    float closestT = FLT_MAX;
+    pair<int, int> closestTileIndex = { -1, -1 };
+
+    // 블록의 절반 크기 (AABB 생성을 위함)
+    float hx = blockSize_ * 0.5f;
+    float hy = blockHeight_ * 0.5f;
+    float hz = blockSize_ * 0.5f;
+
+    // 모든 블록을 순회하며 충돌 검사
+    for (int x = 0; x < static_cast<int>(stageWidth_); ++x) {
+        for (int z = 0; z < static_cast<int>(stageLength_); ++z) {
+            for (int y = 0; y < static_cast<int>(stageHeight_); ++y) {
+
+                // 블록이 비어있지 않은(Solid) 경우에만 검사
+                if (IsBlockSolid(x, y, z)) {
+                    // 블록의 중심점 계산
+                    float cx = stageOffset_.x + x * blockSize_;
+                    float cy = stageOffset_.y + y * blockHeight_;
+                    float cz = stageOffset_.z + z * blockSize_;
+
+                    // AABB 바운딩 박스 생성
+                    spe::AABB aabb(
+                        XMFLOAT3(cx - hx, cy - hy, cz - hz),
+                        XMFLOAT3(cx + hx, cy + hy, cz + hz)
+                    );
+
+                    float tMin, tMax;
+                    // 레이와 AABB가 충돌했는지 검사
+                    if (aabb.Intersects(ray, tMin, tMax)) {
+                        // 광선(Ray)이 블록 내부에서 시작된 경우 tMin이 음수일 수 있으므로
+                        // 양수인 값 중 가장 앞쪽(가까운) 교차 지점을 선택합니다.
+                        float hitT = (tMin >= 0.0f) ? tMin : tMax;
+
+                        // 현재까지 찾은 가장 가까운 블록보다 더 가깝다면 갱신
+                        if (hitT < closestT) {
+                            closestT = hitT;
+                            closestTileIndex = {x, z};
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 충돌한 타일이 없다면 초기값인 -1이 반환됨
+    return closestTileIndex;
+}
+
 BlockType Stage::GetBlockType(int x, int y, int z) const
 {
     return blocks_[GetBlockIndex(x, y, z)];
@@ -193,16 +268,16 @@ int32_t Stage::GetTextureIndex(BlockType blockType, const std::string& face) con
     return -1; // Invalid face
 }
 
-XMFLOAT3 Stage::BlockOffset() const
+XMFLOAT3 Stage::GetStageOffset() const
 {
-    return blockOffset_;
+    return stageOffset_;
 }
 
-// 각 타일의 중심을 반환
+// 각 타일(x, z)의 중심을 반환
 XMFLOAT3 Stage::GetTilePos(int x, int z) const
 {
     float dx = x * blockSize_, dz = z * blockSize_;
-    return XMFLOAT3(blockOffset_.x + dx, 0.f, blockOffset_.z + dz);
+    return XMFLOAT3(stageOffset_.x + dx, 0.f, stageOffset_.z + dz);
 }
 
 XMFLOAT3 Stage::GetTileSlotOffset(int x, int z) const
@@ -212,3 +287,49 @@ XMFLOAT3 Stage::GetTileSlotOffset(int x, int z) const
     return XMFLOAT3(slotOffset + dSlot * x, 0.f, slotOffset + dSlot * z);
 }
 
+void Stage::BuildAllPaths()
+{
+    uint32_t totalTiles_ = stageWidth_ * stageLength_;
+
+    nextStepTable_.assign(totalTiles_, std::vector<TileIndex>(totalTiles_, INVALID_TILE));
+
+    const static int dNeighbors[] = {
+        1, stageWidth_, (stageWidth_ + 1), (stageWidth_ - 1),
+        -1, -stageWidth_, (-stageWidth_ + 1), (-stageWidth_ - 1) };
+
+    // 모든 타일을 '목적지(dest)'로 설정하고 BFS를 돌립니다.
+    for (TileIndex dest = 0; dest < totalTiles_; ++dest) {
+        // 목적지가 유닛이 있을 수 없는 타일이면 패스
+        if (!isWalkebleTile_[dest])
+            continue;
+
+        queue<TileIndex> q;
+        vector<bool> visited(totalTiles_, false);
+
+        q.push(dest);
+        visited[dest] = true;
+        nextStepTable_[dest][dest] = dest; // 자기 자신으로 가는 길은 자기 자신
+
+        while (!q.empty()) {
+            TileIndex current = q.front();
+            q.pop();
+
+            // current의 상하좌우 인접 타일을 검사
+            for (int dn : dNeighbors) {
+                int neighborIndex = current + dn;
+
+                if (neighborIndex < 0 || neighborIndex >= totalTiles_)
+                    continue; // 범위 밖
+
+                if (!visited[neighborIndex] && !isWalkebleTile_[neighborIndex]) {
+                    visited[neighborIndex] = true;
+
+                    // 핵심: neighbor에서 dest로 가려면, 방금 지나온 current를 밟아야 합니다.
+                    nextStepTable_[neighborIndex][dest] = current;
+
+                    q.push(neighborIndex);
+                }
+            }
+        }
+    }
+}

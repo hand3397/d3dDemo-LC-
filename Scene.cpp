@@ -15,6 +15,8 @@ Scene::~Scene()
 
 	if (stage_)
         delete stage_;
+	if (corps)
+		delete corps;
 }
 
 void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, int clientWidth, int clientHeight)
@@ -26,12 +28,24 @@ void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, 
 	mainCamera_->RotatePitch(0.4f);
 	
 	LoadScene(device, cmdList);
-
+	
+	vector<Character*> units(NUM_CHARACTERS);
 	for (int i = 0; i < NUM_CHARACTERS; ++i) {
 		characters_[i] = make_unique<Character>(XMFLOAT3(1.0f * i - (NUM_CHARACTERS / 2), 0.0f, 20.0f), animationManager_.GetAtlasProfile("Knight"));
+		units[i] = characters_[i].get();
 	}
+	corps = new Corps();
+	corps->SetUnits(NUM_CHARACTERS, units);
+	corps->SetTileIndex({4, 4});
 
 	BuildScene(device, cmdList);
+
+	vector<XMFLOAT3> targetPos(NUM_CHARACTERS);
+	stage_->DeployTile(targetPos, NUM_CHARACTERS, 4, 4);
+
+	for (int i = 0; i < NUM_CHARACTERS; ++i) {
+		characters_[i]->SetTargetPos(targetPos[i]);
+	}
 
 	// 현재 scene에 빌드된 rigidbody를 전부 등록한다.
 	physicsWorld_.InitSceneObjects();
@@ -49,25 +63,8 @@ void Scene::KeyInput(const KeyInputManager& keyInput, float dt)
 	if (keyInput.WasMousePressed(MouseButton::LMB)) {
 		int dx, dy;
 		keyInput.GetMousePos(dx, dy);
-		//Pick(dx, dy);
-        static bool isTile = false;
+		Pick(dx, dy);
 
-        vector<XMFLOAT3> targetPos;
-
-		if (isTile) {
-			stage_->DeployTile(targetPos, 10, 1, 1);
-            stage_->UndeployTile(3, 2);
-			for (int i = 0; i < 10; ++i)
-				characters_[i]->SetTargetPos(targetPos[i]);
-		}
-		else {
-            stage_->DeployTile(targetPos, 10, 3, 2);
-            stage_->UndeployTile(1, 1);
-			for (int i = 0; i < 10; ++i)
-				characters_[i]->SetTargetPos(targetPos[i]);
-		}
-
-		isTile = !isTile;
 	}
 	
 	if (player_)
@@ -395,7 +392,7 @@ void Scene::BuildBillboardGeometry(ID3D12Device* device, ID3D12GraphicsCommandLi
 
 void Scene::BuildStageGeometry(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
-    stage_ = new Stage(10, 10, 5);
+    stage_ = new Stage(5, 5, 5);
 
     const float tileSize = stage_->GetBlockSize();
     const float tileHeight = stage_->GetBlockHeight();
@@ -899,12 +896,22 @@ void Scene::Pick(int mouseX, int mouseY)
 {
 	if (mainCamera_ != nullptr) {
 		const spe::Ray ray = mainCamera_->GetPickingRay(mouseX, mouseY, clientWidth_, clientHeight_);
-		spe::Rigidbody* rigidbody = physicsWorld_.RayCast(ray);
+		
+		pair<int, int> tileIndex = stage_->GetTileIndex(ray);
+		if (tileIndex.first == -1) {
+			return;
+		}
+        vector<XMFLOAT3> targetPos(NUM_CHARACTERS);
+        stage_->DeployTile(targetPos, NUM_CHARACTERS, tileIndex.first, tileIndex.second);
+		if (targetPos.size() != NUM_CHARACTERS) {
+			stage_->UndeployTile(tileIndex.first, tileIndex.second);
+			return;
+        }
+		stage_->UndeployTile(corps->GetTileIndex().first, corps->GetTileIndex().second);
+		corps->SetTileIndex(tileIndex);
 
-		float t = -ray.origin.y * ray.invDir.y;
-		XMFLOAT3 targetPos(ray.origin.x + t * ray.dir.x, 0.f, ray.origin.z + t * ray.dir.z);
 		for (int i = 0; i < NUM_CHARACTERS; ++i) {
-            characters_[i]->SetTargetPos(targetPos);
+            characters_[i]->SetTargetPos(targetPos[i]);
 		}
 	}
 }

@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include <DirectXMath.h>
+#include "Collision.h"
 
 using namespace DirectX;
 using namespace std;
@@ -12,6 +13,9 @@ using namespace std;
 // 스테이지를 구성하는 메시 단위 = 블록 (x, y, z)
 // 스테이지에서 캐릭터가 이동할 수 있는 지점 = 타일. (x, z)
 //
+
+using TileIndex = uint16_t;
+constexpr TileIndex INVALID_TILE = 65535; // 이동 불가 타일
 
 constexpr uint32_t STAGE_TILE_SIZE = 4; // 타일 하나의 길이 (하나의 타일에는 최대 STAGE_TILE_SIZE x STAGE_TILE_SIZE 만큼의 유닛이 있을 수 있음)
 
@@ -57,6 +61,7 @@ public:
 
     bool IsBlockSolid(int x, int y, int z) const;
 
+    float GetHeightAt(float x, float z) const;
     uint32_t GetStageWidth() const;
     uint32_t GetStageLength() const;
     uint32_t GetStageHeight() const;
@@ -64,14 +69,19 @@ public:
     float GetBlockHeight() const;
     inline uint32_t GetBlockIndex(int x, int y, int z) const;
     inline uint32_t GetTileIndex(int x, int z) const;
+    // ray가 충돌하는 타일의 인덱스를 반환한다. 충돌하는 타일이 없는 경우는 -1을 반환한다.
+    pair<int, int> GetTileIndex(const spe::Ray& ray) const;
     BlockType GetBlockType(int x, int y, int z) const;
     int32_t GetTextureIndex(BlockType tileType, const std::string& face) const;
 
-    XMFLOAT3 BlockOffset() const;
+    XMFLOAT3 GetStageOffset() const;
     XMFLOAT3 GetTilePos(int x, int z) const;
     XMFLOAT3 GetTileSlotOffset(int x, int z) const;
 
 private:
+
+    void BuildAllPaths();
+
     std::vector<BlockType> blocks_;
     std::vector<BlockTextrueIndex> blockToTextureIndex_; // map[BlockType] = { up, side, bottom }
 
@@ -83,6 +93,11 @@ private:
 
     const float blockSize_ = 1.0f;
     const float blockHeight_ = 0.5f;
-    XMFLOAT3 blockOffset_;
+    XMFLOAT3 stageOffset_;  // stage 중앙이 world 중앙에 위치하기 위해서 주는 offset (실제 블록 위치는 offset + block size * xz)
+
+    // 길찾기용 데이터
+    // nextStepTable_[시작점][도착점] = 다음에 밟을 타일
+    vector<vector<TileIndex>> nextStepTable_;
+    vector<bool> isWalkebleTile_; // 유닛이 서 있을 수 있는 타일여부
 };
 

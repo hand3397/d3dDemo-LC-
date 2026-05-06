@@ -20,6 +20,7 @@ public:
     AtlasAnimator* GetAnimator();
     uint32_t GetAtlasIndex() const;
 
+    bool IsMoving() const;
 private:
 
     FSM<Character> fsm_;
@@ -27,7 +28,8 @@ private:
     AtlasAnimator animator_;
 
     XMFLOAT3 targetPos_ = { 0.0f, 0.0f, 0.0f };
-    float moveSpeed_ = 2.0f;
+    float moveSpeed_ = 5.0f;
+    bool isMoving_ = false;
 };
 
 class CharacterIdleState : public State<Character>

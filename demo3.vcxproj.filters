@@ -156,6 +156,9 @@
     <ClCompile Include="AnimationManager.cpp">
       <Filter>소스 파일\Animation</Filter>
     </ClCompile>
+    <ClCompile Include="Corps.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dApp.h">
@@ -280,6 +283,9 @@
     </ClInclude>
     <ClInclude Include="AnimationManager.h">
       <Filter>헤더 파일\Animation</Filter>
+    </ClInclude>
+    <ClInclude Include="Corps.h">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
