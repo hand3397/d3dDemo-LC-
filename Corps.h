@@ -24,7 +24,7 @@ public:
     Corps();
     ~Corps();
 
-    void Update(float dt);
+    void Update(int x, int z, float dt);
 
     void SetUnits(int numUnits, vector<Character*>& units);
     void SetStage(TStaeg* stage);
@@ -36,6 +36,8 @@ public:
     int GetNumUnits() const;
     bool IsEmpty() const;
     XMFLOAT3 GetPosition() const; // 군단의 현재 위치 반환
+    const vector<uint32_t>& GetUnitIDs() const;
+    const vector<pair<int, int>>& GetTileIndicesXZ_() const;
 
 private:
     // 진형(Formation) 계산: 목적지를 기준으로 각 유닛이 서야 할 위치를 정해줌
@@ -43,6 +45,9 @@ private:
 
 private:
     vector<Character*> units_; // 군단에 속한 유닛들
+    vector<uint32_t> unitIDs_; // 군단에 속한 유닛의 ID
+    vector<pair<int, int>> tileIndicesXZ_; // 군단에 속한 유닛들이 점유하고 있는 타일
+
     TStaeg* stage_ = nullptr; // 군단이 속한 스테이지 (필드 정보 접근용)
     uint32_t numUnits_ = 0;
 

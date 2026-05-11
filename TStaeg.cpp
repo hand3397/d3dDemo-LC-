@@ -6,9 +6,12 @@ TStaeg::TStaeg()
     tileCountX_ = 20;
     tileCountZ_ = 20;
     tileOffset_ = XMFLOAT3(-tileSize_ * tileCountX_ * 0.5f, 0.f, -tileSize_ * tileCountZ_ * 0.5f);
+    
+    visitedTickets_.resize(tileCountX_ * tileCountZ_, 0);
 
     tileHeightMap_.resize(tileCountX_ * tileCountZ_, 1.0f);
     navEdges_.resize(tileCountX_ * tileCountZ_);
+
     for (int i = 0; i < 10; i++) {
         tileHeightMap_[GetTileIndex(i, 9)] = 2.0f;
         tileHeightMap_[GetTileIndex(i, 10)] = 2.0f;
@@ -68,10 +71,74 @@ TStaeg::TStaeg()
             }
         }
     }
+
+    occupantIDs_.resize(tileCountX_ * tileCountZ_, 0);
 }
 
 TStaeg::~TStaeg()
 {
+}
+
+void TStaeg::OccupyTiles(const uint32_t numUnits, const vector<uint32_t>& unitIDs, 
+    int tileIndex, const vector<pair<int, int>>& oldXZ, vector<pair<int, int>>& newXZ)
+{
+    if (tileIndex < 0 || tileIndex >= tileCountX_ * tileCountZ_) 
+        return;
+
+    // 이전 점유 상태 해제
+    for (size_t i = 0; i < numUnits; ++i) {
+        ReleaseTile(oldXZ[i].first, oldXZ[i].second);
+    }
+
+    // 방문 배열 초기화 비용 Zero (티켓 번호만 올림)
+    currentTicket_++;
+
+    vector<int> q;
+    q.reserve(numUnits * 4);
+    int head = 0;
+
+    q.push_back(tileIndex);
+    visitedTickets_[tileIndex] = currentTicket_;
+
+    uint32_t assignedCount = 0;
+
+    // BFS 탐색 시작
+    while (head < q.size() && assignedCount < numUnits) {
+        int currIdx = q[head++];
+
+        // 해당 타일이 비어있다면 점유 할당
+        if (occupantIDs_[currIdx] == 0) {
+            occupantIDs_[currIdx] = unitIDs[assignedCount];
+            newXZ[assignedCount] = GetTileIndexXZ(currIdx);
+            assignedCount++;
+            // 목표 인원을 다 채우면 즉시 종료
+            if (assignedCount == numUnits) break;
+        }
+
+        // 1D 인덱스에서 X, Z 복원
+        const auto&[currX, currZ] = GetTileIndexXZ(currIdx);
+
+        // 주변 8방향 탐색
+        for (int d = 0; d < 8; ++d) {
+            int nx = currX + Nav::dx[d];
+            int nz = currZ + Nav::dz[d];
+
+            // 맵 경계 체크
+            if (nx < 0 || nx >= tileCountX_ || nz < 0 || nz >= tileCountZ_) 
+                continue;
+
+            int nIdx = GetTileIndex(nx, nz);
+
+            if (visitedTickets_[nIdx] != currentTicket_) {
+                // 지형이 완전히 막힌 곳이 아닐 때만 큐에 삽입
+                if (navEdges_[nIdx].GetEdge(static_cast<Nav::Dir>(d)) != NavEdges::Type::Blocked) {
+                    // 방문처리
+                    visitedTickets_[nIdx] = currentTicket_;
+                    q.push_back(nIdx);
+                }
+            }
+        }
+    }
 }
 
 const vector<Nav::Dir>& TStaeg::RequestFlowField(int tx, int tz)
@@ -94,6 +161,40 @@ void TStaeg::ReleaseFlowField(int tx, int tz)
     if (--flowFields_[idx].refCount <= 0) {
         flowFields_.erase(idx); // 아무도 안 쓰면 삭제[cite: 1]
     }
+}
+
+bool TStaeg::TryOccupyTile(uint32_t unitID, int tx, int tz)
+{
+    if (tx < 0 || tx >= tileCountX_ || tz < 0 || tz >= tileCountZ_) 
+        return false;
+
+    int index = GetTileIndex(tx, tz);
+
+    // 이미 누군가 점유 중이라면 실패
+    if (occupantIDs_[index] != 0) {
+        return false;
+    }
+
+    occupantIDs_[index] = unitID;
+    return true;
+}
+
+bool TStaeg::UpdateOccupancy(uint32_t unitID, int oldX, int oldZ, int newX, int newZ)
+{
+    // 이전 위치 해제
+    int oldIdx = GetTileIndex(oldX, oldZ);
+    if (occupantIDs_[oldIdx] == unitID) {
+        occupantIDs_[oldIdx] = 0;
+    }
+
+    // 새 위치 점유 시도
+    return TryOccupyTile(unitID, newX, newZ);
+}
+
+void TStaeg::ReleaseTile(int tx, int tz)
+{
+    if (tx < 0 || tx >= tileCountX_ || tz < 0 || tz >= tileCountZ_) return;
+    occupantIDs_[GetTileIndex(tx, tz)] = 0;
 }
 
 float TStaeg::GetTileHeight(int tx, int tz) const
@@ -123,11 +224,31 @@ XMFLOAT3 TStaeg::GetTileOffset() const
     return tileOffset_;
 }
 
+XMFLOAT3 TStaeg::GetTileCenter(int tx, int tz) const
+{
+    if (tx < 0 || tx >= tileCountX_ || tz < 0 || tz >= tileCountZ_)
+        return XMFLOAT3(0.f, 0.f, 0.f); // Invalid Index
+
+    return XMFLOAT3(tileOffset_.x + tx * tileSize_, 
+        tileOffset_.y + GetTileHeight(tx, tz), 
+        tileOffset_.z + tz * tileSize_);   
+}
+
 inline int32_t TStaeg::GetTileIndex(int tx, int tz) const
 {
     if (tx < 0 || tz < 0 || tx >= tileCountX_ || tz >= tileCountZ_)
         return -1;
     return tz * tileCountX_ + tx;
+}
+
+inline pair<int, int> TStaeg::GetTileIndexXZ(int tileIndex) const
+{
+    if (tileIndex >= 0 && tileIndex < tileCountX_ * tileCountZ_) {
+        int tx = tileIndex % tileCountX_;
+        int tz = tileIndex / tileCountX_;
+        return {tx, tz};
+    }
+    return {-1, -1};
 }
 
 int TStaeg::GetTileIndexFromWorldPos(const XMFLOAT3& worldPos) const
@@ -143,6 +264,19 @@ int TStaeg::GetTileIndexFromWorldPos(const XMFLOAT3& worldPos) const
     }
 
     return GetTileIndex(tx, tz);
+}
+
+XMFLOAT3 TStaeg::GetWorldPosFromTileIndex(int tx, int tz) const
+{
+    if (tx < 0 || tx >= tileCountX_ || tz < 0 || tz >= tileCountZ_) {
+        return XMFLOAT3(0.f, 0.f, 0.f); // Invalid Index
+    }
+
+    float x = tileOffset_.x + tx * tileSize_ + tileSize_ * 0.5f;
+    float z = tileOffset_.z + tz * tileSize_ + tileSize_ * 0.5f;
+    float y = GetTileHeight(tx, tz);
+
+    return XMFLOAT3(x, y, z);
 }
 
 void TStaeg::CreateFlowFields(int tx, int tz, FlowField& newField)

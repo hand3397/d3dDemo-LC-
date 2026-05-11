@@ -68,7 +68,7 @@ void ContactSolver::SolveVelocityConstraints()
 		ContactConstraint& contactConstraint = contactConstraints_[i];
         // kinematic과 kinematic의 contact는 노말방향 속도 처리, 노말방향 위치 보간만
 		if (contactConstraint.isKinematicContact_) {
-			SolveKinematicVelocityConstraints(i);
+			//SolveKinematicVelocityConstraints(i);
             continue;
         }
 		int32_t numPoints = contactConstraint.numPoints;
@@ -243,7 +243,7 @@ void ContactSolver::SolvePositionConstraints()
 
         // kinematic과 kinematic의 contact는 따로 처리
 		if (contactConstraint.isKinematicContact_) {
-			SolveKinematicPositionConstraints(i);
+			//SolveKinematicPositionConstraints(i);
 			continue;
         }
 

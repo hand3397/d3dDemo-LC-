@@ -1,7 +1,7 @@
 #include "Character.h"
 
-Character::Character(const XMFLOAT3& position, const AtlasAnimatorProfile* profile) :
-    GameObject(XMFLOAT3(0.f, 0.f, 0.f), position, spe::RigidbodyType::KINEMATIC), fsm_(this)
+Character::Character(uint32_t id, const XMFLOAT3& position, const AtlasAnimatorProfile* profile) :
+    GameObject(XMFLOAT3(0.f, 0.f, 0.f), position, spe::RigidbodyType::KINEMATIC), fsm_(this), ID_(id)
 {
     // character의 충돌체는 캡슐
     spe::CapsuleShape* capsuleShape = new spe::CapsuleShape(XMFLOAT3(0.f, 1.f, 0.f), 0.1f, 0.3f);
@@ -22,8 +22,19 @@ void Character::Update(float dt)
 {
     position_.y = -0.75f + 1.0f;
 
-    //MoveTargetPosXZ(dt);
-
+    // 현재 위치와 targetPos가 가까우면 targetPos로 이동
+    XMVECTOR currentPos = XMVectorSet(position_.x, 0.f, position_.z, 1.0f);
+    XMVECTOR targetPos = XMVectorSet(targetPos_.x, 0.f, targetPos_.z, 1.0f);
+    if (XMVectorGetX(XMVector2LengthEst(targetPos - currentPos)) < 0.3f) {
+        MoveTargetPosXZ(dt);
+    }
+    // 멀다면 flowField를 따라 이동
+    else {
+        XMFLOAT3 vel;
+        XMStoreFloat3(&vel, XMLoadFloat3(&flowFieldDir_) * moveSpeed_);
+        rigidbody_.SetLinearVelocity(vel);
+    }
+    
     animator_.Update(dt);
     fsm_.Update();
     
@@ -31,6 +42,13 @@ void Character::Update(float dt)
         ri->atlasIndex_ = animator_.GetCurrentAtlasIndex();
 
 	GameObject::Update(dt);
+}
+
+void Character::Move(const XMFLOAT3& dir)
+{
+    isMoving_ = true;
+
+    flowFieldDir_ = dir;
 }
 
 void Character::MoveTargetPosXZ(float dt)
@@ -84,8 +102,10 @@ void Character::MoveTargetPosXZ(float dt)
     }
 }
 
-void Character::SetTargetPos(const XMFLOAT3& targetPos)
+void Character::SetTargetPos(int tx, int tz, const XMFLOAT3& targetPos)
 {
+    currentTileX_ = tx;
+    currentTileZ_ = tz; 
     targetPos_ = targetPos;
 }
 
@@ -102,6 +122,22 @@ uint32_t Character::GetAtlasIndex() const
 bool Character::IsMoving() const
 {
     return isMoving_;
+}
+
+int32_t Character::GetID() const
+{
+    return ID_;
+}
+
+pair<int, int> Character::GetCurrentTileXZ() const
+{
+    return {currentTileX_, currentTileZ_};
+}
+
+void Character::SetCurrentTileXZ(int x, int z)
+{
+    currentTileX_ = x;
+    currentTileZ_ = z;
 }
 
 // FSM States

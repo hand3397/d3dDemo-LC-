@@ -148,6 +148,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="DynamicTree.cpp" />
+    <ClCompile Include="ContactFilter.cpp" />
     <ClCompile Include="Fixture.cpp" />
     <ClCompile Include="FrameResource.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -217,6 +218,7 @@
     <ClInclude Include="d3dUtil.h" />
     <ClInclude Include="DDSTextureLoader.h" />
     <ClInclude Include="DynamicTree.h" />
+    <ClInclude Include="ContactFilter.h" />
     <ClInclude Include="Fixture.h" />
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="FSM.h" />

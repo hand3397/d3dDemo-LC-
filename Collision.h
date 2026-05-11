@@ -1,5 +1,8 @@
 #pragma once
-#include "d3dUtil.h"
+#include <cstdint>
+#include <DirectXMath.h>
+
+using namespace DirectX;
 
 namespace spe {; 
 

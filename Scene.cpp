@@ -30,7 +30,7 @@ void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, 
 	
 	vector<Character*> units(NUM_CHARACTERS);
 	for (int i = 0; i < NUM_CHARACTERS; ++i) {
-		characters_[i] = make_unique<Character>(XMFLOAT3(0.3f * i - (NUM_CHARACTERS / 4), 0.0f, 1.5f), animationManager_.GetAtlasProfile("Knight"));
+		characters_[i] = make_unique<Character>(i + 1, XMFLOAT3(0.3f * i - (NUM_CHARACTERS / 4), 0.0f, 1.5f), animationManager_.GetAtlasProfile("Knight"));
 		units[i] = characters_[i].get();
 	}
 	corps = new Corps();
@@ -39,13 +39,14 @@ void Scene::InitScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, 
 
 	BuildScene(device, cmdList);
 
+	/*
 	vector<XMFLOAT3> targetPos(NUM_CHARACTERS);
 	stage_->DeployTile(targetPos, NUM_CHARACTERS, 4, 4);
 
 	for (int i = 0; i < NUM_CHARACTERS; ++i) {
 		characters_[i]->SetTargetPos(targetPos[i]);
 	}
-
+	*/
 	// 현재 scene에 빌드된 rigidbody를 전부 등록한다.
 	physicsWorld_.InitSceneObjects();
 }
@@ -87,7 +88,7 @@ void Scene::Update(const GameTimer& gt)
 		player_->Update(dt);
 	}
 
-    corps->Update(dt);
+    corps->Update(tx, tz, dt);
 
 	for (int i = 0; i < NUM_CHARACTERS; ++i) {
         if (characters_[i])
@@ -894,10 +895,10 @@ void Scene::AnimateMaterials(float dt)
 
 void Scene::Pick(int mouseX, int mouseY)
 {
-	/*
 	if (mainCamera_ != nullptr) {
 		const spe::Ray ray = mainCamera_->GetPickingRay(mouseX, mouseY, clientWidth_, clientHeight_);
 		
+		/*
 		pair<int, int> tileIndex = stage_->GetTileIndex(ray);
 		if (tileIndex.first == -1) {
 			return;
@@ -912,6 +913,20 @@ void Scene::Pick(int mouseX, int mouseY)
 		for (int i = 0; i < NUM_CHARACTERS; ++i) {
             characters_[i]->SetTargetPos(targetPos[i]);
 		}
-	}*/
+		*/
+
+		float t = (1.0f - ray.origin.y) / ray.dir.y;
+
+		// 4. 구한 t를 이용해 X와 Z 좌표 도출
+		float hitX = ray.origin.x + ray.dir.x * t;
+		float hitZ = ray.origin.z + ray.dir.z * t;
+
+        corps->CommandMove(XMFLOAT3(hitX, 1.f, hitZ));
+
+		int tileIndex = tStage.GetTileIndexFromWorldPos(XMFLOAT3(hitX, 1.f, hitZ));
+		const auto& [x, z] = tStage.GetTileIndexXZ(tileIndex);
+		tx = x;
+		tz = z;
+	}
 }
 

@@ -53,6 +53,7 @@ public:
 
     TStaeg tStage;
     Corps* corps = nullptr;
+    int tx = 2, tz = 2;
 private:
 
     void BuildScene(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);

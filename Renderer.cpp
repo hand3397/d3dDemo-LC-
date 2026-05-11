@@ -1039,7 +1039,7 @@ void Renderer::UpdateDebugMesh(Scene* scene)
     float tileSize = tStage.GetTileSize();
     XMFLOAT3 tileOffset = tStage.GetTileOffset();
 
-    const vector<Nav::Dir>& tileDirs = tStage.RequestFlowField(2, 2);
+    const vector<Nav::Dir>& tileDirs = tStage.RequestFlowField(scene->tx, scene->tz);
 	for (int x = 0; x < tileCountX; ++x) {
 		for (int z = 0; z < tileCountZ; ++z) {
 			int tileIndex = tStage.GetTileIndex(x, z);
@@ -1050,6 +1050,12 @@ void Renderer::UpdateDebugMesh(Scene* scene)
 		}
 	}
 
+	const auto& tileIndices = scene->corps->GetTileIndicesXZ_();
+	for (auto [x, z] : tileIndices) {
+		XMFLOAT3 tileCenter = tStage.GetTileCenter(x, z);
+        CreatePoint(tileCenter, DirectX::Colors::Yellow);
+	}
+	
 	memcpy(mappedData_, vertices.data(), sizeof(ColorVertex) * vertices.size());
 
 	debugMesh_.vertexByteStride_ = sizeof(ColorVertex);
